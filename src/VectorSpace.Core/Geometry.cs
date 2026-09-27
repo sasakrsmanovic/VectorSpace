@@ -46,7 +46,7 @@ public readonly record struct Matrix2D(double M11, double M12, double M21, doubl
         return new(c, s, -s, c, 0, 0);
     }
     public Vec2 Map(Vec2 p) => new(p.X * M11 + p.Y * M21 + DX, p.X * M12 + p.Y * M22 + DY);
-    public RectD Map(RectD r) => RectD.Bounds([Map(new(r.X, r.Y)), Map(new(r.Right, r.Y)), Map(new(r.Right, r.Bottom)), Map(new(r.X, r.Bottom))]);
+    public RectD Map(RectD r) => RectD.Bounds([Map(new Vec2(r.X, r.Y)), Map(new Vec2(r.Right, r.Y)), Map(new Vec2(r.Right, r.Bottom)), Map(new Vec2(r.X, r.Bottom))]);
     public bool TryInvert(out Matrix2D inverse)
     {
         var d = M11 * M22 - M12 * M21;

@@ -35,7 +35,7 @@ public sealed class LayerRow : UserControl
         var visibility = new IconButton(entry.Visible ? "eye" : "eye-off", entry.Visible ? "Hide " + entry.Name : "Show " + entry.Name, () => entry.ToggleVisibility?.Invoke()) { Width = 22, Height = 28, Padding = new(4), Opacity = entry.Visible ? 0 : .7, IsTabStop = false };
         var locked = new IconButton(entry.Locked ? "lock" : "unlock", entry.Locked ? "Unlock " + entry.Name : "Lock " + entry.Name, () => entry.ToggleLocked?.Invoke()) { Width = 22, Height = 28, Padding = new(4), Opacity = entry.Locked ? .7 : 0, IsTabStop = false };
         var grid = Studio.Columns((expander, 20), (icon, 14), (title, -1), (locked, 22), (visibility, 22)); grid.ColumnSpacing = 5; grid.Height = 30; grid.Margin = new(Math.Min(96, entry.Depth * 14), 0, 4, 0);
-        PointerEntered += ShowActions; PointerExited += HideActions;
+        grid.PointerEntered += ShowActions; grid.PointerExited += HideActions;
         void ShowActions(object sender, PointerRoutedEventArgs e) { visibility.Opacity = locked.Opacity = .65; }
         void HideActions(object sender, PointerRoutedEventArgs e) { visibility.Opacity = entry.Visible ? 0 : .7; locked.Opacity = entry.Locked ? .7 : 0; }
         AutomationProperties.SetName(this, entry.Name); Content = grid;

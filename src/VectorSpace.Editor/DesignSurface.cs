@@ -41,7 +41,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     public bool IsPresenting => _presentedFrame is not null;
     public bool IsTextEditing => _textEditor is not null;
     public event Action<Vec2, CommentThread?>? CommentRequested;
-    public event Action<Point>? ContextRequested;
+    public event Action<Point>? CanvasContextRequested;
     public event Action<bool>? PresentationChanged;
     public event Action<string>? StatusChanged;
     public EditorSession? Session
@@ -74,8 +74,13 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             if (hit?.Kind == NodeKind.Text) { BeginTextEdit(hit); e.Handled = true; }
             else if (hit?.Kind == NodeKind.Path && hit.Points.Count > 0) { Session.Select(hit); _vectorNode = hit; _canvas.Invalidate(); e.Handled = true; }
         };
-        _canvas.RightTapped += (_, e) => { ContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; };
-        _canvas.SizeChanged += (_, _) => _canvas.Invalidate();
+        _canvas.RightTapped += (_, e) => { CanvasContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; };
+        _canvas.SizeChanged += (_, _) =>
+        {
+            if (IsPresenting && Session?.Document.Find(_presentedFrame) is { } frame)
+                Session.Viewport.Fit(frame.WorldBounds, ActualWidth, ActualHeight, 32);
+            _canvas.Invalidate();
+        };
     }
     private void SessionChanged(object? sender, EditorChangedEventArgs e)
     {
@@ -293,7 +298,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (aspect) { var ratio = Math.Max(newW / Math.Max(1, width), newH / Math.Max(1, height)); newW = width * ratio; newH = height * ratio; if (_resizeHandle is 0 or 6 or 7) left = right - newW; if (_resizeHandle is 0 or 1 or 2) top = bottom - newH; }
         if (single)
         {
-            var node = editor.SelectionRoots[0]; var localCenter = original.LocalMatrix.Map(new(left + newW / 2, top + newH / 2));
+            var node = editor.SelectionRoots[0]; var localCenter = original.LocalMatrix.Map(new Vec2(left + newW / 2, top + newH / 2));
             node.Layout.HugWidth = node.Layout.HugHeight = false; LayoutEngine.Resize(node, newW, newH); node.X = localCenter.X - newW / 2; node.Y = localCenter.Y - newH / 2;
         }
         else
@@ -301,7 +306,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             foreach (var node in editor.SelectionRoots)
             {
                 if (!_originals.TryGetValue(node.Id, out var old)) continue;
-                var parent = node.Parent?.WorldMatrix ?? Matrix2D.Identity; var oldCenter = parent.Map(new(old.X + old.Width / 2, old.Y + old.Height / 2));
+                var parent = node.Parent?.WorldMatrix ?? Matrix2D.Identity; var oldCenter = parent.Map(new Vec2(old.X + old.Width / 2, old.Y + old.Height / 2));
                 var transformed = new Vec2(_startBounds.X + left + (oldCenter.X - _startBounds.X) * newW / width, _startBounds.Y + top + (oldCenter.Y - _startBounds.Y) * newH / height);
                 var localCenter = parent.Inverse.Map(transformed); node.Width = Math.Max(1, old.Width * newW / width); node.Height = Math.Max(1, old.Height * newH / height); node.X = localCenter.X - node.Width / 2; node.Y = localCenter.Y - node.Height / 2;
             }
@@ -318,7 +323,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     public void CancelGesture()
     {
-        _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null;
+        _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _vectorNode = null;
         Session?.CancelInteraction(); _canvas.Invalidate();
     }
     private static DesignNode NewNode(EditorTool tool, Vec2 point)
@@ -393,7 +398,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             }
         }
     }
-    public void Dispose()
+    public new void Dispose()
     {
         if (_disposed) return; _disposed = true; if (_session is not null) _session.Changed -= SessionChanged; Renderer.Dispose();
     }

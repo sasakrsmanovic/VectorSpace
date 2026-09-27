@@ -189,7 +189,7 @@ public static class NodeGeometry
     /// <summary>Re-expresses a node in another rigid/scaled coordinate system without losing its center.</summary>
     public static void SetLocalMatrix(DesignNode node, Matrix2D matrix)
     {
-        var center = matrix.Map(new(node.Width / 2, node.Height / 2));
+        var center = matrix.Map(new Vec2(node.Width / 2, node.Height / 2));
         var sx = Math.Sqrt(matrix.M11 * matrix.M11 + matrix.M12 * matrix.M12);
         var determinant = matrix.M11 * matrix.M22 - matrix.M12 * matrix.M21;
         var sy = sx > 1e-9 ? determinant / sx : 1;

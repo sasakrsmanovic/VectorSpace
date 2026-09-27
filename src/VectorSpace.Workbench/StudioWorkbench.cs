@@ -50,7 +50,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         Content = _root;
         Session.Changed += OnSessionChanged;
         Surface.CommentRequested += (anchor, thread) => RunAsync(() => EditCommentAsync(anchor, thread));
-        Surface.ContextRequested += ShowCanvasMenu;
+        Surface.CanvasContextRequested += ShowCanvasMenu;
         Surface.StatusChanged += message => ShowStatus(message);
         Surface.PresentationChanged += presenting =>
         {
@@ -69,7 +69,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         };
         Surface.SizeChanged += (_, _) => { if (!_initialFit && Surface.ActualWidth > 200) { _initialFit = true; Surface.Fit(firstFrame: true); } };
         Loaded += (_, _) => { RefreshAll(); if (!_initialFit && Surface.ActualWidth > 200) { _initialFit = true; Surface.Fit(firstFrame: true); } };
-        _autosaveTimer.Tick += (_, _) => { _autosaveTimer.Stop(); RunAsync(AutosaveAsync); };
+        _autosaveTimer.Tick += async (_, _) => { _autosaveTimer.Stop(); await AutosaveAsync(); };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); _toastBorder.Visibility = Visibility.Collapsed; };
         RefreshAll();
     }
@@ -262,7 +262,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         var block = Studio.Text(text, size, color); block.TextWrapping = TextWrapping.Wrap; block.TextTrimming = TextTrimming.None; block.LineHeight = size * 1.55; return block;
     }
     private static string Glyph(NodeKind kind) => kind == NodeKind.Path ? "pen" : kind.ToString().ToLowerInvariant();
-    public void Dispose()
+    public new void Dispose()
     {
         if (_disposed) return; _disposed = true; Session.Changed -= OnSessionChanged; _autosaveTimer.Stop(); _toastTimer.Stop(); Surface.Dispose();
     }

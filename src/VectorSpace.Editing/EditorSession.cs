@@ -101,7 +101,8 @@ public sealed class EditorSession
     public void CommitInteraction()
     {
         if (_before is null) return;
-        LayoutEngine.Arrange(Page.Nodes);
+        ComponentService.Synchronize(Document);
+        foreach (var page in Document.Pages) LayoutEngine.Arrange(page.Nodes);
         var before = _before; _before = null; var after = Capture();
         if (before.Json != after.Json)
         {
@@ -149,7 +150,20 @@ public sealed class EditorSession
         var nodes = Selection.Where(n => !n.IsEffectivelyLocked).ToArray(); if (nodes.Length == 0) return;
         Edit(label, () => { foreach (var n in nodes) update(n); });
     }
-    public void MoveSelection(double x, double y) => UpdateSelection("Move layers", n => { n.X += x; n.Y += y; });
+    public void MoveSelection(double x, double y)
+    {
+        var nodes = SelectionRoots.Where(n => !n.IsEffectivelyLocked).ToArray();
+        if (nodes.Length == 0) return;
+        Edit("Move layers", () =>
+        {
+            foreach (var node in nodes)
+            {
+                var inverse = node.Parent?.WorldMatrix.Inverse ?? Matrix2D.Identity;
+                var delta = inverse.Map(new Vec2(x, y)) - inverse.Map(Vec2.Zero);
+                node.X += delta.X; node.Y += delta.Y;
+            }
+        });
+    }
     public void DuplicateSelection(double offset = 24)
     {
         var nodes = SelectionRoots.ToArray(); if (nodes.Length == 0) return;
@@ -164,7 +178,12 @@ public sealed class EditorSession
         }
         _selected.Clear(); _selected.UnionWith(newIds);
     }
-    public string CopySelection() => DocumentJson.SaveNodes(SelectionRoots);
+    public string CopySelection() => DocumentJson.SaveNodes(SelectionRoots.Select(node =>
+    {
+        var clone = DocumentJson.CloneNode(node);
+        NodeGeometry.SetLocalMatrix(clone, node.WorldMatrix);
+        return clone;
+    }));
     public void Paste(string json)
     {
         var nodes = DocumentJson.LoadNodes(json); if (nodes.Count == 0) return;

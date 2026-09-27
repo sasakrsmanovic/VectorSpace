@@ -8,9 +8,21 @@ public static class ComponentService
 {
     public static void MakeComponent(EditorSession editor)
     {
-        if (editor.SelectionRoots.Count != 1 || editor.Primary is null) return;
-        editor.UpdateSelection("Create component", n => { n.Kind = NodeKind.Component; n.ComponentId = null; });
+        if (editor.SelectionRoots.Count != 1 || editor.Primary is not { } node || node.IsEffectivelyLocked) return;
+        editor.Edit("Create component", () =>
+        {
+            if (node.IsContainer && node.Kind != NodeKind.Instance)
+            {
+                node.Kind = NodeKind.Component; node.ComponentId = null; return;
+            }
+            var siblings = node.Parent?.Children ?? editor.Page.Nodes;
+            var index = siblings.IndexOf(node);
+            var bounds = node.LocalMatrix.Map(node.LocalBounds);
+            var component = new DesignNode { Kind = NodeKind.Component, Name = node.Name + " / Component", X = bounds.X, Y = bounds.Y, Width = bounds.Width, Height = bounds.Height, Fills = [], Parent = node.Parent };
+            siblings.RemoveAt(index); node.X -= bounds.X; node.Y -= bounds.Y; component.Add(node); siblings.Insert(index, component); editor.Select(component);
+        });
     }
+
     public static DesignNode InsertInstance(EditorSession editor, DesignNode component, Vec2 position)
     {
         if (component.Kind != NodeKind.Component) throw new ArgumentException("The source must be a component.", nameof(component));

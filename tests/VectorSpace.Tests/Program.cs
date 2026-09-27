@@ -14,7 +14,7 @@ void Throws(Action action) { try { action(); } catch { return; } throw new Excep
 DesignNode Node(double x = 0, double y = 0, double w = 100, double h = 100) => new() { X = x, Y = y, Width = w, Height = h };
 EditorSession Editor(params DesignNode[] nodes) => new(new() { Pages = [new() { Nodes = nodes.ToList() }] });
 
-Test("affine composition and inversion", () => { var matrix = Matrix2D.Rotation(37) * Matrix2D.Translation(123, -8); var p = matrix.Inverse.Map(matrix.Map(new(40, 60))); Equal(p.X, 40); Equal(p.Y, 60); });
+Test("affine composition and inversion", () => { var matrix = Matrix2D.Rotation(37) * Matrix2D.Translation(123, -8); var p = matrix.Inverse.Map(matrix.Map(new Vec2(40, 60))); Equal(p.X, 40); Equal(p.Y, 60); });
 Test("singular matrix rejected", () => Check(!Matrix2D.Scale(0, 1).TryInvert(out _)));
 Test("transformed bounds", () => { var b = Matrix2D.Rotation(90).Map(new RectD(0, 0, 100, 50)); Equal(b.Width, 50); Equal(b.Height, 100); });
 Test("nested world transform", () => { var parent = Node(100, 200); var child = parent.Add(Node(10, 20)); Equal(child.WorldBounds.X, 110); Equal(child.WorldBounds.Y, 220); });
@@ -62,6 +62,12 @@ Test("Skia clipping hit test", () => { using var r = new SceneRenderer(); var p 
 Test("Skia PNG export writes pixels", () => { using var r = new SceneRenderer(); var n = Node(); n.Fill = "#FF0000"; var bytes = r.ExportPng([n], n.WorldBounds); using var image = SKBitmap.Decode(bytes); Check(image.Width == 100 && image.GetPixel(50, 50).Red > 240); });
 Test("Skia export size limit", () => { using var r = new SceneRenderer(); Throws(() => r.ExportPng([Node()], new(0, 0, 20000, 20000))); });
 Test("Skia Boolean union", () => { using var r = new SceneRenderer(); var a = Node(); var b = Node(50, 0); var e = Editor(a, b); e.Select([a.Id, b.Id]); BooleanOperations.Apply(e, r, BooleanOperation.Union); Equal(e.Page.Nodes.Count, 1); Equal(e.Primary!.Width, 150); e.Undo(); Equal(e.Page.Nodes.Count, 2); });
+
+Test("nested selection nudges once", () => { var parent = Node(); var child = parent.Add(Node(10, 10)); var e = Editor(parent); e.Select([parent.Id, child.Id]); e.MoveSelection(1, 0); Equal(parent.X, 1); Equal(child.X, 10); });
+Test("clipboard captures world placement", () => { var parent = Node(100, 200); var child = parent.Add(Node(10, 20)); var e = Editor(parent); e.Select(child); e.Paste(e.CopySelection()); Equal(e.Primary!.X, 134); Equal(e.Primary.Y, 244); });
+Test("component creation preserves leaf content", () => { var n = Node(30, 40); n.Fill = "#FF0000"; var e = Editor(n); e.Select(n); ComponentService.MakeComponent(e); Check(e.Primary!.Kind == NodeKind.Component); Equal(e.Primary.Children.Count, 1); Check(e.Primary.Children[0].Fill == "#FF0000"); Equal(e.Primary.Children[0].WorldBounds.X, 30); e.Undo(); Check(e.Primary!.Kind == NodeKind.Rectangle); });
+Test("source edits synchronize instances atomically", () => { var c = Node(); c.Kind = NodeKind.Component; c.Add(new() { Kind = NodeKind.Text, Text = "Before" }); var e = Editor(c); var i = ComponentService.InsertInstance(e, c, new(300, 0)); var instanceId = i.Id; e.Select(c.Children[0]); e.UpdateSelection("Edit source", n => n.Text = "After"); Check(e.Document.Find(instanceId)!.Children[0].Text == "After"); e.Undo(); Check(e.Document.Find(instanceId)!.Children[0].Text == "Before"); });
+Test("sample is valid and renderable", () => { var document = SampleDocument.Create(); DocumentJson.Validate(document); using var renderer = new SceneRenderer(); var frame = document.Pages[0].Nodes[0]; var png = renderer.ExportPng([frame], frame.WorldBounds, .25); using var bitmap = SKBitmap.Decode(png); Check(bitmap.Width == 260 && bitmap.Height == 205); });
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }

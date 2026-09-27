@@ -118,7 +118,7 @@ public sealed partial class StudioWorkbench
         var weights = new[] { "Regular", "Medium", "Semibold", "Bold" }; var weightValues = new[] { 400, 500, 600, 700 };
         section.Body.Children.Add(Studio.Columns((Studio.Choice(weights, weights[Math.Clamp((node.FontWeight - 400) / 100, 0, 3)], value => Change("Font weight", n => n.FontWeight = weightValues[Array.IndexOf(weights, value)]), "Font weight"), -1), (Number("T", node.FontSize, v => Change("Font size", n => n.FontSize = v), 1, 4096), 92)));
         section.Body.Children.Add(Studio.Columns((Number("↕", node.LineHeight * 100, v => Change("Line height", n => n.LineHeight = v / 100), 20, 1000), -1), (Number("↔", node.LetterSpacing, v => Change("Letter spacing", n => n.LetterSpacing = v), -100, 100), -1)));
-        var align = new SegmentedControl(["Left", "Center", "Right"], (int)node.TextAlign); align.SelectionChanged += index => Change("Text alignment", n => n.TextAlign = (TextAlignment)index); section.Body.Children.Add(align);
+        var align = new SegmentedControl(["Left", "Center", "Right"], (int)node.TextAlign); align.SelectionChanged += index => Change("Text alignment", n => n.TextAlign = (VectorSpace.Core.TextAlignment)index); section.Body.Children.Add(align);
         var text = Studio.Input(node.Text, "Text content"); text.AcceptsReturn = true; text.TextWrapping = TextWrapping.Wrap; text.Height = 68;
         text.LostFocus += (_, _) => { if (text.Text != node.Text) Change("Change text", n => { n.Text = text.Text; ComponentService.SetOverride(n, text: text.Text); }); }; section.Body.Children.Add(text);
         section.Body.Children.Add(new StudioButton("Edit on canvas", () => Surface.BeginTextEdit(node)));
