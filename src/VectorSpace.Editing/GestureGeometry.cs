@@ -19,15 +19,33 @@ public static class GestureGeometry
             if (child.Id == old.Id) Restore(child, old);
         }
     }
+    /// <summary>Apply an explicit local resize box while retaining its normalized anchor under clamping.</summary>
     public static void Resize(DesignNode target, DesignNode baseline, double left, double top, double width, double height)
     {
+        var changesWidth = Math.Abs(width - baseline.Width) > 1e-7;
+        var changesHeight = Math.Abs(height - baseline.Height) > 1e-7;
+        var anchor = new Vec2(changesWidth ? left / (baseline.Width - width) : 0,
+            changesHeight ? top / (baseline.Height - height) : 0);
+        ApplyResize(target, baseline, new(new(left, top, width, height), anchor, changesWidth, changesHeight));
+    }
+
+    /// <summary>Resize using the captured baseline, including rotated/flipped/nested nodes.
+    /// Only manipulated axes become fixed; the other axis keeps its hug/fill mode.</summary>
+    public static void ResizeFromHandle(DesignNode target, DesignNode baseline, ResizeHandle handle,
+        Vec2 localPointer, bool preserveAspect = false, bool fromCenter = false) =>
+        ApplyResize(target, baseline, ResizeGeometry.Calculate(baseline, handle, localPointer, preserveAspect, fromCenter));
+
+    private static void ApplyResize(DesignNode target, DesignNode baseline, ResizePlan plan)
+    {
         Restore(target, baseline);
-        target.Layout.HugWidth = target.Layout.HugHeight = false;
-        target.FillWidth = target.FillHeight = false;
-        width = Math.Clamp(width, Math.Max(1, target.MinWidth), Math.Max(target.MinWidth, target.MaxWidth));
-        height = Math.Clamp(height, Math.Max(1, target.MinHeight), Math.Max(target.MinHeight, target.MaxHeight));
-        var center = baseline.LocalMatrix.Map(new Vec2(left + width / 2, top + height / 2));
-        LayoutEngine.Resize(target, width, height);
+        if (plan.ChangesWidth) { target.Layout.HugWidth = false; target.FillWidth = false; }
+        if (plan.ChangesHeight) { target.Layout.HugHeight = false; target.FillHeight = false; }
+        var anchorBefore = baseline.LocalMatrix.Map(new Vec2(plan.Bounds.X + plan.Bounds.Width * plan.Anchor.X, plan.Bounds.Y + plan.Bounds.Height * plan.Anchor.Y));
+        LayoutEngine.Resize(target, plan.Bounds.Width, plan.Bounds.Height);
+        // Reflow can change the untouched hugging axis. Use the actual arranged size and
+        // the original linear transform, not an axis-aligned world bounding box.
+        var offset = new Vec2((.5 - plan.Anchor.X) * target.Width, (.5 - plan.Anchor.Y) * target.Height);
+        var center = anchorBefore + baseline.LocalMatrix.Map(offset) - baseline.LocalMatrix.Map(Vec2.Zero);
         target.X = center.X - target.Width / 2; target.Y = center.Y - target.Height / 2;
     }
     public static void Rotate(DesignNode target, DesignNode baseline, Vec2 worldPivot, double degrees)

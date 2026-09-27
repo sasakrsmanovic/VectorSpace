@@ -11,7 +11,7 @@ VectorSpace brings a compact, UI3-style design workspace to a real Uno applicati
 
 ![VectorSpace running in the browser](docs/images/workbench.png)
 
-**Status: 0.2.0-alpha.1.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+**Status: 0.2.0-alpha.2.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
 
@@ -24,7 +24,7 @@ Windows, macOS, Linux and browser hosts share the same workbench and canvas. Bro
 - **Vector editing:** rectangles, rounded rectangles, ellipses, lines, arrows, polygons, stars, frames, sections, slices, cubic pen paths, freehand paths, editable text, and Boolean path operations.
 - **Canvas interaction:** selection/deep selection, marquee, move, eight resize handles, rotation, shift constraints, alt-drag duplication, snapping, guides, rulers, grid, zoom-to-cursor, pan, touch gestures, outlines, and inline text editing.
 - **Document workflows:** pages, searchable/recyclable layers, rename, visibility, locking, grouping, stacking, alignment/distribution, clipboard, transactional undo/redo, validated JSON persistence, safe SVG interchange and PNG export.
-- **Design properties:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, corner radius, drop shadows, typography, horizontal/vertical wrapping, grid tracks/spans, min/max-constrained fill, baseline alignment, hug sizing, absolute children, and edge/scale constraints.
+- **Design properties:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, corner radius, drop shadows, typography, horizontal/vertical wrapping, grid tracks/spans, min/max-constrained fill, axis-preserving hug/fill resize, hug sizing, absolute children, and edge/scale constraints.
 - **Reusable content and review:** local component sets and variants, linked instances with stable descendant identities, text/fill overrides, typed local variables, aliases and inherited modes, detach/reset, local comments, and clickable frame-to-frame prototypes.
 
 **Design systems:** use **Local variables** in the main menu or quick actions; bind properties and choose modes in the Variables inspector. Use **Add variant** on a component or **Combine as variants** on sibling components, then insert from Assets and switch instance properties. See the [design-system guide](docs/DESIGN_SYSTEMS.md).

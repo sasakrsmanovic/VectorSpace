@@ -1,6 +1,6 @@
 # Validation and delivery
 
-The engine regression runner covers 145 scenarios: transforms, layout/constraints, snapping, document validation, safe SVG parsing, transactional history, selection/clipboard, components, hit testing, PNG pixels, Boolean paths, and sample rendering. The expanded suite includes wrap/grid/baseline and scoped selection behavior, variable aliases/modes/bindings, instance identity/override stability, variant swaps, clipboard dependencies, cycle/expansion limits, actual variable-driven PNG pixels, and indexed snapping equivalence/allocation checks.
+The engine regression runner covers 168 scenarios: transforms, layout/constraints, snapping, document validation, safe SVG parsing, transactional history, selection/clipboard, components, hit testing, PNG pixels, Boolean paths, and sample rendering. The expanded suite includes wrap/grid, baseline-relative resize gestures and scoped selection behavior, variable aliases/modes/bindings, instance identity/override stability, variant swaps, clipboard dependencies, cycle/expansion limits, actual variable-driven PNG pixels, and indexed snapping equivalence/allocation checks.
 
 Published-browser acceptance tests use Chromium and real pointer/keyboard events. They cover creation, nudging, duplication/deletion, undo/redo, editable-document download, IndexedDB recovery after reload, cursor-anchored zoom, pen/freehand-related state, compact layout, resize handles, and cancelling/restarting an unfinished pen transaction. Read-only `?test=1` diagnostics are used for assertions; tests do not mutate document state through JavaScript.
 
@@ -11,3 +11,7 @@ Published-browser acceptance tests use Chromium and real pointer/keyboard events
 The design-system browser suite opens an actual native document through the file picker and drives variable modes, variant property dropdowns and local-variable authoring through actual mouse/keyboard events. Read-only named-control bounds support locating Skia-rendered controls and popups; the diagnostics timer exists only in opt-in test mode. A configured test is not a passing result: consult the corresponding Actions run.
 
 The first desktop/browser screenshot was captured from an actual running application, not a static UI mockup. Pixel-identical Figma parity, broad assistive-technology certification and every native operating-system interaction are not claimed.
+
+## Resize follow-up
+
+Twenty-three additional native cases cover all handles under rotation/reflection, anchored size clamping, retained hug/fill, proportional side shrinking, reflow, and history. Two browser tests import documents, drag handles, check undo/redo and inspect saved hug-height state. Together with the design-system and original editor tests this makes nine browser cases. See [resizing semantics](RESIZING.md). Passing results must be checked on the exact commit; test counts describe the suite, not a guarantee that an unexecuted build passed.
