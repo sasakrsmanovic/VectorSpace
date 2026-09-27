@@ -19,6 +19,15 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet run --project tests/VectorSpace.Tests -c Release
+      - name: Measure indexed snapping and verify reference equivalence
+        run: |
+          mkdir -p artifacts/benchmarks
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark > artifacts/benchmarks/snap-index.json
+          cat artifacts/benchmarks/snap-index.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VectorSpace-performance
+          path: artifacts/benchmarks
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 30
