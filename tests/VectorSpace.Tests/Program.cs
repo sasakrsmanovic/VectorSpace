@@ -72,6 +72,7 @@ Test("source edits synchronize instances atomically", () => { var c = Node(); c.
 Test("sample is valid and renderable", () => { var document = SampleDocument.Create(); DocumentJson.Validate(document); using var renderer = new SceneRenderer(); var frame = document.Pages[0].Nodes[0]; var png = renderer.ExportPng([frame], frame.WorldBounds, .25); using var bitmap = SKBitmap.Decode(png); Check(bitmap.Width == 260 && bitmap.Height == 205); });
 
 ParityTests.Register(Test);
+ResizeTests.Register(Test);
 DesignSystemTests.Register(Test);
 
 var failed = 0;

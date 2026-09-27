@@ -260,7 +260,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 {
                     _pendingDuplicate = null; editor.DuplicateInTransaction(editor.SelectionRoots); CaptureOriginals();
                 }
-                if (editor.SelectionRoots.Count > 0 && editor.SelectionRoots.Count > 0 && editor.SelectionRoots[0].Parent is { } flowParent && flowParent.Layout.Direction != LayoutDirection.None && editor.SelectionRoots.All(n => n.Parent == flowParent && !n.AbsolutePosition))
+                if (editor.SelectionRoots.Count > 0 && editor.SelectionRoots[0].Parent is { } flowParent && flowParent.Layout.Direction != LayoutDirection.None && editor.SelectionRoots.All(n => n.Parent == flowParent && !n.AbsolutePosition))
                 {
                     editor.ReorderAutoLayout(world); editor.Preview(false); break;
                 }
@@ -357,36 +357,6 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         else if (gesture == Gesture.Pencil) FinishPath(false);
         else if (gesture is not Gesture.None and not Gesture.Pan and not Gesture.Marquee and not Gesture.PenControl) editor.CommitInteraction();
         _marquee = null; _guide = null; _snapLines = []; RequestFrame();
-    }
-    private void ResizeSelection(Vec2 world, bool aspect, bool center)
-    {
-        if (Session is not { } editor || _originals.Count == 0) return;
-        var single = editor.SelectionRoots.Count == 1; var original = _originals.Values.First();
-        var point = single ? _resizeMatrix.Inverse.Map(world) : world - new Vec2(_startBounds.X, _startBounds.Y);
-        var width = single ? original.Width : _startBounds.Width; var height = single ? original.Height : _startBounds.Height;
-        var left = 0d; var top = 0d; var right = width; var bottom = height;
-        if (_resizeHandle is 0 or 6 or 7) left = Math.Min(point.X, width - 1);
-        if (_resizeHandle is 2 or 3 or 4) right = Math.Max(1, point.X);
-        if (_resizeHandle is 0 or 1 or 2) top = Math.Min(point.Y, height - 1);
-        if (_resizeHandle is 4 or 5 or 6) bottom = Math.Max(1, point.Y);
-        if (center) { if (_resizeHandle is 0 or 6 or 7) right = width - left; else if (_resizeHandle is 2 or 3 or 4) left = width - right; if (_resizeHandle is 0 or 1 or 2) bottom = height - top; else if (_resizeHandle is 4 or 5 or 6) top = height - bottom; }
-        var newW = Math.Max(1, right - left); var newH = Math.Max(1, bottom - top);
-        if (aspect) { var ratio = Math.Max(newW / Math.Max(1, width), newH / Math.Max(1, height)); newW = width * ratio; newH = height * ratio; if (_resizeHandle is 0 or 6 or 7) left = right - newW; if (_resizeHandle is 0 or 1 or 2) top = bottom - newH; }
-        if (single)
-        {
-            GestureGeometry.Resize(editor.SelectionRoots[0], original, left, top, newW, newH);
-        }
-        else
-        {
-            foreach (var node in editor.SelectionRoots)
-            {
-                if (!_originals.TryGetValue(node.Id, out var old)) continue;
-                GestureGeometry.Restore(node, old);
-                var parent = node.Parent?.WorldMatrix ?? Matrix2D.Identity; var oldCenter = parent.Map(new Vec2(old.X + old.Width / 2, old.Y + old.Height / 2));
-                var transformed = new Vec2(_startBounds.X + left + (oldCenter.X - _startBounds.X) * newW / width, _startBounds.Y + top + (oldCenter.Y - _startBounds.Y) * newH / height);
-                var localCenter = parent.Inverse.Map(transformed); node.Layout.HugWidth = node.Layout.HugHeight = false; node.FillWidth = node.FillHeight = false; LayoutEngine.Resize(node, old.Width * newW / Math.Max(1, width), old.Height * newH / Math.Max(1, height)); node.X = localCenter.X - node.Width / 2; node.Y = localCenter.Y - node.Height / 2;
-            }
-        }
     }
     private void Wheel(object sender, PointerRoutedEventArgs e)
     {
