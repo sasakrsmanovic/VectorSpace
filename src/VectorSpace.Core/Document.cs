@@ -5,7 +5,9 @@ namespace VectorSpace.Core;
 public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice }
 public enum FillKind { Solid, LinearGradient, RadialGradient }
 public enum BlendKind { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference }
-public enum LayoutDirection { None, Horizontal, Vertical }
+public enum LayoutDirection { None, Horizontal, Vertical, Grid }
+public enum LayoutDistribution { Packed, SpaceBetween, SpaceAround, SpaceEvenly }
+public enum GridTrackSizing { Fraction, Fixed, Hug }
 public enum AxisConstraint { Start, Center, End, Stretch, Scale }
 public enum LayoutAlignment { Start, Center, End, Stretch }
 public enum TextAlignment { Left, Center, Right }
@@ -42,6 +44,14 @@ public sealed class ShadowStyle
     public double Y { get; set; } = 4;
     public double Blur { get; set; } = 12;
 }
+public sealed class GridTrack
+{
+    public GridTrackSizing Sizing { get; set; }
+    public double Value { get; set; } = 1;
+    public double Min { get; set; }
+    public double Max { get; set; } = 1e7;
+}
+
 public sealed class AutoLayout
 {
     public LayoutDirection Direction { get; set; }
@@ -53,6 +63,13 @@ public sealed class AutoLayout
     public bool HugWidth { get; set; }
     public bool HugHeight { get; set; }
     public LayoutAlignment Alignment { get; set; }
+    public LayoutAlignment PrimaryAlignment { get; set; }
+    public LayoutDistribution Distribution { get; set; }
+    public bool Wrap { get; set; }
+    public double CrossGap { get; set; } = 16;
+    public int GridColumns { get; set; } = 3;
+    public List<GridTrack> Columns { get; set; } = [];
+    public List<GridTrack> Rows { get; set; } = [];
 }
 public sealed class PathPoint
 {
@@ -109,6 +126,15 @@ public sealed class DesignNode
     public AxisConstraint VerticalConstraint { get; set; }
     public bool FillWidth { get; set; }
     public bool FillHeight { get; set; }
+    public bool AbsolutePosition { get; set; }
+    public double MinWidth { get; set; } = 1;
+    public double MinHeight { get; set; } = 1;
+    public double MaxWidth { get; set; } = 1e7;
+    public double MaxHeight { get; set; } = 1e7;
+    public int GridColumn { get; set; } = -1;
+    public int GridRow { get; set; } = -1;
+    public int ColumnSpan { get; set; } = 1;
+    public int RowSpan { get; set; } = 1;
     public string? ComponentId { get; set; }
     public string? SourceId { get; set; }
     public Dictionary<string, InstanceOverride> Overrides { get; set; } = [];

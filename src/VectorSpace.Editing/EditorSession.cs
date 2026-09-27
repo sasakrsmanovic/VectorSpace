@@ -29,7 +29,7 @@ public sealed class Viewport
 }
 
 /// <summary>UI-independent editor state. A pointer gesture is one atomic, cancellable history entry.</summary>
-public sealed class EditorSession
+public sealed partial class EditorSession
 {
     private sealed record Snapshot(string Json, string PageId, string[] Selection);
     private sealed record HistoryEntry(string Label, Snapshot Before, Snapshot After);
@@ -37,6 +37,9 @@ public sealed class EditorSession
     private readonly Stack<HistoryEntry> _redo = [];
     private readonly HashSet<string> _selected = [];
     private Snapshot? _before;
+    private IReadOnlyList<DesignNode>? _selectionCache;
+    private IReadOnlyList<DesignNode>? _rootsCache;
+    private string? _primaryId;
     private string _interactionLabel = "Edit";
     private string _savedJson;
     private EditorTool _tool;
@@ -56,9 +59,9 @@ public sealed class EditorSession
     public string RedoLabel => _redo.TryPeek(out var item) ? item.Label : "";
     public IReadOnlyList<string> History => _undo.Select(e => e.Label).ToArray();
     public IReadOnlySet<string> SelectedIds => _selected;
-    public IReadOnlyList<DesignNode> Selection => Page.AllNodes().Where(n => _selected.Contains(n.Id)).ToArray();
-    public IReadOnlyList<DesignNode> SelectionRoots => Selection.Where(n => !Ancestors(n).Any(a => _selected.Contains(a.Id))).ToArray();
-    public DesignNode? Primary => Selection.LastOrDefault();
+    public IReadOnlyList<DesignNode> Selection => _selectionCache ??= Array.AsReadOnly(Page.AllNodes().Where(n => _selected.Contains(n.Id)).ToArray());
+    public IReadOnlyList<DesignNode> SelectionRoots => _rootsCache ??= Array.AsReadOnly(Selection.Where(n => !Ancestors(n).Any(a => _selected.Contains(a.Id))).ToArray());
+    public DesignNode? Primary => Selection.FirstOrDefault(n => n.Id == _primaryId) ?? Selection.LastOrDefault();
     public EditorTool Tool { get => _tool; set { if (_tool == value) return; _tool = value; Notify(EditorChangeKind.Tool); } }
     public EditorSession(DesignDocument document)
     {
@@ -77,10 +80,18 @@ public sealed class EditorSession
     }
     public void Select(IEnumerable<string> ids, bool toggle = false)
     {
-        var existing = Page.AllNodes().Select(n => n.Id).ToHashSet();
+        // Materialize before clearing: Select(SelectedIds) must be safe.
+        var incoming = ids.ToArray();
+        var existing = Page.AllNodes().Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        var previous = _selected.ToHashSet(); var primary = _primaryId;
         if (!toggle) _selected.Clear();
-        foreach (var id in ids.Where(existing.Contains)) if (!toggle || !_selected.Remove(id)) _selected.Add(id);
-        Notify(EditorChangeKind.Selection);
+        foreach (var id in incoming.Where(existing.Contains))
+        {
+            if (toggle && _selected.Remove(id)) continue;
+            _selected.Add(id); _primaryId = id;
+        }
+        if (!_selected.Contains(_primaryId ?? "")) _primaryId = _selected.LastOrDefault();
+        if (!previous.SetEquals(_selected) || primary != _primaryId) Notify(EditorChangeKind.Selection);
     }
     public void Select(DesignNode? node, bool toggle = false) => Select(node is null ? [] : [node.Id], toggle);
     public void SelectAll() => Select(Page.Nodes.Where(n => n.Visible && !n.Locked).Select(n => n.Id));
@@ -88,10 +99,16 @@ public sealed class EditorSession
     {
         var nodes = SelectionRoots; return nodes.Count == 0 ? default : nodes.Select(n => n.WorldBounds).Aggregate(RectD.Union);
     }
-    public void Notify(EditorChangeKind kind, string label = "") => Changed?.Invoke(this, new(kind, label));
-    public void Preview()
+    private void InvalidateSelection() { _selectionCache = null; _rootsCache = null; }
+    public void Notify(EditorChangeKind kind, string label = "")
     {
-        LayoutEngine.Arrange(Page.Nodes); Notify(EditorChangeKind.Preview);
+        if (kind is EditorChangeKind.Document or EditorChangeKind.Selection) InvalidateSelection();
+        Changed?.Invoke(this, new(kind, label));
+    }
+    public void Preview(bool arrangeLayout = true)
+    {
+        if (arrangeLayout) LayoutEngine.Arrange(Page.Nodes);
+        Notify(EditorChangeKind.Preview);
     }
     public void BeginInteraction(string label)
     {
@@ -103,7 +120,9 @@ public sealed class EditorSession
         if (_before is null) return;
         ComponentService.Synchronize(Document);
         foreach (var page in Document.Pages) LayoutEngine.Arrange(page.Nodes);
-        var before = _before; _before = null; var after = Capture();
+        // Keep the rollback snapshot until serialization/validation has succeeded.
+        DocumentJson.Validate(Document);
+        var after = Capture(); var before = _before; _before = null;
         if (before.Json != after.Json)
         {
             _undo.Add(new(_interactionLabel, before, after)); _redo.Clear();
@@ -137,9 +156,9 @@ public sealed class EditorSession
     }
     public void AddNode(DesignNode node, DesignNode? parent = null)
     {
-        node.Parent = parent; (parent?.Children ?? Page.Nodes).Add(node);
+        node.Parent = parent; (parent?.Children ?? Page.Nodes).Add(node); InvalidateSelection();
     }
-    public void RemoveNode(DesignNode node) => (node.Parent?.Children ?? Page.Nodes).Remove(node);
+    public void RemoveNode(DesignNode node) { (node.Parent?.Children ?? Page.Nodes).Remove(node); InvalidateSelection(); }
     public void DeleteSelection()
     {
         var nodes = SelectionRoots.Where(n => !n.IsEffectivelyLocked).ToArray(); if (nodes.Length == 0) return;
@@ -154,6 +173,13 @@ public sealed class EditorSession
     {
         var nodes = SelectionRoots.Where(n => !n.IsEffectivelyLocked).ToArray();
         if (nodes.Length == 0) return;
+        if (nodes.All(n => n.Parent is not null && n.Parent == nodes[0].Parent && !n.AbsolutePosition) && nodes[0].Parent!.Layout.Direction is LayoutDirection.Horizontal or LayoutDirection.Vertical)
+        {
+            var horizontal = nodes[0].Parent!.Layout.Direction == LayoutDirection.Horizontal;
+            var direction = Math.Sign(horizontal ? x : y);
+            if (direction != 0) Reorder(direction);
+            return;
+        }
         Edit("Move layers", () =>
         {
             foreach (var node in nodes)
@@ -176,7 +202,7 @@ public sealed class EditorSession
         {
             var clone = DocumentJson.CloneNode(node, true); clone.X += offset; clone.Y += offset; AddNode(clone, node.Parent); newIds.Add(clone.Id);
         }
-        _selected.Clear(); _selected.UnionWith(newIds);
+        _selected.Clear(); _selected.UnionWith(newIds); _primaryId = newIds.LastOrDefault(); InvalidateSelection();
     }
     public string CopySelection() => DocumentJson.SaveNodes(SelectionRoots.Select(node =>
     {
@@ -269,11 +295,11 @@ public sealed class EditorSession
         if (Document.Pages.Count < 2) return;
         Edit("Delete page", () => { Document.Pages.RemoveAll(p => p.Id == id); Document.Comments.RemoveAll(c => c.PageId == id); if (Page.Id == id) Page = Document.Pages[0]; _selected.Clear(); });
     }
-    private Snapshot Capture() => new(DocumentJson.Save(Document), Page.Id, _selected.ToArray());
+    private Snapshot Capture() => new(DocumentJson.Save(Document), Page.Id, _selected.Where(id => id != _primaryId).Concat(_primaryId is null || !_selected.Contains(_primaryId) ? [] : new[] { _primaryId }).ToArray());
     private void Restore(Snapshot state)
     {
         Document = DocumentJson.Load(state.Json); Page = Document.Pages.FirstOrDefault(p => p.Id == state.PageId) ?? Document.Pages[0];
-        _selected.Clear(); _selected.UnionWith(state.Selection.Where(id => Page.AllNodes().Any(n => n.Id == id))); IsDirty = state.Json != _savedJson;
+        _selected.Clear(); _selected.UnionWith(state.Selection.Where(id => Page.AllNodes().Any(n => n.Id == id))); _primaryId = state.Selection.LastOrDefault(); InvalidateSelection(); IsDirty = state.Json != _savedJson;
     }
     private static IEnumerable<DesignNode> Ancestors(DesignNode node) { for (var p = node.Parent; p is not null; p = p.Parent) yield return p; }
 }

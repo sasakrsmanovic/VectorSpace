@@ -25,6 +25,13 @@ public sealed partial class StudioWorkbench
         yield return new("Ungroup", "Ctrl Shift G", () => Run(Session.UngroupSelection));
         yield return new("Create component", "Ctrl Alt K", () => Run(() => ComponentService.MakeComponent(Session)));
         yield return new("Add auto layout", "Shift A", AddAutoLayout);
+        yield return new("Remove auto layout", "Alt Shift A", () => Run(() => Session.UpdateSelection("Remove auto layout", n => { n.Layout.Direction = LayoutDirection.None; n.Layout.HugWidth = n.Layout.HugHeight = false; })));
+        yield return new("Select child", "Enter", Session.SelectChild);
+        yield return new("Select parent", "Shift Enter", Session.SelectParent);
+        yield return new("Select same fill", "", () => Session.SelectMatching("fill"));
+        yield return new("Select same font", "", () => Session.SelectMatching("font"));
+        yield return new("Toggle panels", "", TogglePanels);
+        yield return new("Render diagnostics", "", () => { Surface.ShowDiagnostics = !Surface.ShowDiagnostics; Surface.Invalidate(); });
         yield return new("Fit all", "Shift 1", () => Surface.Fit());
         yield return new("Fit selection", "Shift 2", () => Surface.Fit(true));
         yield return new("Toggle grid", "Ctrl '", () => { Session.GridVisible = !Session.GridVisible; Surface.Invalidate(); });
@@ -143,14 +150,16 @@ public sealed partial class StudioWorkbench
                 VirtualKey.H => () => Session.Tool = EditorTool.Hand,
                 VirtualKey.C => () => Session.Tool = EditorTool.Comment,
                 VirtualKey.S => () => Session.Tool = shift ? EditorTool.Section : EditorTool.Slice,
+                VirtualKey.A when shift && alt => () => Session.UpdateSelection("Remove auto layout", n => { n.Layout.Direction = LayoutDirection.None; n.Layout.HugWidth = n.Layout.HugHeight = false; }),
                 VirtualKey.A when shift => AddAutoLayout,
                 VirtualKey.Number1 when shift => () => Surface.Fit(),
                 VirtualKey.Number2 when shift => () => Surface.Fit(true),
                 VirtualKey.Number0 => () => Surface.ZoomTo(1),
                 VirtualKey.F2 => () => { if (Session.Primary is { } n) RunAsync(() => RenameLayerAsync(n)); },
-                VirtualKey.Tab => TogglePanels,
+                VirtualKey.Tab => () => Session.SelectSibling(shift),
                 VirtualKey.Escape => () => { Surface.CancelGesture(); Session.Select((DesignNode?)null); Session.Tool = EditorTool.Move; },
-                VirtualKey.Enter => () => { Surface.FinishPath(false); if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); },
+                VirtualKey.Enter when shift => Session.SelectParent,
+                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else Session.SelectChild(); },
                 VirtualKey.Space => () => Surface.IsSpaceDown = true,
                 _ => null
             };
@@ -163,15 +172,7 @@ public sealed partial class StudioWorkbench
             try { action(); } catch (Exception ex) { ShowStatus(ex.Message, true); } e.Handled = true;
         }
     }
-    private void AddAutoLayout()
-    {
-        Run(() =>
-        {
-            if (Session.SelectionRoots.Count == 0) return;
-            if (Session.SelectionRoots.Count != 1 || Session.Primary?.IsContainer != true) Session.GroupSelection(true);
-            Session.UpdateSelection("Add auto layout", n => { n.Layout.Direction = LayoutDirection.Horizontal; n.Layout.HugWidth = true; n.Layout.HugHeight = true; });
-        });
-    }
+    private void AddAutoLayout() => Run(Session.AddAutoLayout);
     private async Task CopyAsync(bool cut)
     {
         if (Session.Selection.Count == 0) return;

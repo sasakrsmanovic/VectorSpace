@@ -43,7 +43,7 @@ public sealed partial class StudioWorkbench
         var flip = new IconButton("flip", "Flip horizontally", () => Change("Flip horizontal", n => n.FlipX = !n.FlipX));
         var flipY = new IconButton("flip", "Flip vertically", () => Change("Flip vertical", n => n.FlipY = !n.FlipY)) { RenderTransform = new RotateTransform { Angle = 90 }, RenderTransformOrigin = new(.5, .5) };
         position.Body.Children.Add(Studio.Columns((Number("°", node.Rotation, v => Change("Rotate", n => n.Rotation = v)), -1), (flip, 30), (flipY, 30)));
-        var size = AddSection("Layout", node.IsContainer ? "plus" : null, () => Change("Add auto layout", n => { if (n.IsContainer) n.Layout.Direction = LayoutDirection.Horizontal; }));
+        var size = AddSection("Layout", "plus", AddAutoLayout);
         var chain = new IconButton("link", "Lock aspect ratio", () => _aspectLocked = !_aspectLocked) { IsSelected = _aspectLocked, Width = 24 };
         size.Body.Children.Add(Studio.Columns((Number("W", node.Width, v => Resize(v, null), 1), -1), (Number("H", node.Height, v => Resize(null, v), 1), -1), (chain, 24)));
         if (node.IsContainer)
@@ -52,7 +52,23 @@ public sealed partial class StudioWorkbench
             size.Body.Children.Add(Studio.Choice(Enum.GetNames<LayoutDirection>(), node.Layout.Direction.ToString(), value => Change("Change auto layout", n => n.Layout.Direction = Enum.Parse<LayoutDirection>(value)), "Auto layout direction"));
             if (node.Layout.Direction != LayoutDirection.None)
             {
-                size.Body.Children.Add(Studio.Columns((Number("Gap", node.Layout.Gap, v => Change("Item spacing", n => n.Layout.Gap = v), 0), -1), (Studio.Choice(Enum.GetNames<LayoutAlignment>(), node.Layout.Alignment.ToString(), value => Change("Layout alignment", n => n.Layout.Alignment = Enum.Parse<LayoutAlignment>(value)), "Layout alignment"), -1)));
+                size.Body.Children.Add(Studio.Columns((Number("Gap", node.Layout.Gap, v => Change("Item spacing", n => n.Layout.Gap = v)), -1), (Studio.Choice(Enum.GetNames<LayoutAlignment>(), node.Layout.Alignment.ToString(), value => Change("Layout alignment", n => n.Layout.Alignment = Enum.Parse<LayoutAlignment>(value)), "Layout alignment"), -1)));
+                var horizontal = node.Layout.Direction != LayoutDirection.Vertical;
+                var primary = (int)node.Layout.PrimaryAlignment; var cross = Math.Min(2, (int)node.Layout.Alignment);
+                var alignment = new AlignmentPicker(horizontal ? primary : cross, horizontal ? cross : primary, (x, y) => Change("Align auto layout", n =>
+                {
+                    var h = n.Layout.Direction != LayoutDirection.Vertical;
+                    n.Layout.PrimaryAlignment = (LayoutAlignment)(h ? x : y); n.Layout.Alignment = (LayoutAlignment)(h ? y : x);
+                }));
+                var flow = new StackPanel { Spacing = 6 };
+                if (node.Layout.Direction != LayoutDirection.Grid)
+                {
+                    flow.Children.Add(Check("Wrap", node.Layout.Wrap, value => Change("Wrap auto layout", n => n.Layout.Wrap = value)));
+                    flow.Children.Add(Studio.Choice(Enum.GetNames<LayoutDistribution>(), node.Layout.Distribution.ToString(), value => Change("Distribute layout", n => n.Layout.Distribution = Enum.Parse<LayoutDistribution>(value)), "Spacing distribution"));
+                }
+                else flow.Children.Add(Number("Cols", node.Layout.GridColumns, v => Change("Grid columns", n => { n.Layout.GridColumns = (int)v; n.Layout.Columns.Clear(); }), 1, 128));
+                flow.Children.Add(Number("Rows", node.Layout.CrossGap, v => Change("Row or column gap", n => n.Layout.CrossGap = v), 0));
+                size.Body.Children.Add(Studio.Columns((alignment, 86), (flow, -1)));
                 size.Body.Children.Add(Studio.Columns((Number("L", node.Layout.PaddingLeft, v => Change("Left padding", n => n.Layout.PaddingLeft = v), 0), -1), (Number("R", node.Layout.PaddingRight, v => Change("Right padding", n => n.Layout.PaddingRight = v), 0), -1)));
                 size.Body.Children.Add(Studio.Columns((Number("T", node.Layout.PaddingTop, v => Change("Top padding", n => n.Layout.PaddingTop = v), 0), -1), (Number("B", node.Layout.PaddingBottom, v => Change("Bottom padding", n => n.Layout.PaddingBottom = v), 0), -1)));
                 size.Body.Children.Add(Studio.Columns((Check("Hug width", node.Layout.HugWidth, v => Change("Hug width", n => n.Layout.HugWidth = v)), -1), (Check("Hug height", node.Layout.HugHeight, v => Change("Hug height", n => n.Layout.HugHeight = v)), -1)));
@@ -63,6 +79,15 @@ public sealed partial class StudioWorkbench
             var constraints = AddSection("Constraints");
             constraints.Body.Children.Add(Studio.Columns((Studio.Choice(Enum.GetNames<AxisConstraint>(), node.HorizontalConstraint.ToString(), value => Change("Horizontal constraint", n => n.HorizontalConstraint = Enum.Parse<AxisConstraint>(value)), "Horizontal constraint"), -1), (Studio.Choice(Enum.GetNames<AxisConstraint>(), node.VerticalConstraint.ToString(), value => Change("Vertical constraint", n => n.VerticalConstraint = Enum.Parse<AxisConstraint>(value)), "Vertical constraint"), -1)));
             if (node.Parent.Layout.Direction != LayoutDirection.None) constraints.Body.Children.Add(Studio.Columns((Check("Fill width", node.FillWidth, v => Change("Fill width", n => n.FillWidth = v)), -1), (Check("Fill height", node.FillHeight, v => Change("Fill height", n => n.FillHeight = v)), -1)));
+        }
+        if (node.Parent?.Layout.Direction != LayoutDirection.None && node.Parent is not null)
+        {
+            var item = AddSection("Auto layout item");
+            item.Body.Children.Add(Check("Ignore auto layout", node.AbsolutePosition, v => Change("Absolute positioning", n => n.AbsolutePosition = v)));
+            if (node.Parent.Layout.Direction == LayoutDirection.Grid)
+                item.Body.Children.Add(Studio.Columns((Number("Col", node.ColumnSpan, v => Change("Column span", n => n.ColumnSpan = (int)v), 1, 128), -1), (Number("Row", node.RowSpan, v => Change("Row span", n => n.RowSpan = (int)v), 1, 128), -1)));
+            item.Body.Children.Add(Studio.Columns((Number("Min W", node.MinWidth, v => Change("Minimum width", n => { n.MinWidth = v; n.MaxWidth = Math.Max(n.MaxWidth, v); }), 1), -1), (Number("Min H", node.MinHeight, v => Change("Minimum height", n => { n.MinHeight = v; n.MaxHeight = Math.Max(n.MaxHeight, v); }), 1), -1)));
+            item.Body.Children.Add(Studio.Columns((Number("Max W", node.MaxWidth, v => Change("Maximum width", n => n.MaxWidth = Math.Max(n.MinWidth, v)), 1, 1e7), -1), (Number("Max H", node.MaxHeight, v => Change("Maximum height", n => n.MaxHeight = Math.Max(n.MinHeight, v)), 1, 1e7), -1)));
         }
         var appearance = AddSection("Appearance");
         appearance.Body.Children.Add(Studio.Columns((Number("%", node.Opacity * 100, v => Change("Opacity", n => n.Opacity = v / 100), 0, 100), -1), (Number("R", node.CornerRadius, v => Change("Corner radius", n => n.CornerRadius = v), 0), -1)));

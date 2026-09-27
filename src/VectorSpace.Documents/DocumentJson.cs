@@ -63,6 +63,12 @@ public static class DocumentJson
             if (n is null || string.IsNullOrWhiteSpace(n.Id) || !ids.Add(n.Id)) throw new InvalidDataException("Invalid or duplicate layer identifier.");
             if (!double.IsFinite(n.X) || !double.IsFinite(n.Y) || !double.IsFinite(n.Width) || !double.IsFinite(n.Height) || !double.IsFinite(n.Rotation) || n.Width < 0 || n.Height < 0 || n.Width > 1e7 || n.Height > 1e7 || Math.Abs(n.X) > 1e9 || Math.Abs(n.Y) > 1e9) throw new InvalidDataException("A layer has invalid geometry.");
             if (n.Children is null || n.Fills is null || n.Strokes is null || n.Shadows is null || n.Layout is null || n.Points is null || n.Overrides is null) throw new InvalidDataException("A layer is missing required data.");
+            if (!double.IsFinite(n.MinWidth) || !double.IsFinite(n.MinHeight) || !double.IsFinite(n.MaxWidth) || !double.IsFinite(n.MaxHeight) || n.MinWidth < 0 || n.MinHeight < 0 || n.MaxWidth < n.MinWidth || n.MaxHeight < n.MinHeight || n.MaxWidth > 1e7 || n.MaxHeight > 1e7) throw new InvalidDataException("Invalid size limits.");
+            var l = n.Layout;
+            if (new[] { l.Gap, l.CrossGap, l.PaddingLeft, l.PaddingRight, l.PaddingTop, l.PaddingBottom }.Any(v => !double.IsFinite(v) || Math.Abs(v) > 1e7)) throw new InvalidDataException("Invalid auto-layout geometry.");
+            if (l.GridColumns is < 1 or > 128 || l.Columns is null || l.Rows is null || l.Columns.Count > 128 || l.Rows.Count > 10000 || n.ColumnSpan is < 1 or > 128 || n.RowSpan is < 1 or > 128 || n.GridColumn is < -1 or > 127 || n.GridRow is < -1 or > 10000) throw new InvalidDataException("Invalid grid placement.");
+            foreach (var track in l.Columns.Concat(l.Rows))
+                if (track is null || !double.IsFinite(track.Value) || !double.IsFinite(track.Min) || !double.IsFinite(track.Max) || track.Value < 0 || track.Min < 0 || track.Max < track.Min || track.Max > 1e7) throw new InvalidDataException("Invalid grid track.");
             n.Opacity = Numbers.Clamp(n.Opacity, 0, 1); n.FontSize = Numbers.Clamp(n.FontSize, 1, 4096);
             n.CornerRadius = Numbers.Clamp(n.CornerRadius, 0, 1e6); n.Sides = Math.Clamp(n.Sides, 3, 128);
             n.StarRatio = Numbers.Clamp(n.StarRatio, .01, 1); n.LineHeight = Numbers.Clamp(n.LineHeight, .2, 10);

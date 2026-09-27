@@ -69,6 +69,8 @@ Test("component creation preserves leaf content", () => { var n = Node(30, 40); 
 Test("source edits synchronize instances atomically", () => { var c = Node(); c.Kind = NodeKind.Component; c.Add(new() { Kind = NodeKind.Text, Text = "Before" }); var e = Editor(c); var i = ComponentService.InsertInstance(e, c, new(300, 0)); var instanceId = i.Id; e.Select(c.Children[0]); e.UpdateSelection("Edit source", n => n.Text = "After"); Check(e.Document.Find(instanceId)!.Children[0].Text == "After"); e.Undo(); Check(e.Document.Find(instanceId)!.Children[0].Text == "Before"); });
 Test("sample is valid and renderable", () => { var document = SampleDocument.Create(); DocumentJson.Validate(document); using var renderer = new SceneRenderer(); var frame = document.Pages[0].Nodes[0]; var png = renderer.ExportPng([frame], frame.WorldBounds, .25); using var bitmap = SKBitmap.Decode(png); Check(bitmap.Width == 260 && bitmap.Height == 205); });
 
+ParityTests.Register(Test);
+
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }
 Console.WriteLine($"RESULT: {tests.Count - failed}/{tests.Count} passed");

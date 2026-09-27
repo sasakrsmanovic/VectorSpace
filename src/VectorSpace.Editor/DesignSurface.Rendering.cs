@@ -58,6 +58,14 @@ public sealed partial class DesignSurface
                 var p = viewport.WorldToScreen(comments[i].Anchor); using var pin = new SKPaint { Color = new(13, 153, 255), IsAntialias = true }; canvas.DrawCircle((float)p.X, (float)p.Y, 13, pin); pin.Color = SKColors.White; canvas.DrawText((i + 1).ToString(), (float)p.X - 3, (float)p.Y + 4, font, pin);
             }
             if (editor.RulersVisible) DrawRulers(canvas, size);
+            if (ShowDiagnostics)
+            {
+                using var panel = new SKPaint { Color = new(255, 255, 255, 235), IsAntialias = true };
+                var label = $"{Renderer.LastDrawMilliseconds:0.00} ms · {Renderer.RenderedNodes} drawn · {Renderer.CulledNodes} culled · {Renderer.CachedGeometryCount} paths";
+                var width = font.MeasureText(label) + 20;
+                canvas.DrawRoundRect(new SKRect(24, (float)size.Height - 60, 24 + width, (float)size.Height - 30), 6, 6, panel);
+                canvas.DrawText(label, 34, (float)size.Height - 40, font, labelPaint);
+            }
         }
         canvas.Restore();
     }
@@ -85,6 +93,15 @@ public sealed partial class DesignSurface
         var points = GetHandles(); if (points.Length < 8) return;
         using var blue = new SKPaint { IsAntialias = true, Color = new(13, 153, 255), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
         using var fill = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        if (editor.SelectionRoots.Count > 1)
+        {
+            foreach (var node in editor.SelectionRoots)
+            {
+                canvas.Save(); canvas.Translate((float)editor.Viewport.Pan.X, (float)editor.Viewport.Pan.Y); canvas.Scale((float)editor.Viewport.Zoom); canvas.Concat(SceneRenderer.Matrix(node.WorldMatrix));
+                blue.StrokeWidth = (float)(1 / editor.Viewport.Zoom); canvas.DrawRect(SceneRenderer.Rect(node.LocalBounds), blue); canvas.Restore();
+            }
+            blue.StrokeWidth = 1;
+        }
         for (var i = 0; i < 8; i += 2) canvas.DrawLine(P(points[i]), P(points[(i + 2) % 8]), blue);
         if (editor.SelectionRoots.Any(n => n.IsEffectivelyLocked)) return;
         canvas.DrawLine(P(points[1]), P(points[8]), blue); canvas.DrawCircle(P(points[8]), 3.5f, fill); canvas.DrawCircle(P(points[8]), 3.5f, blue);
