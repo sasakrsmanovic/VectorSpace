@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+      - name: Validate publication metadata and asset collection
+        run: python3 -m unittest discover -s tests/scripts -v
       - run: dotnet run --project tests/VectorSpace.Tests -c Release
       - name: Measure indexed snapping and verify reference equivalence
         run: |
