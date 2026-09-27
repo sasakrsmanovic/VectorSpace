@@ -6,7 +6,6 @@ using VectorSpace.Controls;
 using VectorSpace.Documents;
 using VectorSpace.Editing;
 using VectorSpace.Workbench;
-using Windows.ApplicationModel.Activation;
 using Windows.Storage;
 
 namespace VectorSpace.App;

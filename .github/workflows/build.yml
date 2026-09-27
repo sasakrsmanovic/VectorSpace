@@ -1,5 +1,7 @@
 name: Build
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   pull_request:
 permissions:
@@ -27,9 +29,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet workload install wasm-tools --skip-manifest-update
       - run: python3 scripts/fetch-assets.py
-      - run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release
+      - run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VectorSpace-desktop-${{ matrix.os }}
+          path: src/VectorSpace.App/bin/Release/net10.0-desktop
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -91,11 +96,11 @@ jobs:
           python3 - <<'PY'
           import pathlib, tarfile
           root=pathlib.Path.home()/'.nuget/packages'
-          names=['uno.ui.hotdesign','uno.ui.app.mcp','uno.winui.devserver','uno.ui.adapter.microsoft.extensions.logging','microsoft.extensions.logging.console','uno.fonts.opensans','skiasharp.skottie','uno.winui.runtime.skia.linux.framebuffer','uno.winui.runtime.skia.macos','uno.winui.runtime.skia.win32','uno.winui.runtime.skia.x11']
+          names=['uno.ui.hotdesign','uno.ui.app.mcp','uno.winui.devserver','uno.winui.devserver.messaging','uno.wasm.websockets','uno.ui.adapter.microsoft.extensions.logging','uno.core.extensions.logging','uno.core.extensions.logging.singleton','uno.fonts.opensans','skiasharp.skottie','skiasharp.resources','skiasharp.scenegraph','harfbuzzsharp.nativeassets.linux','uno.icu-macos','uno.icu-win','microsoft.windows.cswin32','webview2aot','libvlcsharp','tmds.dbus.generator','tmds.dbus.protocol','uno.winui.runtime.skia.linux.framebuffer','uno.winui.runtime.skia.macos','uno.winui.runtime.skia.win32','uno.winui.runtime.skia.x11']
           with tarfile.open('/tmp/vectorspace-app-dependencies.tar.gz','w:gz') as output:
-            for name in names:
-              p=root/name
-              if p.exists(): output.add(p, arcname='packages/'+name, filter=lambda info: None if info.name.endswith('.nupkg') else info)
+            for p in root.iterdir():
+              if p.name in names or p.name.startswith(('microsoft.extensions.','microsoft.windows.','system.')):
+                output.add(p, arcname='packages/'+p.name, filter=lambda info: None if info.name.endswith('.nupkg') else info)
           PY
       - uses: actions/upload-artifact@v4
         if: always()
