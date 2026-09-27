@@ -70,7 +70,8 @@ test('prototype overlays consume outside clicks and Escape dismisses before exit
 test('prototype variable branches are isolated and Restart resets runtime state', async ({ page }) => {
   await open(page); const before = await state(page); await present(page); await point(page, 60, 205);
   await expect.poll(async () => (await state(page)).prototype.frame).toBe('b'); expect((await state(page)).prototype.values.flag).toBe('True');
-  await click(page, 'Prototype back'); await point(page, 60, 205); await expect.poll(async () => (await state(page)).prototype.overlays).toBe(1); expect((await state(page)).prototype.values.flag).toBe('False');
+  await click(page, 'Prototype back'); await expect.poll(async () => (await state(page)).prototype.frame).toBe('a');
+  await point(page, 60, 205); await expect.poll(async () => (await state(page)).prototype.overlays).toBe(1); expect((await state(page)).prototype.values.flag).toBe('False');
   await click(page, 'Prototype restart'); await expect.poll(async () => (await state(page)).prototype.overlays).toBe(0); expect((await state(page)).prototype.frame).toBe('a');
   await point(page, 60, 205); await expect.poll(async () => (await state(page)).prototype.values.flag).toBe('True');
   await click(page, 'Close prototype'); await expect.poll(async () => (await state(page)).presenting).toBe(false); expect((await state(page)).history).toBe(before.history);
@@ -83,8 +84,14 @@ test('prototype scroll-to and wheel use clipped frame coordinates and keyboard n
   await expect.poll(async () => (await state(page)).prototype.scrollY).toBe(600);
   const p = await coordinates(page, 200, 200); await page.mouse.move(p.x, p.y); await page.mouse.wheel(0, -180);
   await expect.poll(async () => (await state(page)).prototype.scrollY).toBeLessThan(600);
+  const savedScroll = (await state(page)).prototype.scrollY;
+  expect(savedScroll).toBeGreaterThan(0);
   await page.keyboard.press('k'); await expect.poll(async () => (await state(page)).prototype.frame).toBe('b');
-  await click(page, 'Prototype back'); expect((await state(page)).prototype.scrollY).toBeGreaterThan(0);
+  await click(page, 'Prototype back');
+  // Diagnostics are published on a timer. Wait for the returned frame before
+  // comparing its exact saved offset; the destination frame has scroll zero.
+  await expect.poll(async () => (await state(page)).prototype.frame).toBe('a');
+  await expect.poll(async () => (await state(page)).prototype.scrollY).toBeCloseTo(savedScroll, 4);
 });
 
 test('prototype inspector authors actions and saves schema v3 without a mutation API', async ({ page }) => {

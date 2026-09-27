@@ -25,6 +25,8 @@ public sealed class PrototypePlayer : UserControl, IDisposable
     private readonly TextBlock _title = Studio.Text("Prototype", 12);
     private readonly StudioButton _back;
     private List<string> _hoverPath = [], _nextHoverPath = [];
+    private Vec2? _hoverPoint;
+    private bool _hoverPending;
     private long _displayRevision = -1;
     private double _displayClock = -1, _fitWidth = -1, _fitHeight = -1, _frameWidth = -1, _frameHeight = -1;
     private string? _fitFrameId;
@@ -56,7 +58,11 @@ public sealed class PrototypePlayer : UserControl, IDisposable
         _canvas.Draw = Paint;
         _canvas.PointerPressed += Pressed; _canvas.PointerMoved += Moved; _canvas.PointerReleased += Released;
         _canvas.PointerCanceled += CancelPointer; _canvas.PointerCaptureLost += CancelPointer;
-        _canvas.PointerExited += (_, _) => { if (_pointer is null) Run(() => Hover(null)); };
+        _canvas.PointerExited += (_, _) =>
+        {
+            _hoverPoint = null;
+            if (_pointer is null) Run(() => { _hoverPending = false; Hover(null); });
+        };
         _canvas.PointerWheelChanged += Wheel; _canvas.SizeChanged += (_, _) => Refresh(force: true);
         KeyDown += OnKeyDown;
         _timer.Tick += Tick;
@@ -80,7 +86,18 @@ public sealed class PrototypePlayer : UserControl, IDisposable
     private void Run(Action action)
     {
         if (_disposed) return;
-        try { action(); foreach (var url in Playback.DrainRequestedUrls()) LinkRequested?.Invoke(url); }
+        try
+        {
+            action();
+            // Activation is suppressed during a transition, but pointer location is not lost.
+            // A completed animation must reconcile hover even without another mouse event.
+            if (_hoverPending && !Playback.IsAnimating && _pointer is null)
+            {
+                _hoverPending = false;
+                Hover(_hoverPoint is { } point ? Hit(point, out _)?.Id : null);
+            }
+            foreach (var url in Playback.DrainRequestedUrls()) LinkRequested?.Invoke(url);
+        }
         catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or ArgumentException) { StatusChanged?.Invoke(ex.Message); }
         Refresh();
     }
@@ -102,8 +119,6 @@ public sealed class PrototypePlayer : UserControl, IDisposable
             var title = (frame.PrototypeFlowName ?? frame.Name) + (Playback.View.Overlays.Count == 0 ? "" : "  ·  " + Playback.View.InputRoot.Name);
             if (_title.Text != title) _title.Text = title;
         }
-        // Pointer movement with no state change must not refit the viewport or repaint the scene.
-        // Animation samples still invalidate, including the final revision that ends a transition.
         if (force || fitChanged || stateChanged || Playback.IsAnimating && _displayClock != Playback.ClockMilliseconds)
             _canvas.Invalidate();
         _displayRevision = Playback.Revision; _displayClock = Playback.ClockMilliseconds;
@@ -115,7 +130,12 @@ public sealed class PrototypePlayer : UserControl, IDisposable
     }
     public void Restart()
     {
-        Run(() => { Playback.Restart(); _clock.Restart(); _hoverPath.Clear(); _nextHoverPath.Clear(); _pointer = null; _canvas.ReleasePointerCaptures(); });
+        Run(() =>
+        {
+            Playback.Restart(); _clock.Restart(); _hoverPath.Clear(); _nextHoverPath.Clear();
+            _hoverPoint = null; _hoverPending = false; _fitFrameId = null;
+            _pointer = null; _canvas.ReleasePointerCaptures();
+        });
     }
     private Vec2 Position(PointerRoutedEventArgs e) { var p = e.GetCurrentPoint(_canvas).Position; return new(p.X, p.Y); }
     private DesignNode? Hit(Vec2 p, out bool outside) => _compositor.Hit(Playback, Viewport.ScreenToWorld(p), out outside);
@@ -125,7 +145,7 @@ public sealed class PrototypePlayer : UserControl, IDisposable
         e.Handled = true; Focus(FocusState.Programmatic);
         Run(() =>
         {
-            Advance(); var p = Position(e); var hit = Hit(p, out var outside);
+            Advance(); var p = Position(e); _hoverPoint = p; var hit = Hit(p, out var outside);
             _pointer = e.Pointer.PointerId; _canvas.CapturePointer(e.Pointer); _downEpoch = Playback.SceneEpoch;
             _downOwner = Playback.TriggerOwner(hit?.Id, PrototypeTrigger.Click); _downPoint = _lastPoint = p;
             _outsideDown = outside; _dragged = false; _touch = e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch;
@@ -134,17 +154,18 @@ public sealed class PrototypePlayer : UserControl, IDisposable
     }
     private void Moved(object sender, PointerRoutedEventArgs e)
     {
-        if (Playback.IsAnimating) return;
+        var p = Position(e); _hoverPoint = p;
+        if (Playback.IsAnimating) { _hoverPending = true; return; }
         Run(() =>
         {
-            Advance(); var p = Position(e);
+            Advance();
             if (_pointer == e.Pointer.PointerId)
             {
                 if (p.DistanceTo(_downPoint) > 6) _dragged = true;
                 if (_touch && _dragged) Playback.ScrollBy((_lastPoint - p) / Viewport.Zoom);
                 _lastPoint = p;
             }
-            else if (_pointer is null) Hover(Hit(p, out _)?.Id);
+            else if (_pointer is null) { _hoverPending = false; Hover(Hit(p, out _)?.Id); }
         });
     }
     private void Released(object sender, PointerRoutedEventArgs e)
@@ -153,7 +174,7 @@ public sealed class PrototypePlayer : UserControl, IDisposable
         e.Handled = true;
         Run(() =>
         {
-            Advance(); var owner = _downOwner; var epoch = _downEpoch; var p = Position(e); var hit = Hit(p, out var outside);
+            Advance(); var owner = _downOwner; var epoch = _downEpoch; var p = Position(e); _hoverPoint = p; var hit = Hit(p, out var outside);
             _pointer = null; _canvas.ReleasePointerCapture(e.Pointer);
             if (epoch != Playback.SceneEpoch || _dragged || p.DistanceTo(_downPoint) > 6) return;
             if (_outsideDown && outside) { Playback.OutsideClick(); return; }
@@ -187,7 +208,6 @@ public sealed class PrototypePlayer : UserControl, IDisposable
                 Playback.Dispatch(PrototypeTrigger.MouseEnter, id);
             if (epoch != Playback.SceneEpoch) { _hoverPath.Clear(); return; }
         }
-        // Retain both buffers across samples instead of allocating LINQ arrays and a new path list.
         _nextHoverPath = _hoverPath; _hoverPath = next;
     }
     private void Wheel(object sender, PointerRoutedEventArgs e)

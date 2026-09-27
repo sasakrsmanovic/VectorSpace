@@ -26,11 +26,11 @@ function fixture() {
       { id: 'count', collectionId: 'collection', type: 'Number', values: { default: { type: 'Number' } } }]
   };
 }
-async function open(page) {
+async function open(page, document = fixture()) {
   await page.goto('?test=1'); await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150000 });
   await control(page, 'Design canvas'); await page.mouse.click(650, 240);
   const picker = page.waitForEvent('filechooser'); await page.keyboard.press('Control+o');
-  await (await picker).setFiles({ name: 'pointer.vectorspace', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(fixture())) });
+  await (await picker).setFiles({ name: 'pointer.vectorspace', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });
   await expect.poll(async () => (await state(page)).page).toBe('Pointer tests');
   const c = await control(page, 'Design canvas'); const s = await state(page);
   await page.keyboard.down('Control'); await page.mouse.click(c.x + s.panX + 350 * s.zoom, c.y + s.panY + 270 * s.zoom); await page.keyboard.up('Control');
@@ -67,4 +67,17 @@ test('a press navigation cannot release-activate a target in the newly entered f
   await expect.poll(async () => (await state(page)).prototype.frame).toBe('b');
   await page.mouse.up(); await page.waitForTimeout(200); expect((await state(page)).prototype.frame).toBe('b');
   const p = await point(page, 260, 145); await page.mouse.click(p.x, p.y); await expect.poll(async () => (await state(page)).prototype.frame).toBe('a');
+});
+
+test('hover leave is reconciled when an animation finishes without another mouse move', async ({ page }) => {
+  const document = fixture();
+  document.pages[0].nodes[0].children[0].reactions[0].actions.at(-1).transition = { kind: 'Dissolve', durationMilliseconds: 800 };
+  await open(page, document); await move(page, 350, 270); await move(page, 50, 45);
+  await expect.poll(async () => (await state(page)).prototype.values.flag).toBe('True');
+  expect((await state(page)).prototype.animating).toBe(true);
+  await move(page, 350, 270);
+  // No subsequent input: the player's timer must reconcile the retained pointer location.
+  await expect.poll(async () => (await state(page)).prototype.values.flag).toBe('False');
+  expect((await state(page)).prototype.values.count).toBe('1');
+  await expect.poll(async () => (await state(page)).prototype.animating).toBe(false);
 });

@@ -9,7 +9,10 @@
 - Add a dedicated Uno player, contextual interaction authoring, consent-gated external links and an original editable prototype playground.
 - Preserve the editor viewport/history/save state during playback; validate action batches before committing private runtime mutations.
 - Upgrade native JSON to schema 3 with version-1/2 migration, legacy links, reference remapping and inherited/local component interaction overrides.
-- Add 51 engine regressions and six real browser workflows; retain the original editing/layout/design-system regressions.
+- Fix source-generated import of compact immutable variable literals with explicit constructor defaults; keep explicitly null text invalid.
+- Retain hover-path buffers, skip unchanged player invalidations and avoid repeated viewport fitting on pointer movement.
+- Reconcile retained pointer location when transitions finish so quick hover exits cannot remain stuck without further input.
+- Add 65 engine regressions and ten prototype browser cases, including hover paths, canceled clicks, release suppression after press navigation and animated hover exits. Complete suites contain 233 engine cases and 19 browser cases.
 - Document exact prototype semantics, resource limits and remaining Figma compatibility boundaries. Full Figma parity is not claimed.
 
 ## 0.2.0-alpha.2
