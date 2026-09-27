@@ -25,7 +25,7 @@ jobs:
       - run: python3 scripts/fetch-assets.py
       - name: Build native Uno host
         run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: VectorSpace-desktop-${{ matrix.os }}
           path: src/VectorSpace.App/bin/Release/net10.0-desktop
