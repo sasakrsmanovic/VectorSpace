@@ -12,11 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Read pending pull request diffs and checks
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Snapshot source and pending pull requests
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mkdir -p /tmp/vectorspace-audit
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          git bundle create /tmp/vectorspace-audit/repository.bundle --all
           python3 - <<'PY'
           import json, os, pathlib, urllib.request
           repo = os.environ['GITHUB_REPOSITORY']
@@ -30,11 +35,11 @@ jobs:
               files=get('pulls/'+str(n)+'/files?per_page=100')
               item={'number':n, 'title':p['title'], 'head':sha, 'branch':p['head']['ref'], 'base':p['base']['sha'], 'checks':[(c['name'],c['status'],c['conclusion']) for c in checks], 'files':[{'path':f['filename'],'patch':f.get('patch','')} for f in files]}
               report.append(item)
-          pathlib.Path('/tmp/pr-audit.json').write_text(json.dumps(report,indent=2))
-          print(json.dumps(report,indent=2))
+          pathlib.Path('/tmp/vectorspace-audit/pr-audit.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps([{'number':p['number'],'title':p['title'],'checks':p['checks']} for p in report],indent=2))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: VectorSpace-pr-audit
-          path: /tmp/pr-audit.json
+          name: VectorSpace-parity-workspace
+          path: /tmp/vectorspace-audit
           retention-days: 7
