@@ -53,10 +53,10 @@ internal static class DesignSystemTests
             VariableService.Unbind(e, instance.Id, VariableTarget.Fill); VariableService.SetValue(e, color.Id, collection.DefaultModeId, VariableValue.Color("#0000FF"));
             Check(instance.Fill == "#FF0000"); e.Select(instance); ComponentService.ResetOverrides(e); Check(instance.Fill == "#0000FF");
         });
-        test("v1 documents migrate to v2 without geometry changes", () =>
+        test("v1 documents migrate to v3 without geometry changes", () =>
         {
             var doc = new DesignDocument { FormatVersion = 1 }; doc.Pages[0].Nodes.Add(new() { X = 77 });
-            var read = DocumentJson.Load(DocumentJson.Save(doc)); Check(read.FormatVersion == 2); Equal(read.Pages[0].Nodes[0].X, 77);
+            var read = DocumentJson.Load(DocumentJson.Save(doc)); Check(read.FormatVersion == 3); Equal(read.Pages[0].Nodes[0].X, 77);
         });
         test("variable collection creation is one undo entry", () => { var e = Editor(); VariableService.CreateCollection(e, "Theme"); Equal(e.History.Count, 1); e.Undo(); Equal(e.Document.VariableCollections.Count, 0); e.Redo(); Equal(e.Document.VariableCollections.Count, 1); });
         test("typed color binding updates scene and survives serialization", () =>

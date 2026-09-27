@@ -48,7 +48,7 @@ public static class ComponentService
             foreach (var instance in editor.SelectionRoots.Where(n => n.Kind == NodeKind.Instance && !n.IsEffectivelyLocked))
                 foreach (var node in instance.DescendantsAndSelf())
                 {
-                    node.Overrides.Clear(); node.VariableModes.Clear();
+                    node.Overrides.Clear(); node.VariableModes.Clear(); node.PrototypeReactionsOverride = false;
                     foreach (var key in node.VariableBindings.Where(p => p.Value.IsOverride).Select(p => p.Key).ToArray()) node.VariableBindings.Remove(key);
                 }
         });
@@ -119,12 +119,15 @@ public static class ComponentService
             var ids = new Dictionary<string, string>(StringComparer.Ordinal);
             PreserveIds(copy, instance, ids);
             foreach (var n in copy.DescendantsAndSelf()) if (n.PrototypeTargetId is { } target && ids.TryGetValue(target, out var replacement)) n.PrototypeTargetId = replacement;
+            foreach (var n in copy.DescendantsAndSelf()) PrototypeValidation.Remap(n, ids);
             instance.Children = copy.Children; foreach (var child in instance.Children) child.Parent = instance;
             instance.Fills = copy.Fills; instance.Strokes = copy.Strokes; instance.Shadows = copy.Shadows;
             instance.CornerRadius = copy.CornerRadius; instance.Layout = copy.Layout; instance.ClipContent = copy.ClipContent;
             instance.Text = copy.Text; instance.FontFamily = copy.FontFamily; instance.FontSize = copy.FontSize;
             instance.FontWeight = copy.FontWeight; instance.TextAlign = copy.TextAlign; instance.LineHeight = copy.LineHeight; instance.LetterSpacing = copy.LetterSpacing;
             instance.VariantProperties = copy.VariantProperties;
+            instance.Reactions = copy.Reactions; instance.PrototypeTargetId = copy.PrototypeTargetId;
+            instance.PrototypeOverflow = copy.PrototypeOverflow; instance.PrototypeReactionsOverride = copy.PrototypeReactionsOverride;
             instance.SourceId ??= definition.Id;
             // A binding authored on an instance is local. Definition bindings are refreshed unless explicitly overridden.
             foreach (var key in instance.VariableBindings.Where(p => !p.Value.IsOverride).Select(p => p.Key).ToArray()) instance.VariableBindings.Remove(key);
@@ -145,6 +148,11 @@ public static class ComponentService
     }
     private static void TransferLocalState(DesignNode fresh, DesignNode old)
     {
+        if (old.PrototypeReactionsOverride)
+        {
+            fresh.PrototypeReactionsOverride = true; fresh.Reactions = DocumentJson.CloneReactions(old.Reactions);
+            fresh.PrototypeTargetId = old.PrototypeTargetId; fresh.PrototypeOverflow = old.PrototypeOverflow;
+        }
         foreach (var pair in old.VariableBindings.Where(p => p.Value.IsOverride)) fresh.VariableBindings[pair.Key] = pair.Value;
         // Mode overrides on instances intentionally override the source's mode selection.
         foreach (var pair in old.VariableModes) fresh.VariableModes[pair.Key] = pair.Value;
@@ -177,6 +185,12 @@ public static class ComponentService
         var text = new StringBuilder();
         foreach (var node in root.DescendantsAndSelf())
         {
+            Add(node.PrototypeReactionsOverride.ToString());
+            if (node.PrototypeReactionsOverride)
+            {
+                Add(node.SourceId); Add(node.PrototypeTargetId); Add(node.PrototypeOverflow.ToString());
+                Add(System.Text.Json.JsonSerializer.Serialize(node.Reactions, VectorSpaceJsonContext.Default.ListPrototypeReaction));
+            }
             foreach (var pair in node.Overrides.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
                 Add(node.SourceId); Add(pair.Key); Add(pair.Value.Text); Add(pair.Value.Fill); Add(pair.Value.Visible?.ToString());

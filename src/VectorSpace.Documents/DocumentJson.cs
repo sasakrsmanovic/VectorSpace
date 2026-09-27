@@ -8,6 +8,7 @@ namespace VectorSpace.Documents;
 [JsonSerializable(typeof(DesignDocument))]
 [JsonSerializable(typeof(DesignNode))]
 [JsonSerializable(typeof(List<DesignNode>))]
+[JsonSerializable(typeof(List<PrototypeReaction>))]
 public partial class VectorSpaceJsonContext : JsonSerializerContext;
 
 public static class DocumentJson
@@ -19,7 +20,7 @@ public static class DocumentJson
     {
         if (json.Length > MaxDocumentCharacters) throw new InvalidDataException("The document exceeds the 32 MiB text limit.");
         var document = JsonSerializer.Deserialize(json, VectorSpaceJsonContext.Default.DesignDocument) ?? throw new InvalidDataException("The file does not contain a VectorSpace document.");
-        Validate(document); document.FormatVersion = 2; document.RebuildParents(); return document;
+        Validate(document); document.FormatVersion = 3; document.RebuildParents(); return document;
     }
     public static DesignNode CloneNode(DesignNode node, bool newIds = false)
     {
@@ -29,6 +30,7 @@ public static class DocumentJson
         return clone;
         static void Attach(DesignNode n, DesignNode? parent) { n.Parent = parent; foreach (var c in n.Children) Attach(c, n); }
     }
+    public static List<PrototypeReaction> CloneReactions(List<PrototypeReaction> reactions) => JsonSerializer.Deserialize(JsonSerializer.Serialize(reactions, VectorSpaceJsonContext.Default.ListPrototypeReaction), VectorSpaceJsonContext.Default.ListPrototypeReaction)!;
     public static string SaveNodes(IEnumerable<DesignNode> nodes) => JsonSerializer.Serialize(nodes.ToList(), VectorSpaceJsonContext.Default.ListDesignNode);
     public static List<DesignNode> LoadNodes(string json)
     {
@@ -43,13 +45,14 @@ public static class DocumentJson
         foreach (var node in nodes)
         {
             node.Id = ids[node.Id];
+            PrototypeValidation.Remap(node, ids);
             if (node.PrototypeTargetId is { } target && ids.TryGetValue(target, out var replacement)) node.PrototypeTargetId = replacement;
             if (node.ComponentId is { } component && ids.TryGetValue(component, out replacement)) node.ComponentId = replacement;
         }
     }
     public static void Validate(DesignDocument document)
     {
-        if (document.FormatVersion is not (1 or 2)) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
+        if (document.FormatVersion is not (1 or 2 or 3)) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
         if (document.Pages is null || document.Pages.Count is < 1 or > 1000) throw new InvalidDataException("A document must have between 1 and 1000 pages.");
         var ids = new HashSet<string>(StringComparer.Ordinal); var count = 0;
         foreach (var page in document.Pages)
@@ -58,6 +61,7 @@ public static class DocumentJson
             foreach (var node in page.Nodes) Check(node, 0);
         }
         VariableResolver.Validate(document);
+        PrototypeValidation.Validate(document);
         void Check(DesignNode n, int depth)
         {
             if (++count > MaxNodes || depth > 60) throw new InvalidDataException("Document node count or nesting limit exceeded.");

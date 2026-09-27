@@ -41,6 +41,7 @@ public sealed partial class StudioWorkbench
         yield return new("Toggle rulers", "Shift R", () => { Session.RulersVisible = !Session.RulersVisible; Surface.Invalidate(); });
         yield return new("Toggle outlines", "Ctrl Shift O", () => { Session.OutlinesVisible = !Session.OutlinesVisible; Surface.Invalidate(); });
         yield return new("Toggle snapping", "", () => { Session.SnapEnabled = !Session.SnapEnabled; ShowStatus(Session.SnapEnabled ? "Snapping on" : "Snapping off"); });
+        yield return new("Prototype playground", "", () => RunAsync(OpenPrototypePlaygroundAsync));
         yield return new("Present prototype", "", () => Run(Surface.Present));
         yield return new("Keyboard shortcuts", "?", () => RunAsync(ShowHelpAsync));
     }
@@ -54,6 +55,7 @@ public sealed partial class StudioWorkbench
         AddMenu(menu, "New document", () => RunAsync(NewDocumentAsync));
         AddMenu(menu, "Open…                         Ctrl O", () => RunAsync(OpenAsync));
         AddMenu(menu, "Save a local copy…        Ctrl S", () => RunAsync(SaveAsync));
+        AddMenu(menu, "Prototype playground", () => RunAsync(OpenPrototypePlaygroundAsync));
         AddMenu(menu, "Reset to sample", () => RunAsync(async () => { if (await ConfirmAsync("Replace document?", "This restores the editable Aether sample. Download a copy first to keep your current document.")) { Session.Load(SampleDocument.Create()); Surface.Fit(firstFrame: true); } }));
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "Undo " + Session.UndoLabel, () => Run(Session.Undo), Session.CanUndo);

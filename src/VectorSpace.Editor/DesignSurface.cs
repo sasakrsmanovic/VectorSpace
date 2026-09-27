@@ -40,12 +40,11 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private readonly Dictionary<uint, Vec2> _touches = [];
     private double _pinchDistance, _pinchZoom;
     private Vec2 _pinchCenter, _pinchPan;
-    private string? _presentedFrame;
     public SceneRenderer Renderer { get; } = new();
     public bool ShowDiagnostics { get; set; }
     public bool HasActivePath => _penNode is not null;
     public bool IsSpaceDown { get; set; }
-    public bool IsPresenting => _presentedFrame is not null;
+    public bool IsPresenting => _prototypePlayer is not null;
     public bool IsTextEditing => _textEditor is not null;
     public event Action<Vec2, CommentThread?>? CommentRequested;
     public event Action<Point>? CanvasContextRequested;
@@ -58,7 +57,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             if (_session == value) return;
             if (_session is not null) _session.Changed -= SessionChanged;
-            _session = value;
+            ExitPresentation(); _session = value;
             if (_session is not null) _session.Changed += SessionChanged;
             RequestFrame();
         }
@@ -91,8 +90,6 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         _canvas.RightTapped += (_, e) => { CanvasContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; };
         _canvas.SizeChanged += (_, _) =>
         {
-            if (IsPresenting && Session?.Document.Find(_presentedFrame) is { } frame)
-                Session.Viewport.Fit(frame.WorldBounds, ActualWidth, ActualHeight, 32);
             RequestFrame();
         };
     }
@@ -138,7 +135,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (Session is not { } editor) return;
         var point = e.GetCurrentPoint(_canvas); var screen = new Vec2(point.Position.X, point.Position.Y); var world = editor.Viewport.ScreenToWorld(screen);
         if (point.Properties.IsRightButtonPressed) return;
-        if (IsPresenting) { NavigatePrototype(world); e.Handled = true; return; }
+        if (IsPresenting) { e.Handled = true; return; }
         FinishTextEdit(true); FocusCanvas();
         if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
         {
@@ -423,30 +420,9 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         _finishingText = true; var box = _textEditor; _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
         if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); _finishingText = false; RequestFrame();
     }
-    public void Present()
-    {
-        if (Session is not { } editor) return;
-        FinishTextEdit(true); if (editor.IsInteracting) editor.CommitInteraction();
-        var frame = editor.SelectionRoots.FirstOrDefault(n => n.IsFrame) ?? editor.Page.Nodes.FirstOrDefault(n => n.IsFrame);
-        if (frame is null) { StatusChanged?.Invoke("Create a frame to present a prototype."); return; }
-        _presentedFrame = frame.Id; editor.Viewport.Fit(frame.WorldBounds, ActualWidth, ActualHeight, 32); PresentationChanged?.Invoke(true); RequestFrame();
-    }
-    public void ExitPresentation() { _presentedFrame = null; PresentationChanged?.Invoke(false); Fit(true); }
-    private void NavigatePrototype(Vec2 world)
-    {
-        if (Session is not { } editor || editor.Document.Find(_presentedFrame) is not { } frame) return;
-        var hit = Renderer.HitTest([frame], world, true);
-        for (var n = hit; n is not null; n = n.Parent)
-        {
-            if (n.PrototypeTargetId is { } target && editor.Document.Find(target) is { } destination)
-            {
-                _presentedFrame = target; editor.Viewport.Fit(destination.WorldBounds, ActualWidth, ActualHeight, 32); RequestFrame(); return;
-            }
-        }
-    }
     public new void Dispose()
     {
-        if (_disposed) return; _disposed = true; if (_session is not null) _session.Changed -= SessionChanged; Renderer.Dispose();
+        if (_disposed) return; ExitPresentation(); _disposed = true; if (_session is not null) _session.Changed -= SessionChanged; Renderer.Dispose();
     }
 }
 

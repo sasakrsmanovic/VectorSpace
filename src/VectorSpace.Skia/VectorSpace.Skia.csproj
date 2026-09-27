@@ -5,6 +5,7 @@
     <Description>SkiaSharp rendering, hit testing, vector Boolean operations and raster export for VectorSpace.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../VectorSpace.Prototyping/VectorSpace.Prototyping.csproj" />
     <ProjectReference Include="../VectorSpace.Core/VectorSpace.Core.csproj" />
     <ProjectReference Include="../VectorSpace.Editing/VectorSpace.Editing.csproj" />
     <PackageReference Include="SkiaSharp" Version="$(VectorSpaceSkiaVersion)" />

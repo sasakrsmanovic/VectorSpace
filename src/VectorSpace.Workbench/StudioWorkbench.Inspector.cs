@@ -193,20 +193,4 @@ public sealed partial class StudioWorkbench
         section.Body.Children.Add(Studio.Columns((Studio.Choice(["1×", "2×", "3×", "4×"], ((int)_exportScale) + "×", value => _exportScale = value[0] - '0', "Export scale"), 70), (new StudioButton("PNG", () => RunAsync(() => ExportAsync(false))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field) }, -1), (new StudioButton("SVG", () => RunAsync(() => ExportAsync(true))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field) }, -1)));
         section.Body.Children.Add(Wrapped(Session.Selection.Count > 0 ? "Exports selected layers at their actual document dimensions." : "Exports all visible layers on this page.", 10));
     }
-    private void BuildPrototypeInspector()
-    {
-        var heading = AddSection("Prototype");
-        heading.Body.Children.Add(Wrapped("Connect a layer to another frame. Present the design and click the layer to navigate."));
-        if (Session.Primary is not { } node) { heading.Body.Children.Add(Wrapped("Select a layer to add an interaction.")); return; }
-        var interaction = AddSection("Interactions"); interaction.Body.Children.Add(Studio.Text("On click → Navigate to", 11));
-        var frames = Session.Document.AllNodes().Where(n => n.IsFrame && n.Id != node.Id && !n.IsDescendantOf(node)).ToArray();
-        var combo = new ComboBox { Style = (Style)StudioResources.Current["VS.ComboBox"], Height = 32, FontFamily = Studio.Font };
-        combo.Items.Add(new ComboBoxItem { Content = "None", Tag = "" });
-        foreach (var frame in frames) combo.Items.Add(new ComboBoxItem { Content = frame.Name, Tag = frame.Id });
-        combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == node.PrototypeTargetId) ?? combo.Items[0];
-        combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem item) Change("Prototype interaction", n => n.PrototypeTargetId = string.IsNullOrEmpty((string)item.Tag) ? null : (string)item.Tag); };
-        AutomationProperties.SetName(combo, "Prototype destination"); interaction.Body.Children.Add(combo);
-        interaction.Body.Children.Add(new StudioButton("Present prototype", () => Run(Surface.Present)) { IsPrimary = true });
-        var info = AddSection("Preview"); info.Body.Children.Add(Wrapped("Navigation is immediate. Press Escape to return to editing. Prototype links are stored in the document and work without a server."));
-    }
 }

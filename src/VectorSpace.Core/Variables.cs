@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace VectorSpace.Core;
 
@@ -13,6 +14,22 @@ public sealed record VariableValue
     public double Number { get; init; }
     public bool Boolean { get; init; }
     public string? AliasId { get; init; }
+
+    public VariableValue() { }
+
+    /// <summary>Explicit defaults keep compact external JSON equivalent to object-initializer values.
+    /// Source-generated init-only assignment must not replace an omitted Text with null.
+    /// Explicit JSON null is deliberately retained for the document validator to reject.</summary>
+    [JsonConstructor]
+    public VariableValue(VariableType type, string text = "", double number = 0, bool boolean = false, string? aliasId = null)
+    {
+        Type = type;
+        Text = text;
+        Number = number;
+        Boolean = boolean;
+        AliasId = aliasId;
+    }
+
     public static VariableValue Color(string value) => new() { Type = VariableType.Color, Text = value };
     public static VariableValue Float(double value) => new() { Type = VariableType.Number, Number = value };
     public static VariableValue String(string value) => new() { Type = VariableType.String, Text = value };

@@ -1,9 +1,23 @@
 # Changelog
 
+## 0.3.0-alpha.1
+
+- Add the reusable UI-independent `VectorSpace.Prototyping` package and deterministic isolated playback state.
+- Add named flow starts, click/enter/leave/press/release/key/delay reactions, ordered actions, typed conditions, variable operations and interactive variants.
+- Add navigation history, modal overlay stacks, placement/backdrops, outside dismissal, scroll-to and wheel/touch scrolling.
+- Add Skia instant/dissolve/move/push transitions and prepared name-matched smart interpolation; unsupported overlay smart transitions fall back to dissolve.
+- Add a dedicated Uno player, contextual interaction authoring, consent-gated external links and an original editable prototype playground.
+- Preserve the editor viewport/history/save state during playback; validate action batches before committing private runtime mutations.
+- Upgrade native JSON to schema 3 with version-1/2 migration, legacy links, reference remapping and inherited/local component interaction overrides.
+- Fix source-generated import of compact immutable variable literals with explicit constructor defaults; keep explicitly null text invalid.
+- Retain hover-path buffers, skip unchanged player invalidations and avoid repeated viewport fitting on pointer movement.
+- Reconcile retained pointer location when transitions finish so quick hover exits cannot remain stuck without further input.
+- Add 65 engine regressions and ten prototype browser cases, including hover paths, canceled clicks, release suppression after press navigation and animated hover exits. Complete suites contain 233 engine cases and 19 browser cases.
+- Document exact prototype semantics, resource limits and remaining Figma compatibility boundaries. Full Figma parity is not claimed.
+
 ## 0.2.0-alpha.2
 
 - Normalize missing Alt pointer modifiers from Uno keyboard state for resize, drawing, duplication and tangent gestures.
-
 - Preserve hug/fill on untouched sizing axes during handle drags; horizontal resizing now reflows wrapping hug-height frames.
 - Keep opposite edges and centers stationary at min/max constraints, including nested rotation/reflection.
 - Fix proportional side-handle shrinking and centered proportional resizing; add reusable allocation-free resize geometry.
@@ -19,7 +33,6 @@
 - Indexed gesture snapping, retained geometry/text caches, conservative viewport culling, and selection-only layer-list updates.
 - Expanded engine and browser tests, design-system guide and reproducible CPU snapping benchmark.
 - Reviewed dependency PRs integrated with managed/native Skia ABI alignment and retained hidden Pages assets.
-
 
 ## 0.1.0-alpha.1
 

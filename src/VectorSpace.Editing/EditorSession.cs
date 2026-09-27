@@ -254,6 +254,7 @@ public sealed partial class EditorSession
         {
             foreach (var binding in n.VariableBindings.Values) if (!binding.Disabled) binding.VariableId = ids[binding.VariableId];
             n.VariableModes = n.VariableModes.ToDictionary(p => ids[p.Key], p => ids[p.Value]);
+            PrototypeValidation.Remap(n, new Dictionary<string, string>(), ids);
         }
     }
     public void GroupSelection(bool asFrame = false)
