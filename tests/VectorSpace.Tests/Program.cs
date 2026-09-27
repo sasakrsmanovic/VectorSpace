@@ -6,6 +6,8 @@ using VectorSpace.Editing;
 using VectorSpace.Layout;
 using VectorSpace.Skia;
 
+if (args.Contains("--benchmark")) return PerformanceBenchmarks.Run();
+
 var tests = new List<(string Name, Action Test)>();
 void Test(string name, Action action) => tests.Add((name, action));
 void Equal(double actual, double expected, double epsilon = .0001) { if (Math.Abs(actual - expected) > epsilon) throw new Exception($"Expected {expected}; got {actual}."); }
@@ -68,6 +70,9 @@ Test("clipboard captures world placement", () => { var parent = Node(100, 200); 
 Test("component creation preserves leaf content", () => { var n = Node(30, 40); n.Fill = "#FF0000"; var e = Editor(n); e.Select(n); ComponentService.MakeComponent(e); Check(e.Primary!.Kind == NodeKind.Component); Equal(e.Primary.Children.Count, 1); Check(e.Primary.Children[0].Fill == "#FF0000"); Equal(e.Primary.Children[0].WorldBounds.X, 30); e.Undo(); Check(e.Primary!.Kind == NodeKind.Rectangle); });
 Test("source edits synchronize instances atomically", () => { var c = Node(); c.Kind = NodeKind.Component; c.Add(new() { Kind = NodeKind.Text, Text = "Before" }); var e = Editor(c); var i = ComponentService.InsertInstance(e, c, new(300, 0)); var instanceId = i.Id; e.Select(c.Children[0]); e.UpdateSelection("Edit source", n => n.Text = "After"); Check(e.Document.Find(instanceId)!.Children[0].Text == "After"); e.Undo(); Check(e.Document.Find(instanceId)!.Children[0].Text == "Before"); });
 Test("sample is valid and renderable", () => { var document = SampleDocument.Create(); DocumentJson.Validate(document); using var renderer = new SceneRenderer(); var frame = document.Pages[0].Nodes[0]; var png = renderer.ExportPng([frame], frame.WorldBounds, .25); using var bitmap = SKBitmap.Decode(png); Check(bitmap.Width == 260 && bitmap.Height == 205); });
+
+ParityTests.Register(Test);
+DesignSystemTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }

@@ -3,5 +3,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/VectorSpace.Skia/VectorSpace.Skia.csproj" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="$(VectorSpaceSkiaVersion)" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <None Include="../browser/fixtures/design-system.vectorspace" Link="design-system.vectorspace" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

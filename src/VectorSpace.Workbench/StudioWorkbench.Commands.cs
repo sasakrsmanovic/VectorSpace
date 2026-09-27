@@ -23,8 +23,18 @@ public sealed partial class StudioWorkbench
         yield return new("Group selection", "Ctrl G", () => Run(() => Session.GroupSelection()));
         yield return new("Frame selection", "Ctrl Alt G", () => Run(() => Session.GroupSelection(true)));
         yield return new("Ungroup", "Ctrl Shift G", () => Run(Session.UngroupSelection));
+        yield return new("Local variables", "", () => RunAsync(ShowVariablesAsync));
+        yield return new("Combine as variants", "", () => Run(() => ComponentVariants.Combine(Session)));
+        yield return new("Add variant", "", () => { if (Session.Primary is { } n) Run(() => ComponentVariants.Add(Session, n.Id)); });
         yield return new("Create component", "Ctrl Alt K", () => Run(() => ComponentService.MakeComponent(Session)));
         yield return new("Add auto layout", "Shift A", AddAutoLayout);
+        yield return new("Remove auto layout", "Alt Shift A", () => Run(() => Session.UpdateSelection("Remove auto layout", n => { n.Layout.Direction = LayoutDirection.None; n.Layout.HugWidth = n.Layout.HugHeight = false; })));
+        yield return new("Select child", "Enter", Session.SelectChild);
+        yield return new("Select parent", "Shift Enter", Session.SelectParent);
+        yield return new("Select same fill", "", () => Session.SelectMatching("fill"));
+        yield return new("Select same font", "", () => Session.SelectMatching("font"));
+        yield return new("Toggle panels", "", TogglePanels);
+        yield return new("Render diagnostics", "", () => { Surface.ShowDiagnostics = !Surface.ShowDiagnostics; Surface.Invalidate(); });
         yield return new("Fit all", "Shift 1", () => Surface.Fit());
         yield return new("Fit selection", "Shift 2", () => Surface.Fit(true));
         yield return new("Toggle grid", "Ctrl '", () => { Session.GridVisible = !Session.GridVisible; Surface.Invalidate(); });
@@ -51,6 +61,7 @@ public sealed partial class StudioWorkbench
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "Export selection as PNG…", () => RunAsync(() => ExportAsync(false)));
         AddMenu(menu, "Export selection as SVG…", () => RunAsync(() => ExportAsync(true)));
+        AddMenu(menu, "Local variables…", () => RunAsync(ShowVariablesAsync));
         AddMenu(menu, "Frame presets…", () => RunAsync(ShowFramePresetsAsync));
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, (Session.GridVisible ? "✓ " : "") + "Show grid", () => { Session.GridVisible = !Session.GridVisible; Surface.Invalidate(); });
@@ -143,14 +154,16 @@ public sealed partial class StudioWorkbench
                 VirtualKey.H => () => Session.Tool = EditorTool.Hand,
                 VirtualKey.C => () => Session.Tool = EditorTool.Comment,
                 VirtualKey.S => () => Session.Tool = shift ? EditorTool.Section : EditorTool.Slice,
+                VirtualKey.A when shift && alt => () => Session.UpdateSelection("Remove auto layout", n => { n.Layout.Direction = LayoutDirection.None; n.Layout.HugWidth = n.Layout.HugHeight = false; }),
                 VirtualKey.A when shift => AddAutoLayout,
                 VirtualKey.Number1 when shift => () => Surface.Fit(),
                 VirtualKey.Number2 when shift => () => Surface.Fit(true),
                 VirtualKey.Number0 => () => Surface.ZoomTo(1),
                 VirtualKey.F2 => () => { if (Session.Primary is { } n) RunAsync(() => RenameLayerAsync(n)); },
-                VirtualKey.Tab => TogglePanels,
+                VirtualKey.Tab => () => Session.SelectSibling(shift),
                 VirtualKey.Escape => () => { Surface.CancelGesture(); Session.Select((DesignNode?)null); Session.Tool = EditorTool.Move; },
-                VirtualKey.Enter => () => { Surface.FinishPath(false); if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); },
+                VirtualKey.Enter when shift => Session.SelectParent,
+                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else Session.SelectChild(); },
                 VirtualKey.Space => () => Surface.IsSpaceDown = true,
                 _ => null
             };
@@ -163,23 +176,11 @@ public sealed partial class StudioWorkbench
             try { action(); } catch (Exception ex) { ShowStatus(ex.Message, true); } e.Handled = true;
         }
     }
-    private void AddAutoLayout()
-    {
-        Run(() =>
-        {
-            if (Session.SelectionRoots.Count == 0) return;
-            if (Session.SelectionRoots.Count != 1 || Session.Primary?.IsContainer != true) Session.GroupSelection(true);
-            Session.UpdateSelection("Add auto layout", n => { n.Layout.Direction = LayoutDirection.Horizontal; n.Layout.HugWidth = true; n.Layout.HugHeight = true; });
-        });
-    }
+    private void AddAutoLayout() => Run(Session.AddAutoLayout);
     private async Task CopyAsync(bool cut)
     {
         if (Session.Selection.Count == 0) return;
-        var nodes = Session.SelectionRoots.Select(n =>
-        {
-            var clone = DocumentJson.CloneNode(n); NodeGeometry.SetLocalMatrix(clone, n.WorldMatrix); return clone;
-        }).ToArray();
-        _clipboard = ClipboardPrefix + DocumentJson.SaveNodes(nodes);
+        _clipboard = ClipboardPrefix + Session.CopySelection();
         try { var package = new DataPackage(); package.SetText(_clipboard); Clipboard.SetContent(package); }
         catch { ShowStatus("Copied to this editor's clipboard. Browser clipboard access was unavailable."); }
         if (cut) Session.DeleteSelection();
@@ -292,23 +293,24 @@ public sealed partial class StudioWorkbench
         root.Children.Add(Studio.Text("VectorSpace", 24, Studio.Ink, true)); root.Children.Add(Wrapped("An independent, local-first vector design editor built with Uno Platform and SkiaSharp. Original implementation and assets; not affiliated with Figma.", 12, Studio.Ink));
         foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Hide panels / Cancel / Rename", "Tab / Esc / F2") })
             root.Children.Add(Studio.Columns((Wrapped(name, 11, Studio.Ink), -1), (Wrapped(shortcut, 10, Studio.Muted), 165)));
-        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, variables/variants, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
+        root.Children.Add(Wrapped("Local variables: create typed values and aliases, add modes, and bind layer properties from the Variables inspector. Local variants: combine components or Add variant, insert an instance from Assets, and choose its properties. All edits support undo and native document round-tripping.", 11));
+        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote design libraries, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
         await Dialog("Keyboard shortcuts & about", Studio.Scroll(root)).ShowAsync();
     }
     private async Task ShowQuickActionsAsync()
     {
         var root = new StackPanel { Spacing = 10, Width = 410 }; var search = Studio.Input("", "Search quick actions"); search.PlaceholderText = "Search actions…"; search.Height = 38; root.Children.Add(search);
         var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.MaxHeight = 360; root.Children.Add(scroll);
-        var dialog = Dialog("Quick actions", root);
+        var dialog = Dialog("Quick actions", root); Action? selectedAction = null;
         void Filter()
         {
             results.Children.Clear(); foreach (var item in Actions().Where(a => a.Name.Contains(search.Text, StringComparison.OrdinalIgnoreCase)))
             {
                 var button = new StudioButton { Content = Studio.Columns((Studio.Text(item.Name, 12), -1), (Studio.Text(item.Shortcut, 10, Studio.Muted), 110)), HorizontalContentAlignment = HorizontalAlignment.Stretch, Height = 36, Padding = new(8) };
-                AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { dialog.Hide(); DispatcherQueue.TryEnqueue(() => item.Execute()); }; results.Children.Add(button);
+                AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { selectedAction = item.Execute; dialog.Hide(); }; results.Children.Add(button);
             }
         }
-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync();
+        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); selectedAction?.Invoke();
     }
     private async Task ShowFramePresetsAsync()
     {

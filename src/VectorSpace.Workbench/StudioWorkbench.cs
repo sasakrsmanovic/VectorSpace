@@ -13,6 +13,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private readonly ColumnDefinition _rightColumn = new() { Width = new(288) };
     private readonly ListView _layers = new();
     private readonly ObservableCollection<LayerEntry> _entries = [];
+    private readonly Dictionary<string, LayerEntry> _entryById = new(StringComparer.Ordinal);
     private readonly StackPanel _pages = new() { Margin = new(8, 2, 8, 12), Spacing = 2 };
     private readonly StackPanel _inspector = new();
     private readonly ContentControl _leftContent = new();
@@ -29,6 +30,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private readonly DispatcherTimer _autosaveTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(4) };
     private readonly SemaphoreSlim _autosaveLock = new(1, 1);
+    private StudioButton? _createComponentButton;
     private string _layerSignature = "";
     private bool _refreshing, _assets, _prototype, _uiVisible = true, _initialFit, _disposed;
     private bool _aspectLocked;
@@ -143,10 +145,15 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private void OnSessionChanged(object? sender, EditorChangedEventArgs e)
     {
         if (_disposed) return;
-        if (e.Kind is EditorChangeKind.Document or EditorChangeKind.Selection)
+        if (e.Kind == EditorChangeKind.Document)
         {
             RefreshAll();
             if (e.Kind == EditorChangeKind.Document && e.Label != "Switch page") { _status.Text = "Saving locally…"; _autosaveTimer.Stop(); _autosaveTimer.Start(); }
+        }
+        else if (e.Kind == EditorChangeKind.Selection)
+        {
+            RefreshLayerSelection(); RefreshInspector();
+            if (_createComponentButton is not null) _createComponentButton.IsEnabled = Session.SelectionRoots.Count == 1;
         }
         else if (e.Kind == EditorChangeKind.Viewport) _zoom.Content = Numbers.Format(Session.Viewport.Zoom * 100) + "%⌄";
         else if (e.Kind == EditorChangeKind.Tool) RefreshTools();
@@ -197,38 +204,58 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         {
             if (signature != _layerSignature || force)
             {
-                _layerSignature = signature; _entries.Clear();
+                _layerSignature = signature; _entries.Clear(); _entryById.Clear();
                 foreach (var (node, depth) in list)
                 {
                     _entries.Add(new()
                     {
-                        Id = node.Id, Name = node.Name, Depth = depth, Glyph = Glyph(node.Kind), HasChildren = node.Children.Count > 0, Expanded = node.Expanded, Visible = node.Visible, Locked = node.Locked, IsComponent = node.Kind is NodeKind.Component or NodeKind.Instance,
+                        Id = node.Id, Name = node.Name, Depth = depth, Glyph = Glyph(node.Kind), HasChildren = node.Children.Count > 0, Expanded = node.Expanded, Visible = node.Visible, Locked = node.Locked, IsComponent = node.Kind is NodeKind.Component or NodeKind.Instance or NodeKind.ComponentSet,
                         ToggleExpanded = () => { if (Session.Document.Find(node.Id) is { } current) { current.Expanded = !current.Expanded; RefreshLayers(true); } },
                         ToggleVisibility = () => Run(() => { if (Session.Document.Find(node.Id) is { } current) Session.Edit("Toggle layer visibility", () => current.Visible = !current.Visible); }),
                         ToggleLocked = () => Run(() => { if (Session.Document.Find(node.Id) is { } current) Session.Edit("Toggle layer lock", () => current.Locked = !current.Locked); }),
                         Rename = () => { if (Session.Document.Find(node.Id) is { } current) RunAsync(() => RenameLayerAsync(current)); }
                     });
+                    _entryById.Add(node.Id, _entries[^1]);
                 }
             }
-            _layers.SelectedItems.Clear(); foreach (var item in _entries.Where(n => Session.SelectedIds.Contains(n.Id))) _layers.SelectedItems.Add(item);
+            RefreshLayerSelection();
         }
         finally { _refreshing = false; }
+    }
+    private void RefreshLayerSelection()
+    {
+        var refreshing = _refreshing; _refreshing = true;
+        try
+        {
+            // Preserve realized containers and focus. Selection-only changes must not rebuild
+            // the layer tree, page buttons, assets or their full-scene string signature.
+            var selected = _layers.SelectedItems.OfType<LayerEntry>().ToArray();
+            foreach (var item in selected) if (!Session.SelectedIds.Contains(item.Id)) _layers.SelectedItems.Remove(item);
+            var current = selected.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+            foreach (var id in Session.SelectedIds)
+                if (!current.Contains(id) && _entryById.TryGetValue(id, out var entry)) _layers.SelectedItems.Add(entry);
+        }
+        finally { _refreshing = refreshing; }
     }
     private void RefreshLeftContent()
     {
         if (!_assets) { _leftContent.Content = _layers; return; }
         var root = new StackPanel { Margin = new(14, 8, 14, 20), Spacing = 10 }; root.Children.Add(Studio.Text("Local components", 12, Studio.Ink, true));
-        var components = Session.Document.AllNodes().Where(n => n.Kind == NodeKind.Component).ToArray();
+        var components = Session.Document.AllNodes().Where(n => n.Kind is NodeKind.Component or NodeKind.ComponentSet && n.Parent?.Kind != NodeKind.ComponentSet && !InsideInstance(n)).ToArray();
         if (components.Length == 0) root.Children.Add(Wrapped("Select a layer and create a component to reuse it throughout this document."));
         foreach (var component in components)
         {
+            var definition = component.Kind == NodeKind.ComponentSet ? component.Children.OrderBy(c => c.Y).ThenBy(c => c.X).FirstOrDefault() : component;
+            if (definition is null) continue;
             var tile = new StudioButton { Content = Studio.Columns((new IconView { Glyph = "component", Color = "#9747FF", VerticalAlignment = VerticalAlignment.Center }, 20), (Studio.Text(component.Name, 11, "#9747FF"), -1)), HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new(12), Height = 56, BorderBrush = Studio.Brush(Studio.Line), BorderThickness = new(1), CornerRadius = new(8) };
             AutomationProperties.SetName(tile, "Insert " + component.Name);
-            tile.Click += (_, _) => Run(() => { var p = Session.Viewport.ScreenToWorld(new(Surface.ActualWidth / 2, Surface.ActualHeight / 2)); ComponentService.InsertInstance(Session, component, p - new Vec2(component.Width / 2, component.Height / 2)); }); root.Children.Add(tile);
+            tile.Click += (_, _) => Run(() => { var p = Session.Viewport.ScreenToWorld(new(Surface.ActualWidth / 2, Surface.ActualHeight / 2)); ComponentService.InsertInstance(Session, definition, p - new Vec2(definition.Width / 2, definition.Height / 2)); }); root.Children.Add(tile);
         }
-        root.Children.Add(new StudioButton("Create component from selection", () => Run(() => ComponentService.MakeComponent(Session))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field), IsEnabled = Session.SelectionRoots.Count == 1 });
+        _createComponentButton = new StudioButton("Create component from selection", () => Run(() => ComponentService.MakeComponent(Session))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field), IsEnabled = Session.SelectionRoots.Count == 1 };
+        root.Children.Add(_createComponentButton);
         _leftContent.Content = Studio.Scroll(root);
     }
+    private static bool InsideInstance(DesignNode node) { for (var p = node.Parent; p is not null; p = p.Parent) if (p.Kind == NodeKind.Instance) return true; return false; }
     private void TogglePanels()
     {
         _uiVisible = !_uiVisible;
@@ -261,7 +288,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     {
         var block = Studio.Text(text, size, color); block.TextWrapping = TextWrapping.Wrap; block.TextTrimming = TextTrimming.None; block.LineHeight = size * 1.55; return block;
     }
-    private static string Glyph(NodeKind kind) => kind == NodeKind.Path ? "pen" : kind.ToString().ToLowerInvariant();
+    private static string Glyph(NodeKind kind) => kind == NodeKind.Path ? "pen" : kind == NodeKind.ComponentSet ? "component" : kind.ToString().ToLowerInvariant();
     public new void Dispose()
     {
         if (_disposed) return; _disposed = true; Session.Changed -= OnSessionChanged; _autosaveTimer.Stop(); _toastTimer.Stop(); Surface.Dispose();

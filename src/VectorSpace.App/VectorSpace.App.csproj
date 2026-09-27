@@ -7,8 +7,8 @@
     <UnoFeatures>SkiaRenderer;</UnoFeatures>
     <ApplicationTitle>VectorSpace</ApplicationTitle>
     <ApplicationId>io.github.wieslawsoltes.vectorspace</ApplicationId>
-    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
-    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
+    <ApplicationVersion>2</ApplicationVersion>
     <ApplicationPublisher>VectorSpace contributors</ApplicationPublisher>
     <Description>Local-first vector design with Uno Platform and SkiaSharp.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

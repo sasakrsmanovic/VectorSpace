@@ -2,10 +2,12 @@ using System.Text.Json.Serialization;
 
 namespace VectorSpace.Core;
 
-public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice }
+public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice, ComponentSet }
 public enum FillKind { Solid, LinearGradient, RadialGradient }
 public enum BlendKind { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference }
-public enum LayoutDirection { None, Horizontal, Vertical }
+public enum LayoutDirection { None, Horizontal, Vertical, Grid }
+public enum LayoutDistribution { Packed, SpaceBetween, SpaceAround, SpaceEvenly }
+public enum GridTrackSizing { Fraction, Fixed, Hug }
 public enum AxisConstraint { Start, Center, End, Stretch, Scale }
 public enum LayoutAlignment { Start, Center, End, Stretch }
 public enum TextAlignment { Left, Center, Right }
@@ -42,6 +44,14 @@ public sealed class ShadowStyle
     public double Y { get; set; } = 4;
     public double Blur { get; set; } = 12;
 }
+public sealed class GridTrack
+{
+    public GridTrackSizing Sizing { get; set; }
+    public double Value { get; set; } = 1;
+    public double Min { get; set; }
+    public double Max { get; set; } = 1e7;
+}
+
 public sealed class AutoLayout
 {
     public LayoutDirection Direction { get; set; }
@@ -53,6 +63,13 @@ public sealed class AutoLayout
     public bool HugWidth { get; set; }
     public bool HugHeight { get; set; }
     public LayoutAlignment Alignment { get; set; }
+    public LayoutAlignment PrimaryAlignment { get; set; }
+    public LayoutDistribution Distribution { get; set; }
+    public bool Wrap { get; set; }
+    public double CrossGap { get; set; } = 16;
+    public int GridColumns { get; set; } = 3;
+    public List<GridTrack> Columns { get; set; } = [];
+    public List<GridTrack> Rows { get; set; } = [];
 }
 public sealed class PathPoint
 {
@@ -109,13 +126,25 @@ public sealed class DesignNode
     public AxisConstraint VerticalConstraint { get; set; }
     public bool FillWidth { get; set; }
     public bool FillHeight { get; set; }
+    public bool AbsolutePosition { get; set; }
+    public double MinWidth { get; set; } = 1;
+    public double MinHeight { get; set; } = 1;
+    public double MaxWidth { get; set; } = 1e7;
+    public double MaxHeight { get; set; } = 1e7;
+    public int GridColumn { get; set; } = -1;
+    public int GridRow { get; set; } = -1;
+    public int ColumnSpan { get; set; } = 1;
+    public int RowSpan { get; set; } = 1;
     public string? ComponentId { get; set; }
     public string? SourceId { get; set; }
     public Dictionary<string, InstanceOverride> Overrides { get; set; } = [];
+    public Dictionary<string, string> VariantProperties { get; set; } = [];
+    public Dictionary<VariableTarget, VariableBinding> VariableBindings { get; set; } = [];
+    public Dictionary<string, string> VariableModes { get; set; } = [];
     public string? PrototypeTargetId { get; set; }
     public List<DesignNode> Children { get; set; } = [];
     [JsonIgnore] public DesignNode? Parent { get; set; }
-    [JsonIgnore] public bool IsContainer => Kind is NodeKind.Frame or NodeKind.Group or NodeKind.Component or NodeKind.Instance or NodeKind.Section;
+    [JsonIgnore] public bool IsContainer => Kind is NodeKind.Frame or NodeKind.Group or NodeKind.Component or NodeKind.Instance or NodeKind.Section or NodeKind.ComponentSet;
     [JsonIgnore] public bool IsFrame => Kind is NodeKind.Frame or NodeKind.Component or NodeKind.Instance;
     [JsonIgnore] public bool IsEffectivelyLocked => Locked || (Parent?.IsEffectivelyLocked ?? false);
     [JsonIgnore] public bool IsEffectivelyVisible => Visible && (Parent?.IsEffectivelyVisible ?? true);
@@ -169,12 +198,15 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = 2;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";
     public List<DesignPage> Pages { get; set; } = [new()];
     public List<CommentThread> Comments { get; set; } = [];
     public Dictionary<string, string> ColorStyles { get; set; } = [];
+    public List<VariableCollection> VariableCollections { get; set; } = [];
+    public List<DesignVariable> Variables { get; set; } = [];
+    public Dictionary<string, string> VariableModes { get; set; } = [];
     public IEnumerable<DesignNode> AllNodes() => Pages.SelectMany(p => p.AllNodes());
     public DesignNode? Find(string? id) => id is null ? null : AllNodes().FirstOrDefault(n => n.Id == id);
     public void RebuildParents()
