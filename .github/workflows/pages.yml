@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.build.outputs.sha }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: VectorSpace-browser
           run-id: ${{ steps.build.outputs.run_id }}
