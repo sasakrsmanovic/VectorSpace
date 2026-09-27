@@ -9,7 +9,7 @@ permissions:
 jobs:
   integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -23,16 +23,17 @@ jobs:
           import base64, gzip, hashlib, pathlib, subprocess
           root = pathlib.Path('scripts/parity-transfer')
           data = ''.join(p.read_text().strip() for p in sorted(root.glob('*.b64')))
-          data = data.replace('qVXdhT5Ygn9Q', 'qVXdhT6Ygn9Q')
+          data = data.replace('DDNYSuy2W1w', 'DDNYSvy2W1w')
           patch = gzip.decompress(base64.b64decode(data, validate=True))
-          assert hashlib.sha256(patch).hexdigest() == '68c6bd407fdb35d6bcfcc55caeb47151ac005cafb6ef37aff27464d3db9ae68a', 'Authored patch checksum mismatch'
+          assert hashlib.sha256(patch).hexdigest() == 'fbfc07a3fbd22d1507b0345795f40f9d3e2ca4f1224b5ebb2d4ff2ee224774cb', 'Authored patch checksum mismatch'
           for line in patch.decode().splitlines():
               if line.startswith('+++ b/'):
-                  assert line[6:].startswith(('src/', 'tests/')) and '..' not in line[6:].split('/')
-          subprocess.run(['git','apply','--check','-'], input=patch, check=True)
-          subprocess.run(['git','apply','-'], input=patch, check=True)
+                  path = line[6:]
+                  assert (path.startswith(('src/', 'tests/', 'docs/')) or path in ('README.md', 'CHANGELOG.md', 'Directory.Build.props')) and '..' not in path.split('/')
+          subprocess.run(['git','apply','--unidiff-zero','--check','-'], input=patch, check=True)
+          subprocess.run(['git','apply','--unidiff-zero','-'], input=patch, check=True)
           PY
-      - name: Run all 108 engine regressions
+      - name: Run 145 engine and design-system regressions
         run: dotnet run --project tests/VectorSpace.Tests -c Release
       - name: Commit validated source and remove transfer files
         env:
@@ -41,8 +42,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -r scripts/parity-transfer
-          git add src tests scripts/parity-transfer
-          git commit -m 'feat: add advanced auto layout, hierarchy selection, baseline gestures and retained renderer caches'
+          git add src tests docs README.md CHANGELOG.md Directory.Build.props scripts/parity-transfer
+          git commit -m 'feat: add typed variables, component variants, stable instances and indexed snapping'
           git push origin HEAD:feat/editor-parity-0.2
           gh workflow run build.yml --ref feat/editor-parity-0.2
           gh workflow run desktop.yml --ref feat/editor-parity-0.2

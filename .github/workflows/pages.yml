@@ -66,9 +66,10 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+          include-hidden-files: true
       - name: Deploy verified browser build
         id: deployment
         uses: actions/deploy-pages@v4
