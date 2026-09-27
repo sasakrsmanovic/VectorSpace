@@ -2,7 +2,7 @@ name: Integrate prototype runtime
 on:
   push:
     branches: ['feat/prototype-runtime-0.3']
-    paths: ['.github/workflows/integrate-prototyping.yml', 'scripts/integrate-prototyping.py']
+    paths: ['.github/workflows/integrate-prototyping.yml', 'scripts/integrate-prototyping.py', 'scripts/prototype-integration-fixes.py']
 permissions:
   contents: write
 jobs:
@@ -17,7 +17,9 @@ jobs:
         with:
           global-json-file: global.json
       - name: Integrate reviewed prototype source
-        run: python3 scripts/integrate-prototyping.py
+        run: |
+          python3 scripts/integrate-prototyping.py
+          python3 scripts/prototype-integration-fixes.py
       - name: Run engine and prototype regression suite
         run: dotnet run --project tests/VectorSpace.Tests -c Release
       - name: Compile reusable native Uno workbench
