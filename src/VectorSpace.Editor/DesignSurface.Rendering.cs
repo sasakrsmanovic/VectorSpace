@@ -7,6 +7,7 @@ public sealed partial class DesignSurface
 {
     private void Paint(SKCanvas canvas, Size size)
     {
+        if (IsPresenting) return;
         if (Session is not { } editor || size.Width < 1 || size.Height < 1) return;
         canvas.Save(); canvas.ClipRect(new(0, 0, (float)size.Width, (float)size.Height));
         using var background = new SKPaint { Color = SceneRenderer.Color(IsPresenting ? "#252525" : editor.Page.Background) }; canvas.DrawRect(new SKRect(0, 0, (float)size.Width, (float)size.Height), background);
@@ -15,8 +16,7 @@ public sealed partial class DesignSurface
         if (editor.GridVisible && !IsPresenting) DrawGrid(canvas, size);
         Renderer.Outlines = editor.OutlinesVisible;
         var worldRect = new RectD(-viewport.Pan.X / zoom, -viewport.Pan.Y / zoom, size.Width / zoom, size.Height / zoom);
-        if (IsPresenting && editor.Document.Find(_presentedFrame) is { } frame) Renderer.DrawWorldNode(canvas, frame);
-        else Renderer.Draw(canvas, editor.Page.Nodes, worldRect);
+        Renderer.Draw(canvas, editor.Page.Nodes, worldRect);
         if (!IsPresenting)
         {
             using var guidePaint = new SKPaint { Color = new(242, 72, 34, 170), StrokeWidth = 1 / zoom, IsAntialias = true };

@@ -4,7 +4,8 @@
   <Project Path="src/VectorSpace.Layout/VectorSpace.Layout.csproj" />
   <Project Path="src/VectorSpace.Documents/VectorSpace.Documents.csproj" />
   <Project Path="src/VectorSpace.Editing/VectorSpace.Editing.csproj" />
-  <Project Path="src/VectorSpace.Skia/VectorSpace.Skia.csproj" />
+  <Project Path="src/VectorSpace.Prototyping/VectorSpace.Prototyping.csproj" />
+    <Project Path="src/VectorSpace.Skia/VectorSpace.Skia.csproj" />
   <Project Path="src/VectorSpace.Controls/VectorSpace.Controls.csproj" />
   <Project Path="src/VectorSpace.Editor/VectorSpace.Editor.csproj" />
   <Project Path="src/VectorSpace.Workbench/VectorSpace.Workbench.csproj" />

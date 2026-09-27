@@ -48,7 +48,7 @@ public sealed class PrototypePlayer : UserControl, IDisposable
         _back = new StudioButton("Back", () => Run(Playback.Back)); AutomationProperties.SetName(_back, "Prototype back");
         var restart = new StudioButton("Restart", Restart); AutomationProperties.SetName(restart, "Prototype restart");
         var close = new StudioButton("Close", () => ExitRequested?.Invoke()); AutomationProperties.SetName(close, "Close prototype");
-        var toolbar = new Border { Background = Studio.Brush(Studio.Panel), Padding = new(12, 5, 12, 5), Child = Studio.Columns((_back, 60), (restart, 72), (_title, -1), (close, 64)) };
+        var toolbar = new Border { Background = Studio.Brush("#FFFFFF"), Padding = new(12, 5, 12, 5), Child = Studio.Columns((_back, 60), (restart, 72), (_title, -1), (close, 64)) };
         root.Children.Add(toolbar); Grid.SetRow(_canvas, 1); root.Children.Add(_canvas); Content = root;
         _canvas.Draw = Paint;
         _canvas.PointerPressed += Pressed; _canvas.PointerMoved += Moved; _canvas.PointerReleased += Released;
@@ -183,7 +183,7 @@ public sealed class PrototypePlayer : UserControl, IDisposable
             if (Playback.View.Overlays.Count > 0) Run(Playback.Back); else ExitRequested?.Invoke();
             return;
         }
-        var key = e.Key is >= VirtualKey.Number0 and <= VirtualKey.Number9 ? ((int)e.Key - (int)VirtualKey.Number0).ToString() : e.Key.ToString();
+        var key = (int)e.Key >= (int)VirtualKey.Number0 && (int)e.Key <= (int)VirtualKey.Number9 ? ((int)e.Key - (int)VirtualKey.Number0).ToString() : e.Key.ToString();
         key = (Keyboard.Control ? "CTRL+" : "") + (Keyboard.Shift ? "SHIFT+" : "") + (Keyboard.Alt ? "ALT+" : "") + key;
         var handled = false;
         Run(() => { Advance(); handled = Playback.DispatchKey(key); });

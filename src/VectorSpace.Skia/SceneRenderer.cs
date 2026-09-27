@@ -5,7 +5,7 @@ using VectorSpace.Core;
 namespace VectorSpace.Skia;
 
 /// <summary>Retained geometry cache with explicit native-resource ownership. No Uno dependency.</summary>
-public sealed class SceneRenderer : IDisposable
+public sealed partial class SceneRenderer : IDisposable
 {
     private readonly record struct GeometryKey(NodeKind Kind, double Width, double Height, double Radius, int Sides, double Ratio, string? Data, double PathWidth, double PathHeight, bool Closed);
     private readonly record struct PointKey(Vec2 Position, Vec2? In, Vec2? Out);
@@ -81,13 +81,13 @@ public sealed class SceneRenderer : IDisposable
         if (node.Parent is not null) canvas.Concat(Matrix(parent));
         DrawNode(canvas, node, parent, null); canvas.Restore();
     }
-    private void DrawNode(SKCanvas canvas, DesignNode node, Matrix2D parent, RectD? viewport)
+    private void DrawNode(SKCanvas canvas, DesignNode node, Matrix2D parent, RectD? viewport, Vec2? rootScroll = null)
     {
         if (!node.Visible || node.Opacity <= 0 || node.Kind == NodeKind.Slice) return;
         var world = node.LocalMatrix * parent;
         // Unclipped containers, text overflow and user-edited paths are conservative: never
         // reject them using only their nominal frame. Descendants are still culled individually.
-        if (viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path))
+        if (rootScroll is null && viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path))
         {
             var padding = node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max();
             foreach (var shadow in node.Shadows.Where(s => s.Visible)) padding = Math.Max(padding, Math.Max(Math.Abs(shadow.X), Math.Abs(shadow.Y)) + shadow.Blur * 3);
@@ -123,10 +123,11 @@ public sealed class SceneRenderer : IDisposable
                 if (node.Kind == NodeKind.Text) DrawText(canvas, node, paint); else canvas.DrawPath(Geometry(node), paint);
             }
         }
-        if (node.ClipContent)
+        if (node.ClipContent || rootScroll.HasValue)
         {
             using var clip = new SKPath(); clip.AddRoundRect(new SKRect(0, 0, (float)node.Width, (float)node.Height), (float)node.CornerRadius, (float)node.CornerRadius); canvas.ClipPath(clip, SKClipOperation.Intersect, true);
         }
+        if (rootScroll is { } scroll) canvas.Translate((float)-scroll.X, (float)-scroll.Y);
         foreach (var child in node.Children) DrawNode(canvas, child, world, viewport);
         if (layer) canvas.Restore(); canvas.Restore();
     }

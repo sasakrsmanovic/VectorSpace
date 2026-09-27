@@ -11,7 +11,7 @@ VectorSpace brings a compact, UI3-style design workspace to a real Uno applicati
 
 ![VectorSpace running in the browser](docs/images/workbench.png)
 
-**Status: 0.2.0-alpha.2.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+**Status: 0.3.0-alpha.1.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
 

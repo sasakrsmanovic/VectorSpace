@@ -63,6 +63,7 @@ public sealed class PrototypeReaction
 
 public sealed partial class DesignNode
 {
+    public bool PrototypeReactionsOverride { get; set; }
     public List<PrototypeReaction> Reactions { get; set; } = [];
     public string? PrototypeFlowName { get; set; }
     public PrototypeOverflow PrototypeOverflow { get; set; }

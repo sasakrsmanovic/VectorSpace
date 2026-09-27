@@ -63,7 +63,7 @@ test('inherited variable modes change pixels and survive undo, save and reload',
   const file = await download; await fs.mkdir('artifacts', { recursive: true });
   await file.saveAs('artifacts/variables.vectorspace');
   const saved = JSON.parse(await fs.readFile('artifacts/variables.vectorspace', 'utf8'));
-  expect(saved.variableModes.theme).toBe('dark'); expect(saved.formatVersion).toBe(2);
+  expect(saved.variableModes.theme).toBe('dark'); expect(saved.formatVersion).toBe(3);
   expect(canvas.width).toBeGreaterThan(400);
   await page.waitForTimeout(1400); await page.reload();
   await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready); await control(page, 'Design canvas');

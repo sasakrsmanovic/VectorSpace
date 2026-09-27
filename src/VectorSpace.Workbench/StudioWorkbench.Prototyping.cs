@@ -9,7 +9,7 @@ public sealed partial class StudioWorkbench
     {
         var node = Session.Document.Find(nodeId) ?? throw new InvalidOperationException("The layer no longer exists.");
         if (node.IsEffectivelyLocked) throw new InvalidOperationException("Unlock the layer before editing its prototype settings.");
-        edit(node); node.PrototypeReactionsOverride = true;
+        edit(node); node.PrototypeReactionsOverride = node.SourceId is not null;
     }));
     private static ComboBox PrototypeChoice<T>(T value, Action<T> changed, string name) where T : struct, Enum =>
         Studio.Choice(Enum.GetNames<T>(), value.ToString(), s => changed(Enum.Parse<T>(s)), name);
@@ -191,6 +191,12 @@ public sealed partial class StudioWorkbench
         VariableType.Boolean => Check("True", value.Boolean, flag => change(VariableValue.Bool(flag))),
         _ => PrototypeText(value.Text, "Prototype value", text => change(VariableValue.String(text)))
     };
+    private async Task OpenPrototypePlaygroundAsync()
+    {
+        if (!await ConfirmAsync("Open prototype playground?", "This replaces the current document with an editable interaction sample. Save a copy first to retain your current document.")) return;
+        Session.Load(PrototypeSample.Create()); Surface.Fit(firstFrame: true); _prototype = true; RefreshInspector();
+        ShowStatus("Choose Present to explore navigation, overlays, hover effects and interactive variants.");
+    }
     private async Task OpenPrototypeLinkAsync(string url)
     {
         if (!PrototypeValidation.SafeUrl(url, out var uri)) { ShowStatus("The prototype link is unsafe.", true); return; }

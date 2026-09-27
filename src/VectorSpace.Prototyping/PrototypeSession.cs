@@ -59,7 +59,7 @@ public sealed class PrototypeSession
     }
     private void Initialize()
     {
-        Document.RebuildParents(); new VariableResolver(Document).Apply();
+        Document.RebuildParents(); ComponentService.Synchronize(Document); new VariableResolver(Document).Apply();
         foreach (var page in Document.Pages) LayoutEngine.Arrange(page.Nodes);
         _nodes = Document.AllNodes().ToDictionary(n => n.Id, StringComparer.Ordinal);
         RequireFrame(Document, _startId);
@@ -87,7 +87,7 @@ public sealed class PrototypeSession
         if (owner is null) return false;
         var node = _nodes[owner];
         var reaction = node.Reactions.FirstOrDefault(r => Matches(r, trigger, key));
-        if (reaction is not null) Execute(reaction.Actions, owner, userInitiated && trigger is PrototypeTrigger.Click or PrototypeTrigger.MouseDown or PrototypeTrigger.MouseUp or PrototypeTrigger.KeyDown);
+        if (reaction is not null) Execute(reaction.Actions, owner, userInitiated && (trigger is PrototypeTrigger.Click or PrototypeTrigger.MouseDown or PrototypeTrigger.MouseUp or PrototypeTrigger.KeyDown));
         else Execute([new() { Kind = PrototypeActionKind.Navigate, TargetId = node.PrototypeTargetId }], owner, userInitiated);
         return true;
     }
@@ -257,7 +257,7 @@ public sealed class PrototypeSession
         {
             VariableType.Number => left.Number == right.Number,
             VariableType.Boolean => left.Boolean == right.Boolean,
-            VariableType.Color => string.Equals(left.Text.Length == 7 ? left.Text + "FF" : left.Text, right.Text.Length == 7 ? right.Text + "FF" : right.Text, StringComparison.OrdinalIgnoreCase),
+            VariableType.Color => string.Equals(left.Text.Length == 7 ? "#FF" + left.Text[1..] : left.Text, right.Text.Length == 7 ? "#FF" + right.Text[1..] : right.Text, StringComparison.OrdinalIgnoreCase),
             _ => left.Text == right.Text
         };
         if (comparison == PrototypeComparison.Equal) return equal;

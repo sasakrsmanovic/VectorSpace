@@ -54,11 +54,15 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         Surface.CommentRequested += (anchor, thread) => RunAsync(() => EditCommentAsync(anchor, thread));
         Surface.CanvasContextRequested += ShowCanvasMenu;
         Surface.StatusChanged += message => ShowStatus(message);
+        Surface.PrototypeLinkRequested += url => RunAsync(() => OpenPrototypeLinkAsync(url));
         Surface.PresentationChanged += presenting =>
         {
-            _leftPanel.Visibility = _rightPanel.Visibility = _palette.Visibility = presenting ? Visibility.Collapsed : Visibility.Visible;
-            _leftColumn.Width = presenting ? new(0) : new(248); _rightColumn.Width = presenting ? new(0) : new(288);
-            reveal.Visibility = presenting ? Visibility.Collapsed : Visibility.Visible;
+            var hidden = presenting || !_uiVisible;
+            _rightPanel.Visibility = _palette.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+            _leftPanel.Visibility = hidden || ActualWidth < 700 ? Visibility.Collapsed : Visibility.Visible;
+            _leftColumn.Width = hidden || ActualWidth < 700 ? new(0) : new(ActualWidth < 950 ? 216 : 248);
+            _rightColumn.Width = hidden ? new(0) : new(ActualWidth < 950 ? 264 : 288);
+            reveal.Visibility = !presenting && (!_uiVisible || ActualWidth < 700) ? Visibility.Visible : Visibility.Collapsed;
             if (presenting) ShowStatus("Prototype preview · Click linked layers · Esc to return");
         };
         KeyDown += OnKeyDown; KeyUp += (_, e) => { if (e.Key == VirtualKey.Space) Surface.IsSpaceDown = false; };

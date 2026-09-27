@@ -27,6 +27,7 @@ public static class PrototypeValidation
         }
         void CheckActions(List<PrototypeAction> list, int depth)
         {
+            if (list.Count == 0) return;
             if (depth > MaxBranchDepth || list.Count > 32) Fail("Prototype branch limit exceeded.");
             foreach (var a in list)
             {
@@ -79,5 +80,6 @@ public static class PrototypeValidation
             if (a.Condition is { } c && variableIds.TryGetValue(c.VariableId, out id)) c.VariableId = id;
         }
     }
+    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
     private static void Fail(string message) => throw new InvalidDataException(message);
 }

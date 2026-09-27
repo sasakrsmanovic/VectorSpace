@@ -85,7 +85,7 @@ public sealed class InstanceOverride
 }
 
 /// <summary>A serializable scene node. Coordinates are relative to the parent, not the canvas.</summary>
-public sealed class DesignNode
+public sealed partial class DesignNode
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Rectangle";
@@ -198,7 +198,7 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public int FormatVersion { get; set; } = 2;
+    public int FormatVersion { get; set; } = 3;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";
     public List<DesignPage> Pages { get; set; } = [new()];

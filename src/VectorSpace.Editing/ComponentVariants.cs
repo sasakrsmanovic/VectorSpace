@@ -78,12 +78,17 @@ public static class ComponentVariants
             ?? throw new InvalidOperationException("No variant provides that value.");
         Switch(editor, instanceId, target.Id);
     }
-    public static void Switch(EditorSession editor, string instanceId, string componentId) => editor.Edit("Swap component variant", () =>
+    public static void Switch(EditorSession editor, string instanceId, string componentId) =>
+        editor.Edit("Swap component variant", () => SwitchInDocument(editor.Document, instanceId, componentId));
+
+    /// <summary>Change variant identity within an existing transaction. The caller must synchronize,
+    /// validate and arrange once the action batch completes; this method does not create editor history.</summary>
+    public static void SwitchInDocument(DesignDocument document, string instanceId, string componentId, bool allowLocked = false)
     {
-        var instance = editor.Document.Find(instanceId) ?? throw new InvalidOperationException("Instance no longer exists.");
-        var definition = editor.Document.Find(componentId) ?? throw new InvalidOperationException("Component no longer exists.");
-        if (instance.Kind != NodeKind.Instance || definition.Kind != NodeKind.Component || instance.IsEffectivelyLocked) throw new InvalidOperationException("Select an unlocked instance and a component definition.");
-        var old = editor.Document.Find(instance.ComponentId);
+        var instance = document.Find(instanceId) ?? throw new InvalidOperationException("Instance no longer exists.");
+        var definition = document.Find(componentId) ?? throw new InvalidOperationException("Component no longer exists.");
+        if (instance.Kind != NodeKind.Instance || definition.Kind != NodeKind.Component || (!allowLocked && instance.IsEffectivelyLocked)) throw new InvalidOperationException("Select an unlocked instance and a component definition.");
+        var old = document.Find(instance.ComponentId);
         var oldPaths = old is null ? [] : NamedPaths(old);
         var newPaths = NamedPaths(definition);
         var map = oldPaths.Where(p => newPaths.ContainsKey(p.Key)).ToDictionary(p => p.Value.Id, p => newPaths[p.Key].Id, StringComparer.Ordinal);
@@ -94,7 +99,7 @@ public static class ComponentVariants
         instance.Overrides = overrides; instance.ComponentId = definition.Id; instance.SourceId = definition.Id;
         if (old is null || Math.Abs(instance.Width - old.Width) < .001) instance.Width = definition.Width;
         if (old is null || Math.Abs(instance.Height - old.Height) < .001) instance.Height = definition.Height;
-    });
+    }
     private static bool SameProperties(DesignNode a, DesignNode b) => a.VariantProperties.Count == b.VariantProperties.Count && a.VariantProperties.All(p => b.VariantProperties.GetValueOrDefault(p.Key) == p.Value);
     public static string DisplayName(DesignNode node) => string.Join(", ", node.VariantProperties.Select(p => p.Key + "=" + p.Value));
     private static Dictionary<string, DesignNode> NamedPaths(DesignNode root)

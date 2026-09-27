@@ -75,12 +75,27 @@ internal static class BrowserDiagnostics
                 if (primary is not null) foreach (var pair in primary.VariantProperties) json.WriteString(pair.Key, pair.Value);
                 json.WriteEndObject();
                 json.WriteStartArray("selectedIds"); foreach (var id in session.SelectedIds) json.WriteStringValue(id); json.WriteEndArray();
-                json.WriteBoolean("presenting", workbench.Surface.IsPresenting); json.WriteEndObject();
+                json.WriteBoolean("presenting", workbench.Surface.IsPresenting);
+                if (workbench.Surface.PrototypePlayer is { } player)
+                {
+                    var playback = player.Playback;
+                    json.WriteStartObject("prototype"); json.WriteString("frame", playback.View.FrameId);
+                    json.WriteNumber("overlays", playback.View.Overlays.Count); json.WriteString("input", playback.View.InputRoot.Id);
+                    json.WriteNumber("history", playback.HistoryCount); json.WriteBoolean("animating", playback.IsAnimating);
+                    json.WriteNumber("scrollX", playback.View.InputScroll.X); json.WriteNumber("scrollY", playback.View.InputScroll.Y);
+                    json.WriteNumber("zoom", player.Viewport.Zoom); json.WriteNumber("panX", player.Viewport.Pan.X); json.WriteNumber("panY", player.Viewport.Pan.Y);
+                    json.WriteString("error", playback.LastError);
+                    json.WriteStartObject("values");
+                    var resolver = new VectorSpace.Core.VariableResolver(playback.Document);
+                    foreach (var v in playback.Document.Variables) json.WriteString(v.Id, resolver.Resolve(v.Id).ToString());
+                    json.WriteEndObject(); json.WriteEndObject();
+                }
+                json.WriteEndObject();
             }
             BrowserFiles.PublishDiagnostics(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
         }
         var controls = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        controls.Tick += (_, _) => BrowserFiles.PublishControls(workbench.CaptureAutomationState());
+        controls.Tick += (_, _) => { BrowserFiles.PublishControls(workbench.CaptureAutomationState()); Publish(); };
         workbench.Unloaded += (_, _) => controls.Stop(); controls.Start();
         session.Changed += (_, _) => Publish(); workbench.Surface.SizeChanged += (_, _) => Publish(); workbench.Surface.PresentationChanged += _ => Publish(); Publish();
     }
