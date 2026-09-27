@@ -7,6 +7,8 @@
 
 VectorSpace brings a compact, UI3-style design workspace to a real Uno application: an infinite canvas, floating tool palette, layers and assets, contextual property editing, and a SkiaSharp scene engine. The browser host runs C# in WebAssembly; the editor is **not an HTML mockup or an embedded third-party editor**.
 
+![VectorSpace running in the browser](docs/images/workbench.png)
+
 **Status: 0.1.0-alpha.1.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
@@ -46,7 +48,7 @@ dotnet workload install wasm-tools
 python3 scripts/fetch-assets.py
 
 # Native Uno Skia desktop host
-dotnet run --project src/VectorSpace.App -f net10.0-desktop
+dotnet run --project src/VectorSpace.App -f net10.0-desktop -p:VectorSpaceDesktopOnly=true
 
 # WebAssembly development host
 dotnet run --project src/VectorSpace.App -f net10.0-browserwasm

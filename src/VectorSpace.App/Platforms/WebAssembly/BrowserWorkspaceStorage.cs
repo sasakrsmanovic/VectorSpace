@@ -59,7 +59,7 @@ internal static class BrowserDiagnostics
                 json.WriteNumber("panX", session.Viewport.Pan.X); json.WriteNumber("panY", session.Viewport.Pan.Y);
                 json.WriteNumber("canvasWidth", workbench.Surface.ActualWidth); json.WriteNumber("canvasHeight", workbench.Surface.ActualHeight);
                 json.WriteString("page", session.Page.Name); json.WriteString("name", primary?.Name);
-                json.WriteString("kind", primary?.Kind.ToString()); json.WriteNumber("x", primary?.X ?? 0); json.WriteNumber("y", primary?.Y ?? 0);
+                json.WriteString("kind", primary?.Kind.ToString()); json.WriteBoolean("visible", primary?.Visible ?? false); json.WriteBoolean("locked", primary?.Locked ?? false); json.WriteNumber("x", primary?.X ?? 0); json.WriteNumber("y", primary?.Y ?? 0);
                 json.WriteNumber("width", primary?.Width ?? 0); json.WriteNumber("height", primary?.Height ?? 0);
                 json.WriteBoolean("canUndo", session.CanUndo); json.WriteBoolean("canRedo", session.CanRedo);
                 json.WriteBoolean("presenting", workbench.Surface.IsPresenting); json.WriteEndObject();

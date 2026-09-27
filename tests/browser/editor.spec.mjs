@@ -4,7 +4,7 @@ const state = page => page.evaluate(() => globalThis.__vectorSpaceState);
 
 async function ready(page) {
   await page.goto('?test=1');
-  await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, { timeout: 150_000 });
+  await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150_000 });
   await expect.poll(async () => (await state(page)).canvasWidth).toBeGreaterThan(100);
   await page.waitForTimeout(1200);
 }

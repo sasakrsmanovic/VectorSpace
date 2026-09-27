@@ -86,6 +86,14 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     {
         if (e.Kind == EditorChangeKind.Document)
         {
+            // Undo/load can replace every node while a pen or pointer gesture is active.
+            // Never let transient gesture references survive the transaction they belong to.
+            if (Session?.IsInteracting != true)
+            {
+                _gesture = Gesture.None; _created = null; _penNode = null;
+                _marquee = null; _guide = null; _snapLines = []; _originals.Clear();
+                _canvas.ReleasePointerCaptures();
+            }
             Renderer.ClearCache(); _hover = null;
             if (_vectorNode is not null) _vectorNode = Session?.Document.Find(_vectorNode.Id);
         }
@@ -137,7 +145,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             for (var i = 0; i < _vectorNode.Points.Count; i++)
             {
-                if (editor.Viewport.WorldToScreen(_vectorNode.WorldMatrix.Map(_vectorNode.Points[i].Position)).DistanceTo(screen) < 9)
+                if (editor.Viewport.WorldToScreen(_vectorNode.WorldMatrix.Map(VectorPointPosition(_vectorNode, _vectorNode.Points[i].Position))).DistanceTo(screen) < 9)
                 {
                     editor.BeginInteraction("Move vector point"); _gesture = Gesture.Vertex; _vertexIndex = i; return;
                 }
@@ -189,6 +197,10 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         }
         return Renderer.HitTest(Session.Page.Nodes, world, deep, 4 / Session.Viewport.Zoom);
     }
+    private static Vec2 VectorPointPosition(DesignNode node, Vec2 point) =>
+        node.PathWidth > 0 && node.PathHeight > 0
+            ? new(point.X * node.Width / node.PathWidth, point.Y * node.Height / node.PathHeight)
+            : point;
     private void CaptureOriginals()
     {
         _originals.Clear(); if (Session is null) return;

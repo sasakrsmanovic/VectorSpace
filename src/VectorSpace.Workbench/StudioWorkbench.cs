@@ -191,7 +191,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
             }
             list.Add((node, depth)); if (node.Expanded) foreach (var child in node.Children.AsEnumerable().Reverse()) Append(child, depth + 1);
         }
-        var signature = string.Join('|', list.Select(n => $"{n.Node.Id}:{n.Node.Name}:{n.Depth}:{n.Node.Visible}:{n.Node.Locked}:{n.Node.Expanded}"));
+        var signature = string.Join('|', list.Select(n => $"{n.Node.Id}:{n.Node.Name}:{n.Depth}:{n.Node.Visible}:{n.Node.Locked}:{n.Node.Expanded}:{n.Node.Kind}:{n.Node.Children.Count}"));
         _refreshing = true;
         try
         {
@@ -203,10 +203,10 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
                     _entries.Add(new()
                     {
                         Id = node.Id, Name = node.Name, Depth = depth, Glyph = Glyph(node.Kind), HasChildren = node.Children.Count > 0, Expanded = node.Expanded, Visible = node.Visible, Locked = node.Locked, IsComponent = node.Kind is NodeKind.Component or NodeKind.Instance,
-                        ToggleExpanded = () => { node.Expanded = !node.Expanded; RefreshLayers(true); },
-                        ToggleVisibility = () => Run(() => Session.Edit("Toggle layer visibility", () => node.Visible = !node.Visible)),
-                        ToggleLocked = () => Run(() => Session.Edit("Toggle layer lock", () => node.Locked = !node.Locked)),
-                        Rename = () => RunAsync(() => RenameLayerAsync(node))
+                        ToggleExpanded = () => { if (Session.Document.Find(node.Id) is { } current) { current.Expanded = !current.Expanded; RefreshLayers(true); } },
+                        ToggleVisibility = () => Run(() => { if (Session.Document.Find(node.Id) is { } current) Session.Edit("Toggle layer visibility", () => current.Visible = !current.Visible); }),
+                        ToggleLocked = () => Run(() => { if (Session.Document.Find(node.Id) is { } current) Session.Edit("Toggle layer lock", () => current.Locked = !current.Locked); }),
+                        Rename = () => { if (Session.Document.Find(node.Id) is { } current) RunAsync(() => RenameLayerAsync(current)); }
                     });
                 }
             }

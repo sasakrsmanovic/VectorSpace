@@ -16,7 +16,7 @@ public static class SampleDocument
         navigation.Add(Text("Product", 326, 14, 74, 20, 13)); navigation.Add(Text("Resources", 424, 14, 90, 20, 13)); navigation.Add(Text("Pricing", 548, 14, 60, 20, 13));
         navigation.Add(Text("Log in", 728, 14, 56, 20, 13)); navigation.Add(Button("Get started", 804, 0, 140, 44, "#22212D"));
         var hero = Group("Hero", 48, 118, 944, 414); desktop.Add(hero);
-        var badge = Rectangle("Announcement", 0, 0, 256, 30, "#EEE8FF", 15); hero.Add(badge); badge.Add(Text("✦  Your ideas deserve a little space", 13, 7, 232, 18, 11, 500, "#7156B8"));
+        var badge = Rectangle("Announcement", 0, 0, 256, 30, "#EEE8FF", 15); hero.Add(badge); badge.Add(Spark("Announcement icon", 13, 9, 10, "#7156B8")); badge.Add(Text("Your ideas deserve a little space", 31, 7, 220, 18, 11, 500, "#7156B8"));
         hero.Add(Text("Big ideas.\nBeautifully\nsimple.", 0, 54, 510, 208, 62, 700));
         hero.Add(Text("A calmer place to think, plan, and make things\nhappen. Bring your next big idea to life, together.", 2, 280, 472, 56, 15, 400, "#777380"));
         var cta = Button("Start creating  →", 0, 357, 178, 48, "#7755EE"); cta.Name = "Primary button"; hero.Add(cta);
@@ -34,7 +34,7 @@ public static class SampleDocument
             task.Add(Rectangle("Checkbox", 0, 0, 13, 13, i == 2 ? "#EEE8FF" : "#DFF1E8", 4));
             task.Add(Text(new[] { "Make room for a new idea", "Connect the little details", "Create something that matters" }[i], 24, -1, 250, 20, 10, 400, "#807886"));
         }
-        var note = Frame("Sticky note", 222, 292, 154, 92, "#F5E9B9"); note.Rotation = 9; note.CornerRadius = 8; note.Shadows.Add(new() { Opacity = .08, Blur = 16, Y = 7 }); note.Add(Text("A little progress,\nevery day. ✦", 17, 18, 128, 55, 15, 500, "#6A5834")); art.Add(note);
+        var note = Frame("Sticky note", 222, 292, 154, 92, "#F5E9B9"); note.Rotation = 9; note.CornerRadius = 8; note.Shadows.Add(new() { Opacity = .08, Blur = 16, Y = 7 }); note.Add(Text("A little progress,\nevery day.", 17, 18, 128, 55, 15, 500, "#6A5834")); art.Add(note);
         var dot = Ellipse("Mint orbit", 0, 304, 70, 70, "#C7E3D3"); art.Add(dot);
         var benefits = Group("Made for the way you work", 48, 600, 944, 166); desktop.Add(benefits);
         var headings = new[] { "Room to think", "Made to connect", "A little more you" };
@@ -48,8 +48,8 @@ public static class SampleDocument
             feature.Add(Text(headings[i], 20, 65, 260, 25, 16, 600)); feature.Add(Text(descriptions[i], 20, 103, 262, 44, 11, 400, "#8A828D"));
         }
         var phone = Frame("Mobile · Landing page", 1120, 0, 360, 820, "#FCFAF7"); document.Pages[0].Nodes.Add(phone);
-        phone.Add(Text("aether", 24, 27, 150, 34, 26, 700)); phone.Add(Text("☰", 306, 33, 28, 28, 19));
-        phone.Add(Rectangle("Announcement", 24, 107, 241, 30, "#EEE8FF", 15)); phone.Add(Text("✦  A little room for possibility", 38, 115, 229, 20, 11, 500, "#7156B8"));
+        phone.Add(Text("aether", 24, 27, 150, 34, 26, 700)); for (var line = 0; line < 3; line++) phone.Add(Rectangle("Menu line", 306, 37 + line * 6, 18, 2, "#22212D", 1));
+        phone.Add(Rectangle("Announcement", 24, 107, 241, 30, "#EEE8FF", 15)); phone.Add(Spark("Announcement icon", 37, 117, 10, "#7156B8")); phone.Add(Text("A little room for possibility", 55, 115, 205, 20, 11, 500, "#7156B8"));
         phone.Add(Text("Big ideas.\nBeautifully\nsimple.", 24, 166, 320, 194, 46, 700));
         phone.Add(Text("A calmer place to think, plan,\nand make things happen.", 26, 355, 306, 50, 14, 400, "#777380"));
         var phoneCta = Button("Start creating  →", 24, 430, 312, 48, "#7755EE"); phone.Add(phoneCta);
@@ -64,6 +64,7 @@ public static class SampleDocument
         foreach (var n in document.AllNodes()) if (n.Children.Count > 0) n.Expanded = n.Parent is null;
         return document;
     }
+    private static DesignNode Spark(string name, double x, double y, double size, string color) => new() { Kind = NodeKind.Star, Name = name, X = x, Y = y, Width = size, Height = size, Sides = 4, StarRatio = .3, Fill = color };
     private static DesignNode Frame(string name, double x, double y, double w, double h, string fill) => new() { Name = name, Kind = NodeKind.Frame, X = x, Y = y, Width = w, Height = h, Fill = fill, ClipContent = true };
     private static DesignNode Group(string name, double x, double y, double w, double h) => new() { Name = name, Kind = NodeKind.Group, X = x, Y = y, Width = w, Height = h, Fills = [] };
     private static DesignNode Rectangle(string name, double x, double y, double w, double h, string fill, double radius = 0) => new() { Name = name, X = x, Y = y, Width = w, Height = h, Fill = fill, CornerRadius = radius };
