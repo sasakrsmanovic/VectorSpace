@@ -1,0 +1,57 @@
+name: Repair reviewed dependency pull requests
+on:
+  push:
+    branches: ['feat/editor-parity-0.2']
+    paths: ['.github/workflows/repair-dependency-prs.yml']
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Integrate reviewed updates with current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 - <<'PY'
+          import json, pathlib, subprocess, os
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          git('fetch','origin')
+          main=git('rev-parse','origin/main')
+          for number in [2,6,7]:
+              pr=json.loads(subprocess.check_output(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/pulls/{number}'],text=True))
+              if pr['state']!='open': continue
+              branch=pr['head']['ref']; head=pr['head']['sha']
+              assert pr['head']['repo']['full_name']==os.environ['GITHUB_REPOSITORY']
+              git('checkout','--detach',main)
+              if number==2:
+                  path=pathlib.Path('.github/workflows/pages.yml')
+                  text=path.read_text().replace('actions/upload-pages-artifact@v3','actions/upload-pages-artifact@v5')
+                  text=text.replace('          path: site\n','          path: site\n')
+                  marker='uses: actions/upload-pages-artifact@v5\n        with:\n'
+                  if marker in text and marker+'          include-hidden-files: true\n' not in text:
+                      text=text.replace(marker,marker+'          include-hidden-files: true\n')
+                  path.write_text(text)
+              elif number==6:
+                  for path in pathlib.Path('.github/workflows').glob('*.yml'):
+                      path.write_text(path.read_text().replace('actions/setup-dotnet@v4','actions/setup-dotnet@v6'))
+              else:
+                  path=pathlib.Path('Directory.Build.props')
+                  path.write_text(path.read_text().replace('<PropertyGroup>','<PropertyGroup>\n    <!-- Uno 6.7 uses Skia 3: keep managed and native ABI versions together. -->\n    <VectorSpaceSkiaVersion>3.119.2</VectorSpaceSkiaVersion>',1))
+                  for path in [pathlib.Path('src/VectorSpace.Skia/VectorSpace.Skia.csproj'),pathlib.Path('tests/VectorSpace.Tests/VectorSpace.Tests.csproj')]:
+                      path.write_text(path.read_text().replace('Version="3.119.2"','Version="$(VectorSpaceSkiaVersion)"'))
+              git('add','-A'); tree=git('write-tree')
+              commit=git('commit-tree',tree,'-p',head,'-p',main,'-m',f'fix: integrate reviewed dependency PR #{number} with current main safely')
+              git('push','origin',f'{commit}:refs/heads/{branch}')
+              subprocess.run(['gh','workflow','run','build.yml','--ref',branch],check=True)
+              subprocess.run(['gh','workflow','run','desktop.yml','--ref',branch],check=True)
+              print(f'PR #{number}: {commit}')
+          PY
