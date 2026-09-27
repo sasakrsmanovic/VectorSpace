@@ -97,3 +97,25 @@ test('local variable editor creates a collection, mode and typed variable throug
   await expect.poll(async () => (await state(page)).variables).toBe(1);
   await page.keyboard.press('Control+Shift+z'); await expect.poll(async () => (await state(page)).variables).toBe(2);
 });
+
+test('system clipboard carries variable dependencies between different documents', async ({ page, context }) => {
+  await openFixture(page);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await point(page, 380, 130);
+  await expect.poll(async () => (await state(page)).id).toBe('swatch');
+  await page.keyboard.press('Control+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('VectorSpace/1\n');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const envelope = JSON.parse(copied.slice(copied.indexOf('\n') + 1));
+  expect(envelope.variables).toHaveLength(1);
+  const picker = page.waitForEvent('filechooser'); await page.keyboard.press('Control+o');
+  await (await picker).setFiles({ name: 'target.vectorspace', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ formatVersion: 2, id: 'clipboard-target', name: 'Clipboard target', pages: [{ id: 'target-page', name: 'Target', nodes: [] }] })) });
+  await expect.poll(async () => (await state(page)).page).toBe('Target');
+  expect((await state(page)).variables).toBe(0);
+  await page.mouse.click(650, 240); await page.keyboard.press('Control+v');
+  await expect.poll(async () => (await state(page)).variables).toBe(1);
+  expect((await state(page)).bindings).toBe(1);
+  expect((await state(page)).fill).toBe('#FFFFFF');
+  await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).variables).toBe(0);
+  await page.keyboard.press('Control+Shift+z'); await expect.poll(async () => (await state(page)).bindings).toBe(1);
+});
