@@ -1,0 +1,113 @@
+name: Build
+on:
+  workflow_dispatch:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet run --project tests/VectorSpace.Tests -c Release
+  desktop:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet workload install wasm-tools --skip-manifest-update
+      - run: python3 scripts/fetch-assets.py
+      - run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser toolchain and licensed assets
+        run: |
+          dotnet workload install wasm-tools --skip-manifest-update
+          python3 scripts/fetch-assets.py
+      - name: Publish actual Uno WebAssembly application
+        run: |
+          dotnet publish src/VectorSpace.App -f net10.0-browserwasm -c Release -o artifacts/publish -p:WasmShellWebAppBasePath=/VectorSpace/
+          python3 scripts/collect-site.py artifacts/publish artifacts/site
+          du -sh artifacts/site
+      - name: Build reusable NuGet packages
+        run: |
+          for project in src/*/*.csproj; do
+            case "$project" in */VectorSpace.App/*) continue;; esac
+            dotnet pack "$project" -c Release -o artifacts/packages
+          done
+      - name: Test real browser interactions
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          python3 scripts/serve-site.py --directory artifacts/site --port 4173 > artifacts/server.log 2>&1 &
+          npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VectorSpace-browser
+          path: artifacts/site
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VectorSpace-packages
+          path: artifacts/packages
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VectorSpace-browser-validation
+          path: |
+            artifacts/screenshots
+            artifacts/playwright-report
+            artifacts/test-results
+            artifacts/browser-results.xml
+            artifacts/server.log
+          if-no-files-found: ignore
+      - name: Collect development cache additions
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib, tarfile
+          root=pathlib.Path.home()/'.nuget/packages'
+          names=['uno.ui.hotdesign','uno.ui.app.mcp','uno.winui.devserver','uno.ui.adapter.microsoft.extensions.logging','microsoft.extensions.logging.console','uno.fonts.opensans','skiasharp.skottie','uno.winui.runtime.skia.linux.framebuffer','uno.winui.runtime.skia.macos','uno.winui.runtime.skia.win32','uno.winui.runtime.skia.x11']
+          with tarfile.open('/tmp/vectorspace-app-dependencies.tar.gz','w:gz') as output:
+            for name in names:
+              p=root/name
+              if p.exists(): output.add(p, arcname='packages/'+name, filter=lambda info: None if info.name.endswith('.nupkg') else info)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VectorSpace-app-dependencies
+          path: /tmp/vectorspace-app-dependencies.tar.gz
+          retention-days: 1
+      - name: Source snapshot
+        if: always()
+        run: git archive --format=zip --output=/tmp/VectorSpace-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VectorSpace-source
+          path: /tmp/VectorSpace-source.zip

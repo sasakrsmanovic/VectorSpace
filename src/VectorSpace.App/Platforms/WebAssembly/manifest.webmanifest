@@ -1,0 +1,3 @@
+{
+ "name": "VectorSpace", "short_name": "VectorSpace", "start_url": ".", "display": "standalone", "background_color": "#E5E5E5", "theme_color": "#FFFFFF", "description": "Local-first vector design with Uno and SkiaSharp"
+}
