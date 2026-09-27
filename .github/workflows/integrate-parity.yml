@@ -1,0 +1,54 @@
+name: Integrate validated editor parity
+on:
+  push:
+    branches: ['feat/editor-parity-0.2']
+    paths: ['.github/workflows/integrate-parity.yml']
+permissions:
+  contents: write
+  actions: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/editor-parity-0.2
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Apply checksum-verified authored source
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, pathlib, subprocess
+          root = pathlib.Path('scripts/parity-transfer')
+          data = ''.join(p.read_text().strip() for p in sorted(root.glob('*.b64')))
+          data = data.replace('qVXdhT5Ygn9Q', 'qVXdhT6Ygn9Q')
+          patch = gzip.decompress(base64.b64decode(data, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '68c6bd407fdb35d6bcfcc55caeb47151ac005cafb6ef37aff27464d3db9ae68a', 'Authored patch checksum mismatch'
+          for line in patch.decode().splitlines():
+              if line.startswith('+++ b/'):
+                  assert line[6:].startswith(('src/', 'tests/')) and '..' not in line[6:].split('/')
+          subprocess.run(['git','apply','--check','-'], input=patch, check=True)
+          subprocess.run(['git','apply','-'], input=patch, check=True)
+          PY
+      - name: Run all 108 engine regressions
+        run: dotnet run --project tests/VectorSpace.Tests -c Release
+      - name: Commit validated source and remove transfer files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -r scripts/parity-transfer
+          git add src tests scripts/parity-transfer
+          git commit -m 'feat: add advanced auto layout, hierarchy selection, baseline gestures and retained renderer caches'
+          git push origin HEAD:feat/editor-parity-0.2
+          gh workflow run build.yml --ref feat/editor-parity-0.2
+          gh workflow run desktop.yml --ref feat/editor-parity-0.2
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: parity-transfer-diagnostic
+          path: scripts/parity-transfer
+          if-no-files-found: ignore

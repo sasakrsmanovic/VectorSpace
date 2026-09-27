@@ -50,10 +50,10 @@ jobs:
           echo "run_id=$RUN" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "Deploying verified Build $RUN from $SHA"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.build.outputs.sha }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: VectorSpace-browser
           run-id: ${{ steps.build.outputs.run_id }}
@@ -72,7 +72,7 @@ jobs:
       - name: Deploy verified browser build
         id: deployment
         uses: actions/deploy-pages@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Verify deployed browser application
@@ -85,7 +85,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npm run test:browser
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: VectorSpace-public-site-validation
