@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Collect Uno's published static root without assuming a bootstrapper layout."""
-import argparse, json, shutil
+import argparse, json, os, shutil
 from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument("publish", type=Path); parser.add_argument("output", type=Path)
@@ -12,5 +12,9 @@ source = candidates[0].parent
 args.output.mkdir(parents=True, exist_ok=True)
 shutil.copytree(source, args.output, dirs_exist_ok=True)
 (args.output / ".nojekyll").touch()
-(args.output / "build-info.json").write_text(json.dumps({"application": "VectorSpace", "host": "Uno WebAssembly", "version": "0.1.0-alpha.1"}))
+(args.output / "build-info.json").write_text(json.dumps({
+    "application": "VectorSpace", "host": "Uno WebAssembly",
+    "version": os.environ.get("VERSION", "0.1.0-alpha.1"),
+    "commit": os.environ.get("GITHUB_SHA", "local")
+}))
 print(f"Collected {source} into {args.output}")

@@ -12,31 +12,16 @@ concurrency:
 jobs:
   engine:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
       - run: dotnet run --project tests/VectorSpace.Tests -c Release
-  desktop:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-      - run: python3 scripts/fetch-assets.py
-      - run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: VectorSpace-desktop-${{ matrix.os }}
-          path: src/VectorSpace.App/bin/Release/net10.0-desktop
   browser:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -90,24 +75,6 @@ jobs:
             artifacts/browser-results.xml
             artifacts/server.log
           if-no-files-found: ignore
-      - name: Collect development cache additions
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import pathlib, tarfile
-          root=pathlib.Path.home()/'.nuget/packages'
-          names=['uno.ui.hotdesign','uno.ui.app.mcp','uno.winui.devserver','uno.winui.devserver.messaging','uno.wasm.websockets','uno.ui.adapter.microsoft.extensions.logging','uno.core.extensions.logging','uno.core.extensions.logging.singleton','uno.fonts.opensans','skiasharp.skottie','skiasharp.resources','skiasharp.scenegraph','harfbuzzsharp.nativeassets.linux','uno.icu-macos','uno.icu-win','microsoft.windows.cswin32','webview2aot','libvlcsharp','tmds.dbus.generator','tmds.dbus.protocol','uno.winui.runtime.skia.linux.framebuffer','uno.winui.runtime.skia.macos','uno.winui.runtime.skia.win32','uno.winui.runtime.skia.x11']
-          with tarfile.open('/tmp/vectorspace-app-dependencies.tar.gz','w:gz') as output:
-            for p in root.iterdir():
-              if p.name in names or p.name.startswith(('microsoft.extensions.','microsoft.windows.','system.')):
-                output.add(p, arcname='packages/'+p.name, filter=lambda info: None if info.name.endswith('.nupkg') else info)
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: VectorSpace-app-dependencies
-          path: /tmp/vectorspace-app-dependencies.tar.gz
-          retention-days: 1
       - name: Source snapshot
         if: always()
         run: git archive --format=zip --output=/tmp/VectorSpace-source.zip HEAD

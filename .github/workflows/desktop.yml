@@ -1,0 +1,31 @@
+name: Desktop
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: python3 scripts/fetch-assets.py
+      - name: Build native Uno host
+        run: dotnet build src/VectorSpace.App -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VectorSpace-desktop-${{ matrix.os }}
+          path: src/VectorSpace.App/bin/Release/net10.0-desktop

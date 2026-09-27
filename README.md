@@ -3,6 +3,8 @@
 **A local-first vector design editor built with Uno Platform and SkiaSharp.**
 
 [![Build](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/build.yml/badge.svg)](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/build.yml)
+[![Desktop](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/desktop.yml/badge.svg)](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/desktop.yml)
+[![Pages](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/pages.yml/badge.svg)](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/pages.yml)
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 VectorSpace brings a compact, UI3-style design workspace to a real Uno application: an infinite canvas, floating tool palette, layers and assets, contextual property editing, and a SkiaSharp scene engine. The browser host runs C# in WebAssembly; the editor is **not an HTML mockup or an embedded third-party editor**.
@@ -13,7 +15,7 @@ VectorSpace brings a compact, UI3-style design workspace to a real Uno applicati
 
 ## Browser and desktop
 
-The GitHub Pages deployment target is **https://wieslawsoltes.github.io/VectorSpace/**. A successful **Pages** workflow is the deployment source of truth. The repository's Pages publishing source must be **GitHub Actions**.
+**Browser deployment:** [wieslawsoltes.github.io/VectorSpace](https://wieslawsoltes.github.io/VectorSpace/). A successful **Pages** workflow is the deployment source of truth. The publishing source is **GitHub Actions**, and `build-info.json` identifies the deployed commit.
 
 Windows, macOS, Linux and browser hosts share the same workbench and canvas. Browser recovery data is stored in IndexedDB; desktop recovery files use the local application-data directory. **Save a local copy** downloads an editable `.vectorspace` document. Browser storage is not a backup service.
 
@@ -44,13 +46,14 @@ Uno versions were resolved from stable NuGet packages on September 27, 2026. Kee
 Install the SDK in `global.json`, Python 3, and Node.js 22+ for browser tests.
 
 ```bash
-dotnet workload install wasm-tools
 python3 scripts/fetch-assets.py
 
-# Native Uno Skia desktop host
-dotnet run --project src/VectorSpace.App -f net10.0-desktop -p:VectorSpaceDesktopOnly=true
+# Native Uno Skia host, without installing the browser workload
+dotnet run --project src/VectorSpace.App -f net10.0-desktop \
+  -p:VectorSpaceDesktopOnly=true
 
 # WebAssembly development host
+dotnet workload install wasm-tools
 dotnet run --project src/VectorSpace.App -f net10.0-browserwasm
 
 # Engine regression runner; exits nonzero on failure
@@ -76,7 +79,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Browser tests drive real pointer and keyboard events. `?test=1` exposes read-only diagnostics for assertions, not a document-mutation API. Screenshots, traces, build outputs and package archives are retained by Actions.
+Browser tests drive real pointer and keyboard events. `?test=1` exposes read-only diagnostics for assertions, not a document-mutation API. Screenshots, traces, build outputs and package archives are retained by Actions. See [validation](docs/VALIDATION.md) for coverage and limits.
 
 ## Reusable libraries
 
@@ -133,9 +136,9 @@ File.WriteAllBytes("frame.png", renderer.ExportPng([frame], frame.WorldBounds, 2
 
 Native text inputs retain their own editing shortcuts. Browser-reserved keys and OS conventions may vary. The in-app help has additional commands.
 
-## Automation and project documentation
+## Build, deployment and releases
 
-**Build** compiles the engine and native hosts, publishes the browser app, runs tests and packs libraries. **Pages** deploys only successful main-branch browser builds. **Release** verifies tagged snapshots and publishes browser/source/package archives with SHA-256 checksums. An artifact upload is not a live deployment.
+**Build** validates the engine, publishes the browser app, runs browser tests and packs libraries. **Desktop** independently compiles Windows, Linux and macOS hosts. **Pages** deploys only successful main-branch Build artifacts, then tests the public site. **Release** verifies tagged snapshots and publishes browser/source/package archives with SHA-256 checksums. An artifact upload is not a live deployment.
 
 See [architecture](docs/ARCHITECTURE.md), [feature boundaries](docs/FEATURES.md), [contributing](CONTRIBUTING.md), [security](SECURITY.md), and [changelog](CHANGELOG.md).
 
