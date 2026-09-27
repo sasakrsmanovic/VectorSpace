@@ -1,0 +1,49 @@
+name: Development SDK bundle
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/development-bundle.yml']
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore development dependencies
+        run: |
+          dotnet workload install wasm-tools --skip-manifest-update
+          dotnet restore src/VectorSpace.Editor/VectorSpace.Editor.csproj
+          dotnet restore tests/VectorSpace.Tests/VectorSpace.Tests.csproj
+      - name: Package only the .NET 10 desktop compiler and reference packs
+        run: |
+          mkdir -p /tmp/lean/dotnet/host/fxr /tmp/lean/dotnet/shared/Microsoft.NETCore.App /tmp/lean/dotnet/shared/Microsoft.AspNetCore.App /tmp/lean/dotnet/sdk /tmp/lean/dotnet/packs
+          cp /usr/share/dotnet/dotnet /tmp/lean/dotnet/
+          cp -a /usr/share/dotnet/host/fxr/10.0.12 /tmp/lean/dotnet/host/fxr/
+          cp -a /usr/share/dotnet/sdk/10.0.401 /tmp/lean/dotnet/sdk/
+          cp -a /usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.12 /tmp/lean/dotnet/shared/Microsoft.NETCore.App/
+          cp -a /usr/share/dotnet/shared/Microsoft.AspNetCore.App/10.0.12 /tmp/lean/dotnet/shared/Microsoft.AspNetCore.App/
+          for pack in Microsoft.NETCore.App.Ref Microsoft.AspNetCore.App.Ref Microsoft.NETCore.App.Host.linux-x64; do
+            mkdir -p "/tmp/lean/dotnet/packs/$pack"
+            cp -a "/usr/share/dotnet/packs/$pack/10.0.12" "/tmp/lean/dotnet/packs/$pack/"
+          done
+          tar -C /tmp/lean -czf /tmp/vectorspace-sdk.tar.gz dotnet
+          tar -C "$HOME/.nuget" --exclude='*.nupkg' -czf /tmp/vectorspace-packages.tar.gz packages
+          ls -lh /tmp/vectorspace-*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vectorspace-sdk
+          path: /tmp/vectorspace-sdk.tar.gz
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vectorspace-packages
+          path: /tmp/vectorspace-packages.tar.gz
+          compression-level: 0
+          retention-days: 1
+      - name: Validate reusable Uno surface
+        run: dotnet build src/VectorSpace.Editor/VectorSpace.Editor.csproj -f net10.0-desktop -c Release

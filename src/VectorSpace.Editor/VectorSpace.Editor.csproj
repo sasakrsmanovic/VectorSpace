@@ -1,0 +1,12 @@
+<Project Sdk="Uno.Sdk">
+ <PropertyGroup>
+  <TargetFrameworks>net10.0-browserwasm;net10.0-desktop</TargetFrameworks>
+  <UnoSingleProject>true</UnoSingleProject><OutputType>Library</OutputType><GenerateLibraryLayout>true</GenerateLibraryLayout>
+  <UnoFeatures>SkiaRenderer;</UnoFeatures><IsPackable>true</IsPackable>
+  <Description>Embeddable Uno/Skia design surface with direct manipulation, vector tools, snapping, text editing and presentation.</Description>
+ </PropertyGroup>
+ <ItemGroup>
+  <ProjectReference Include="../VectorSpace.Controls/VectorSpace.Controls.csproj" />
+  <ProjectReference Include="../VectorSpace.Skia/VectorSpace.Skia.csproj" />
+ </ItemGroup>
+</Project>

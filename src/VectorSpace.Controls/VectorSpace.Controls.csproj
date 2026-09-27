@@ -1,0 +1,11 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-browserwasm;net10.0-desktop</TargetFrameworks>
+    <UnoSingleProject>true</UnoSingleProject>
+    <OutputType>Library</OutputType>
+    <GenerateLibraryLayout>true</GenerateLibraryLayout>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <IsPackable>true</IsPackable>
+    <Description>Compact, accessible Uno editor controls, original vector icons, numeric scrubbing, color spectrum and layer rows.</Description>
+  </PropertyGroup>
+</Project>
