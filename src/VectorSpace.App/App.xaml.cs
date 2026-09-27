@@ -35,7 +35,7 @@ public partial class App : Application
             _workbench = new StudioWorkbench(session, storage);
             _window.Content = _workbench;
             _window.Closed += (_, _) => _workbench.Dispose();
-            _window.Activated += (_, e) => { if (e.WindowActivationState == WindowActivationState.Deactivated) _workbench.Surface.IsSpaceDown = false; };
+            _window.Activated += (_, e) => { if (e.WindowActivationState == Windows.UI.Core.CoreWindowActivationState.Deactivated) _workbench.Surface.IsSpaceDown = false; };
             if (warning is not null) _workbench.ShowStatus(warning, true);
             try
             {
