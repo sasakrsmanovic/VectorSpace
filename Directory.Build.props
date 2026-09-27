@@ -3,7 +3,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>14</LangVersion>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>0.2.0-alpha.1</Version>
+    <!-- Uno 6.7's managed and native Skia dependencies must share one ABI version. -->
+    <VectorSpaceSkiaVersion>3.119.2</VectorSpaceSkiaVersion>
+    <SkiaSharpVersion>$(VectorSpaceSkiaVersion)</SkiaSharpVersion>
     <Authors>Wiesław Šoltés; VectorSpace contributors</Authors>
     <Company>VectorSpace</Company>
     <Copyright>Copyright © 2026 VectorSpace contributors</Copyright>

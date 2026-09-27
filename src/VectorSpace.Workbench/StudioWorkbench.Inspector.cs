@@ -28,7 +28,7 @@ public sealed partial class StudioWorkbench
             var threads = Session.Document.Comments.Where(c => c.PageId == Session.Page.Id && !c.Resolved).ToArray();
             if (threads.Length == 0) comments.Body.Children.Add(Wrapped("Press C and click the canvas to leave a local comment."));
             foreach (var thread in threads) comments.Body.Children.Add(new StudioButton(thread.Text, () => RunAsync(() => EditCommentAsync(thread.Anchor, thread))) { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left });
-            AddExportSection(); return;
+            BuildVariableInspector(null); AddExportSection(); return;
         }
         var summary = new StackPanel { Spacing = 5, Margin = new(16, 14, 16, 14) };
         var heading = Session.Selection.Count == 1 ? node.Name : Session.Selection.Count + " layers selected";
@@ -115,7 +115,7 @@ public sealed partial class StudioWorkbench
             }
             else component.Body.Children.Add(new StudioButton("Update all instances", () => Run(() => Session.Edit("Synchronize components", () => ComponentService.Synchronize(Session.Document)))));
         }
-        AddExportSection();
+        BuildVariantInspector(node); BuildVariableInspector(node); AddExportSection();
     }
     private InspectorSection AddSection(string title, string? glyph = null, Action? action = null)
     {

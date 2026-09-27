@@ -23,6 +23,9 @@ public sealed partial class StudioWorkbench
         yield return new("Group selection", "Ctrl G", () => Run(() => Session.GroupSelection()));
         yield return new("Frame selection", "Ctrl Alt G", () => Run(() => Session.GroupSelection(true)));
         yield return new("Ungroup", "Ctrl Shift G", () => Run(Session.UngroupSelection));
+        yield return new("Local variables", "", () => RunAsync(ShowVariablesAsync));
+        yield return new("Combine as variants", "", () => Run(() => ComponentVariants.Combine(Session)));
+        yield return new("Add variant", "", () => { if (Session.Primary is { } n) Run(() => ComponentVariants.Add(Session, n.Id)); });
         yield return new("Create component", "Ctrl Alt K", () => Run(() => ComponentService.MakeComponent(Session)));
         yield return new("Add auto layout", "Shift A", AddAutoLayout);
         yield return new("Remove auto layout", "Alt Shift A", () => Run(() => Session.UpdateSelection("Remove auto layout", n => { n.Layout.Direction = LayoutDirection.None; n.Layout.HugWidth = n.Layout.HugHeight = false; })));
@@ -58,6 +61,7 @@ public sealed partial class StudioWorkbench
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "Export selection as PNG…", () => RunAsync(() => ExportAsync(false)));
         AddMenu(menu, "Export selection as SVG…", () => RunAsync(() => ExportAsync(true)));
+        AddMenu(menu, "Local variables…", () => RunAsync(ShowVariablesAsync));
         AddMenu(menu, "Frame presets…", () => RunAsync(ShowFramePresetsAsync));
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, (Session.GridVisible ? "✓ " : "") + "Show grid", () => { Session.GridVisible = !Session.GridVisible; Surface.Invalidate(); });
@@ -293,7 +297,8 @@ public sealed partial class StudioWorkbench
         root.Children.Add(Studio.Text("VectorSpace", 24, Studio.Ink, true)); root.Children.Add(Wrapped("An independent, local-first vector design editor built with Uno Platform and SkiaSharp. Original implementation and assets; not affiliated with Figma.", 12, Studio.Ink));
         foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Hide panels / Cancel / Rename", "Tab / Esc / F2") })
             root.Children.Add(Studio.Columns((Wrapped(name, 11, Studio.Ink), -1), (Wrapped(shortcut, 10, Studio.Muted), 165)));
-        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, variables/variants, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
+        root.Children.Add(Wrapped("Local variables: create typed values and aliases, add modes, and bind layer properties from the Variables inspector. Local variants: combine components or Add variant, insert an instance from Assets, and choose its properties. All edits support undo and native document round-tripping.", 11));
+        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote design libraries, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
         await Dialog("Keyboard shortcuts & about", Studio.Scroll(root)).ShowAsync();
     }
     private async Task ShowQuickActionsAsync()

@@ -37,6 +37,8 @@ internal static partial class BrowserFiles
     internal static partial Task<string> Download(string name, string base64, string contentType);
     [JSImport("globalThis.vectorSpaceStorage.isTestMode")]
     internal static partial bool IsTestMode();
+    [JSImport("globalThis.vectorSpaceStorage.publishControls")]
+    internal static partial void PublishControls(string json);
     [JSImport("globalThis.vectorSpaceStorage.publishDiagnostics")]
     internal static partial void PublishDiagnostics(string json);
 }
@@ -62,10 +64,24 @@ internal static class BrowserDiagnostics
                 json.WriteString("kind", primary?.Kind.ToString()); json.WriteBoolean("visible", primary?.Visible ?? false); json.WriteBoolean("locked", primary?.Locked ?? false); json.WriteNumber("x", primary?.X ?? 0); json.WriteNumber("y", primary?.Y ?? 0);
                 json.WriteNumber("width", primary?.Width ?? 0); json.WriteNumber("height", primary?.Height ?? 0);
                 json.WriteBoolean("canUndo", session.CanUndo); json.WriteBoolean("canRedo", session.CanRedo);
+                json.WriteString("id", primary?.Id); json.WriteString("fill", primary?.Fill);
+                json.WriteString("componentId", primary?.ComponentId);
+                json.WriteNumber("variables", session.Document.Variables.Count);
+                json.WriteNumber("collections", session.Document.VariableCollections.Count);
+                json.WriteNumber("componentSets", session.Document.AllNodes().Count(n => n.Kind == VectorSpace.Core.NodeKind.ComponentSet));
+                json.WriteNumber("bindings", primary?.VariableBindings.Count(p => !p.Value.Disabled) ?? 0);
+                json.WriteString("layout", primary?.Layout.Direction.ToString());
+                json.WriteStartObject("variants");
+                if (primary is not null) foreach (var pair in primary.VariantProperties) json.WriteString(pair.Key, pair.Value);
+                json.WriteEndObject();
+                json.WriteStartArray("selectedIds"); foreach (var id in session.SelectedIds) json.WriteStringValue(id); json.WriteEndArray();
                 json.WriteBoolean("presenting", workbench.Surface.IsPresenting); json.WriteEndObject();
             }
             BrowserFiles.PublishDiagnostics(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
         }
+        var controls = new Microsoft.UI.Xaml.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        controls.Tick += (_, _) => BrowserFiles.PublishControls(workbench.CaptureAutomationState());
+        workbench.Unloaded += (_, _) => controls.Stop(); controls.Start();
         session.Changed += (_, _) => Publish(); workbench.Surface.SizeChanged += (_, _) => Publish(); workbench.Surface.PresentationChanged += _ => Publish(); Publish();
     }
 }

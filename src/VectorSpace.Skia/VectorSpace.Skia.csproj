@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>true</IsPackable><Description>SkiaSharp scene rendering, precise hit testing, Boolean paths and PNG export.</Description></PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>SkiaSharp rendering, hit testing, vector Boolean operations and raster export for VectorSpace.</Description>
+  </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="3.119.2" />
     <ProjectReference Include="../VectorSpace.Core/VectorSpace.Core.csproj" />
     <ProjectReference Include="../VectorSpace.Editing/VectorSpace.Editing.csproj" />
+    <PackageReference Include="SkiaSharp" Version="$(VectorSpaceSkiaVersion)" />
   </ItemGroup>
 </Project>

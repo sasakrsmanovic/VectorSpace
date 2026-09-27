@@ -11,7 +11,7 @@ VectorSpace brings a compact, UI3-style design workspace to a real Uno applicati
 
 ![VectorSpace running in the browser](docs/images/workbench.png)
 
-**Status: 0.1.0-alpha.1.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+**Status: 0.2.0-alpha.1.** Independent implementation with original code, icons, and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
 
@@ -24,8 +24,12 @@ Windows, macOS, Linux and browser hosts share the same workbench and canvas. Bro
 - **Vector editing:** rectangles, rounded rectangles, ellipses, lines, arrows, polygons, stars, frames, sections, slices, cubic pen paths, freehand paths, editable text, and Boolean path operations.
 - **Canvas interaction:** selection/deep selection, marquee, move, eight resize handles, rotation, shift constraints, alt-drag duplication, snapping, guides, rulers, grid, zoom-to-cursor, pan, touch gestures, outlines, and inline text editing.
 - **Document workflows:** pages, searchable/recyclable layers, rename, visibility, locking, grouping, stacking, alignment/distribution, clipboard, transactional undo/redo, validated JSON persistence, safe SVG interchange and PNG export.
-- **Design properties:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, corner radius, drop shadows, typography, horizontal/vertical auto-layout, hug/fill sizing, and constraints.
-- **Reusable content and review:** local components, linked instances, text/fill overrides, source synchronization, detach/reset, local comment threads, and clickable frame-to-frame prototypes.
+- **Design properties:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, corner radius, drop shadows, typography, horizontal/vertical wrapping, grid tracks/spans, min/max-constrained fill, baseline alignment, hug sizing, absolute children, and edge/scale constraints.
+- **Reusable content and review:** local component sets and variants, linked instances with stable descendant identities, text/fill overrides, typed local variables, aliases and inherited modes, detach/reset, local comments, and clickable frame-to-frame prototypes.
+
+**Design systems:** use **Local variables** in the main menu or quick actions; bind properties and choose modes in the Variables inspector. Use **Add variant** on a component or **Combine as variants** on sibling components, then insert from Assets and switch instance properties. See the [design-system guide](docs/DESIGN_SYSTEMS.md).
+
+**Interaction performance:** gesture-scoped indexed snapping, retained geometry/text caches, conservative viewport culling, unchanged-instance synchronization skips, and selection-only layer-list updates. See [reproducible measurements and limitations](docs/PERFORMANCE.md).
 
 The original **Aether** sample contains editable desktop and mobile landing pages, buttons, and a card component. It is not a background screenshot.
 
@@ -85,10 +89,10 @@ Browser tests drive real pointer and keyboard events. `?test=1` exposes read-onl
 
 | Package | Responsibility | UI dependency |
 |---|---|---|
-| `VectorSpace.Core` | Scene graph, document types, affine geometry, paths | None |
-| `VectorSpace.Layout` | Auto-layout, constraints, snapping | None |
+| `VectorSpace.Core` | Scene graph, typed variables/modes, document types, affine geometry, paths | None |
+| `VectorSpace.Layout` | Wrap/grid auto-layout, constraints, indexed snapping | None |
 | `VectorSpace.Documents` | JSON validation/source generation, SVG, storage contract | None |
-| `VectorSpace.Editing` | Selection, viewport, transactions, history, components | None |
+| `VectorSpace.Editing` | Selection, viewport, history, variables, component variants/synchronization | None |
 | `VectorSpace.Skia` | Rendering, hit testing, Boolean paths, PNG | SkiaSharp |
 | `VectorSpace.Controls` | Icons, dense primitives, numeric scrubbing, color picker | Uno / Skia |
 | `VectorSpace.Editor` | Embeddable direct-manipulation surface | Uno / Skia |

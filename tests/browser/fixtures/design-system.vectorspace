@@ -1,0 +1,193 @@
+{
+  "formatVersion": 2,
+  "id": "design-system-test",
+  "name": "Design system acceptance",
+  "pages": [
+    {
+      "id": "page-system",
+      "name": "Design system",
+      "nodes": [
+        {
+          "id": "stage",
+          "kind": "Frame",
+          "name": "Design system",
+          "x": 0,
+          "y": 0,
+          "width": 800,
+          "height": 600,
+          "fills": [
+            {
+              "color": "#F5F5F5"
+            }
+          ],
+          "children": [
+            {
+              "id": "button-set",
+              "kind": "ComponentSet",
+              "name": "Button",
+              "x": 40,
+              "y": 40,
+              "width": 168,
+              "height": 190,
+              "fills": [],
+              "children": [
+                {
+                  "id": "variant-default",
+                  "kind": "Component",
+                  "name": "State=Default",
+                  "x": 24,
+                  "y": 24,
+                  "width": 120,
+                  "height": 50,
+                  "variantProperties": {
+                    "State": "Default"
+                  },
+                  "fills": [
+                    {
+                      "color": "#3366FF"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "label-default",
+                      "kind": "Text",
+                      "name": "Label",
+                      "x": 12,
+                      "y": 12,
+                      "width": 96,
+                      "height": 26,
+                      "text": "Button",
+                      "fontSize": 16
+                    }
+                  ]
+                },
+                {
+                  "id": "variant-active",
+                  "kind": "Component",
+                  "name": "State=Active",
+                  "x": 24,
+                  "y": 104,
+                  "width": 120,
+                  "height": 50,
+                  "variantProperties": {
+                    "State": "Active"
+                  },
+                  "fills": [
+                    {
+                      "color": "#14AE5C"
+                    }
+                  ],
+                  "children": [
+                    {
+                      "id": "label-active",
+                      "kind": "Text",
+                      "name": "Label",
+                      "x": 12,
+                      "y": 12,
+                      "width": 96,
+                      "height": 26,
+                      "text": "Active",
+                      "fontSize": 16
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "swatch",
+              "kind": "Rectangle",
+              "name": "Theme swatch",
+              "x": 320,
+              "y": 90,
+              "width": 160,
+              "height": 90,
+              "fills": [
+                {
+                  "color": "#FFFFFF"
+                }
+              ],
+              "variableBindings": {
+                "Fill": {
+                  "variableId": "surface",
+                  "fallback": {
+                    "type": "Color",
+                    "text": "#FFFFFF"
+                  }
+                }
+              }
+            },
+            {
+              "id": "button-instance",
+              "kind": "Instance",
+              "name": "Button instance",
+              "x": 320,
+              "y": 300,
+              "width": 120,
+              "height": 50,
+              "componentId": "variant-default",
+              "sourceId": "variant-default",
+              "variantProperties": {
+                "State": "Default"
+              },
+              "fills": [
+                {
+                  "color": "#3366FF"
+                }
+              ],
+              "children": [
+                {
+                  "id": "instance-label",
+                  "kind": "Text",
+                  "name": "Label",
+                  "x": 12,
+                  "y": 12,
+                  "width": 96,
+                  "height": 26,
+                  "sourceId": "label-default",
+                  "text": "Button",
+                  "fontSize": 16
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "colorStyles": {},
+  "variableCollections": [
+    {
+      "id": "theme",
+      "name": "Theme",
+      "defaultModeId": "light",
+      "modes": [
+        {
+          "id": "light",
+          "name": "Light"
+        },
+        {
+          "id": "dark",
+          "name": "Dark"
+        }
+      ]
+    }
+  ],
+  "variables": [
+    {
+      "id": "surface",
+      "name": "Surface",
+      "collectionId": "theme",
+      "type": "Color",
+      "values": {
+        "light": {
+          "type": "Color",
+          "text": "#FFFFFF"
+        },
+        "dark": {
+          "type": "Color",
+          "text": "#111111"
+        }
+      }
+    }
+  ]
+}

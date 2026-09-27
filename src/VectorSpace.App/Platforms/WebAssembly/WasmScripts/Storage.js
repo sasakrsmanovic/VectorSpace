@@ -45,6 +45,7 @@
       return "";
     },
     isTestMode: () => new URLSearchParams(location.search).get("test") === "1",
+    publishControls: json => { if (new URLSearchParams(location.search).get("test") === "1") globalThis.__vectorSpaceControls = Object.freeze(JSON.parse(json)); },
     publishDiagnostics: json => { if (new URLSearchParams(location.search).get("test") === "1") globalThis.__vectorSpaceState = Object.freeze(JSON.parse(json)); }
   });
   document.addEventListener("contextmenu", e => { if (e.target instanceof HTMLCanvasElement) e.preventDefault(); });

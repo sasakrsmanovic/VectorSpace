@@ -50,7 +50,7 @@ test('real Uno canvas: draw, nudge, undo, redo, delete, save and recover', async
   expect(download.suggestedFilename()).toMatch(/\.vectorspace$/);
   const output = 'artifacts/downloaded-document.vectorspace'; await download.saveAs(output);
   const saved = JSON.parse(await fs.readFile(output, 'utf8'));
-  expect(saved.formatVersion).toBe(1); expect(saved.pages.length).toBe(3);
+  expect(saved.formatVersion).toBe(2); expect(saved.pages.length).toBe(3);
   const beforeReload = await state(page);
   await page.waitForFunction(async () => {
     const stored = await globalThis.vectorSpaceStorage.load(); return !!stored;

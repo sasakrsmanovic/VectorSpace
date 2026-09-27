@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace VectorSpace.Core;
 
-public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice }
+public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice, ComponentSet }
 public enum FillKind { Solid, LinearGradient, RadialGradient }
 public enum BlendKind { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference }
 public enum LayoutDirection { None, Horizontal, Vertical, Grid }
@@ -138,10 +138,13 @@ public sealed class DesignNode
     public string? ComponentId { get; set; }
     public string? SourceId { get; set; }
     public Dictionary<string, InstanceOverride> Overrides { get; set; } = [];
+    public Dictionary<string, string> VariantProperties { get; set; } = [];
+    public Dictionary<VariableTarget, VariableBinding> VariableBindings { get; set; } = [];
+    public Dictionary<string, string> VariableModes { get; set; } = [];
     public string? PrototypeTargetId { get; set; }
     public List<DesignNode> Children { get; set; } = [];
     [JsonIgnore] public DesignNode? Parent { get; set; }
-    [JsonIgnore] public bool IsContainer => Kind is NodeKind.Frame or NodeKind.Group or NodeKind.Component or NodeKind.Instance or NodeKind.Section;
+    [JsonIgnore] public bool IsContainer => Kind is NodeKind.Frame or NodeKind.Group or NodeKind.Component or NodeKind.Instance or NodeKind.Section or NodeKind.ComponentSet;
     [JsonIgnore] public bool IsFrame => Kind is NodeKind.Frame or NodeKind.Component or NodeKind.Instance;
     [JsonIgnore] public bool IsEffectivelyLocked => Locked || (Parent?.IsEffectivelyLocked ?? false);
     [JsonIgnore] public bool IsEffectivelyVisible => Visible && (Parent?.IsEffectivelyVisible ?? true);
@@ -195,12 +198,15 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = 2;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";
     public List<DesignPage> Pages { get; set; } = [new()];
     public List<CommentThread> Comments { get; set; } = [];
     public Dictionary<string, string> ColorStyles { get; set; } = [];
+    public List<VariableCollection> VariableCollections { get; set; } = [];
+    public List<DesignVariable> Variables { get; set; } = [];
+    public Dictionary<string, string> VariableModes { get; set; } = [];
     public IEnumerable<DesignNode> AllNodes() => Pages.SelectMany(p => p.AllNodes());
     public DesignNode? Find(string? id) => id is null ? null : AllNodes().FirstOrDefault(n => n.Id == id);
     public void RebuildParents()

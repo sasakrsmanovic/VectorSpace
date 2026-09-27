@@ -29,7 +29,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private Guide? _guide;
     private RectD? _marquee;
     private string[] _marqueeBaseline = [];
-    private RectD[] _snapTargets = [];
+    private SnapIndex _snapIndex = SnapIndex.Empty;
     private DesignNode? _pendingDuplicate;
     private int _controlHandle;
     private bool _frameQueued;
@@ -238,7 +238,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         foreach (var node in Session.SelectionRoots) _originals[node.Id] = DocumentJson.CloneNode(node);
         _startBounds = Session.SelectionBounds();
         var roots = Session.SelectionRoots;
-        _snapTargets = Session.Page.AllNodes().Where(n => n.IsEffectivelyVisible && !Session.SelectedIds.Contains(n.Id) && !roots.Any(n.IsDescendantOf)).Select(n => n.WorldBounds).ToArray();
+        _snapIndex = new SnapIndex(Session.Page.AllNodes().Where(n => n.IsEffectivelyVisible && !Session.SelectedIds.Contains(n.Id) && !roots.Any(n.IsDescendantOf)).Select(n => n.WorldBounds), Session.Page.Guides);
     }
     private void Moved(object sender, PointerRoutedEventArgs e)
     {
@@ -269,9 +269,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 _snapLines = [];
                 if (editor.SnapEnabled && !e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control))
                 {
-                    var targets = _snapTargets;
                     var moving = _startBounds with { X = _startBounds.X + delta.X, Y = _startBounds.Y + delta.Y };
-                    var snap = SnapEngine.Snap(moving, targets, 5 / editor.Viewport.Zoom, editor.Page.Guides); delta += snap.Correction; _snapLines = snap.Lines;
+                    var snap = _snapIndex.Snap(moving, 5 / editor.Viewport.Zoom); delta += snap.Correction; _snapLines = snap.Lines;
                 }
                 foreach (var node in editor.SelectionRoots)
                 {

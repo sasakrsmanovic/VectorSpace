@@ -65,11 +65,11 @@ public sealed partial class EditorSession
     public EditorTool Tool { get => _tool; set { if (_tool == value) return; _tool = value; Notify(EditorChangeKind.Tool); } }
     public EditorSession(DesignDocument document)
     {
-        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; _savedJson = DocumentJson.Save(document);
+        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply(); _savedJson = DocumentJson.Save(document);
     }
     public void Load(DesignDocument document)
     {
-        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0];
+        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply();
         _before = null; _selected.Clear(); _undo.Clear(); _redo.Clear(); _savedJson = DocumentJson.Save(document); IsDirty = false; Notify(EditorChangeKind.Document, "Open document");
     }
     public void SetPage(string id)
@@ -118,7 +118,10 @@ public sealed partial class EditorSession
     public void CommitInteraction()
     {
         if (_before is null) return;
+        VariableResolver.Validate(Document);
+        new VariableResolver(Document).Apply();
         ComponentService.Synchronize(Document);
+        new VariableResolver(Document).Apply();
         foreach (var page in Document.Pages) LayoutEngine.Arrange(page.Nodes);
         // Keep the rollback snapshot until serialization/validation has succeeded.
         DocumentJson.Validate(Document);
@@ -204,16 +207,54 @@ public sealed partial class EditorSession
         }
         _selected.Clear(); _selected.UnionWith(newIds); _primaryId = newIds.LastOrDefault(); InvalidateSelection();
     }
-    public string CopySelection() => DocumentJson.SaveNodes(SelectionRoots.Select(node =>
+    public string CopySelection()
     {
-        var clone = DocumentJson.CloneNode(node);
-        NodeGeometry.SetLocalMatrix(clone, node.WorldMatrix);
-        return clone;
-    }));
+        var nodes = SelectionRoots.Select(node =>
+        {
+            var clone = DocumentJson.CloneNode(node); NodeGeometry.SetLocalMatrix(clone, node.WorldMatrix);
+            // Preserve inherited modes when a subtree becomes a clipboard root.
+            var resolver = new VariableResolver(Document);
+            foreach (var collection in Document.VariableCollections) clone.VariableModes[collection.Id] = resolver.ModeFor(collection.Id, node);
+            return clone;
+        }).ToList();
+        return DocumentJson.Save(new DesignDocument { Id = Document.Id, Name = "Clipboard", Pages = [new() { Nodes = nodes }], VariableCollections = Document.VariableCollections, Variables = Document.Variables, VariableModes = Document.VariableModes });
+    }
     public void Paste(string json)
     {
-        var nodes = DocumentJson.LoadNodes(json); if (nodes.Count == 0) return;
-        Edit("Paste layers", () => { _selected.Clear(); foreach (var n in nodes) { n.X += 24; n.Y += 24; AddNode(n); _selected.Add(n.Id); } });
+        DesignDocument? clipboard = null;
+        List<DesignNode> nodes;
+        if (json.TrimStart().StartsWith('[')) nodes = DocumentJson.LoadNodes(json);
+        else { clipboard = DocumentJson.Load(json); nodes = clipboard.Pages.SelectMany(p => p.Nodes).ToList(); DocumentJson.RegenerateIds(nodes); }
+        if (nodes.Count == 0) return;
+        Edit("Paste layers", () =>
+        {
+            if (clipboard is not null) ImportClipboardVariables(clipboard, nodes);
+            _selected.Clear(); foreach (var n in nodes) { n.X += 24; n.Y += 24; AddNode(n); _selected.Add(n.Id); }
+        });
+    }
+    private void ImportClipboardVariables(DesignDocument clipboard, List<DesignNode> nodes)
+    {
+        if (clipboard.Variables.Count == 0) return;
+        // Same-document paste reuses live tokens only when all referenced mode schemas still exist.
+        if (clipboard.Id == Document.Id && clipboard.Variables.All(v => Document.Variables.Any(d => d.Id == v.Id)) && clipboard.VariableCollections.All(c => Document.VariableCollections.Any(d => d.Id == c.Id && c.Modes.All(m => d.Modes.Any(x => x.Id == m.Id))))) return;
+        var ids = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var c in clipboard.VariableCollections) { ids[c.Id] = Guid.NewGuid().ToString("N"); foreach (var mode in c.Modes) ids[mode.Id] = Guid.NewGuid().ToString("N"); }
+        foreach (var v in clipboard.Variables) ids[v.Id] = Guid.NewGuid().ToString("N");
+        foreach (var c in clipboard.VariableCollections)
+        {
+            c.Id = ids[c.Id]; c.DefaultModeId = ids[c.DefaultModeId]; foreach (var m in c.Modes) m.Id = ids[m.Id]; Document.VariableCollections.Add(c);
+        }
+        foreach (var v in clipboard.Variables)
+        {
+            v.Id = ids[v.Id]; v.CollectionId = ids[v.CollectionId];
+            v.Values = v.Values.ToDictionary(p => ids[p.Key], p => p.Value.AliasId is { } alias ? p.Value with { AliasId = ids[alias] } : p.Value);
+            Document.Variables.Add(v);
+        }
+        foreach (var n in nodes.SelectMany(n => n.DescendantsAndSelf()))
+        {
+            foreach (var binding in n.VariableBindings.Values) if (!binding.Disabled) binding.VariableId = ids[binding.VariableId];
+            n.VariableModes = n.VariableModes.ToDictionary(p => ids[p.Key], p => ids[p.Value]);
+        }
     }
     public void GroupSelection(bool asFrame = false)
     {
@@ -299,7 +340,8 @@ public sealed partial class EditorSession
     private void Restore(Snapshot state)
     {
         Document = DocumentJson.Load(state.Json); Page = Document.Pages.FirstOrDefault(p => p.Id == state.PageId) ?? Document.Pages[0];
-        _selected.Clear(); _selected.UnionWith(state.Selection.Where(id => Page.AllNodes().Any(n => n.Id == id))); _primaryId = state.Selection.LastOrDefault(); InvalidateSelection(); IsDirty = state.Json != _savedJson;
+        var existing = Page.AllNodes().Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        _selected.Clear(); _selected.UnionWith(state.Selection.Where(existing.Contains)); _primaryId = state.Selection.LastOrDefault(_selected.Contains); InvalidateSelection(); IsDirty = state.Json != _savedJson;
     }
     private static IEnumerable<DesignNode> Ancestors(DesignNode node) { for (var p = node.Parent; p is not null; p = p.Parent) yield return p; }
 }

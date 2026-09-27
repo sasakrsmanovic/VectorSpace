@@ -6,6 +6,8 @@ using VectorSpace.Editing;
 using VectorSpace.Layout;
 using VectorSpace.Skia;
 
+if (args.Contains("--benchmark")) return PerformanceBenchmarks.Run();
+
 var tests = new List<(string Name, Action Test)>();
 void Test(string name, Action action) => tests.Add((name, action));
 void Equal(double actual, double expected, double epsilon = .0001) { if (Math.Abs(actual - expected) > epsilon) throw new Exception($"Expected {expected}; got {actual}."); }
@@ -70,6 +72,7 @@ Test("source edits synchronize instances atomically", () => { var c = Node(); c.
 Test("sample is valid and renderable", () => { var document = SampleDocument.Create(); DocumentJson.Validate(document); using var renderer = new SceneRenderer(); var frame = document.Pages[0].Nodes[0]; var png = renderer.ExportPng([frame], frame.WorldBounds, .25); using var bitmap = SKBitmap.Decode(png); Check(bitmap.Width == 260 && bitmap.Height == 205); });
 
 ParityTests.Register(Test);
+DesignSystemTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }
