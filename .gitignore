@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+artifacts/
+TestResults/
+node_modules/
+playwright-report/
+.DS_Store
+src/VectorSpace.App/Assets/Fonts/*.ttf

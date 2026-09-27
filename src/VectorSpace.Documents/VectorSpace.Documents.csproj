@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>true</IsPackable><Description>Versioned JSON documents, safe SVG interchange and workspace storage contracts.</Description></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../VectorSpace.Core/VectorSpace.Core.csproj" /></ItemGroup>
+</Project>
