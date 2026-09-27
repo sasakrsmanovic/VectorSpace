@@ -34,7 +34,7 @@ internal static class VariableJsonTests
         {
             test("explicit null text stays invalid for " + type, () =>
             {
-                var json = $$"""{"type":"{{type}}","text":null}""";
+                var json = "{\"type\":\"" + type + "\",\"text\":null}";
                 try { DocumentJson.Load(Envelope(json, type)); }
                 catch (InvalidDataException) { return; }
                 throw new Exception("Explicit null text was silently normalized.");
@@ -63,9 +63,12 @@ internal static class VariableJsonTests
         });
     }
 
-    private static string Envelope(string value, VariableType type, string nodes = "[]") => $$"""
-        {"formatVersion":3,"pages":[{"id":"page","name":"Compact values","nodes":{{nodes}}}],
+    private static string Envelope(string value, VariableType type, string nodes = "[]") => """
+        {"formatVersion":3,"pages":[{"id":"page","name":"Compact values","nodes":$NODES$}],
          "variableCollections":[{"id":"collection","defaultModeId":"default","modes":[{"id":"default"}]}],
-         "variables":[{"id":"flag","collectionId":"collection","type":"{{type}}","values":{"default":{{value}}}}]}
-        """;
+         "variables":[{"id":"flag","collectionId":"collection","type":"$TYPE$","values":{"default":$VALUE$}}]}
+        """
+        .Replace("$NODES$", nodes, StringComparison.Ordinal)
+        .Replace("$TYPE$", type.ToString(), StringComparison.Ordinal)
+        .Replace("$VALUE$", value, StringComparison.Ordinal);
 }
