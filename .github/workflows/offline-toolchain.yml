@@ -1,0 +1,47 @@
+name: Offline development toolchain
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/offline-toolchain.yml']
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Restore supported browser and desktop SDK
+        run: |
+          dotnet workload install wasm-tools --skip-manifest-update
+          dotnet new install Uno.Templates::6.7.30
+          mkdir -p /tmp/reference
+          cd /tmp/reference
+          dotnet new unoapp -n Reference -o . --preset blank --platforms wasm desktop --markup xaml --presentation none
+          dotnet new unolib -n Reference.Controls -o Controls
+          cat Controls/Reference.Controls.csproj
+          dotnet build Reference/Reference.csproj -f net10.0-browserwasm -c Release
+          dotnet build Reference/Reference.csproj -f net10.0-desktop -c Release
+      - name: Collect offline SDK and restored package cache
+        run: |
+          mkdir -p /tmp/offline/dotnet /tmp/offline/nuget
+          root=/usr/share/dotnet
+          cp "$root/dotnet" /tmp/offline/dotnet/
+          for dir in host packs sdk-manifests metadata; do cp -a "$root/$dir" /tmp/offline/dotnet/; done
+          mkdir -p /tmp/offline/dotnet/sdk /tmp/offline/dotnet/shared
+          cp -a "$root/sdk/10.0.401" /tmp/offline/dotnet/sdk/
+          for framework in Microsoft.NETCore.App Microsoft.AspNetCore.App; do
+            mkdir -p "/tmp/offline/dotnet/shared/$framework"
+            cp -a "$root/shared/$framework/10.0.12" "/tmp/offline/dotnet/shared/$framework/"
+          done
+          cp -a ~/.nuget/packages /tmp/offline/nuget/
+          du -sh /tmp/offline/*
+          tar -C /tmp/offline -czf /tmp/vectorspace-toolchain.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vectorspace-offline-toolchain
+          path: /tmp/vectorspace-toolchain.tar.gz
+          compression-level: 0
+          retention-days: 1
