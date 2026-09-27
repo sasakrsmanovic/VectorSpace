@@ -69,4 +69,18 @@ test('clamped west resize fixes the opposite edge and Alt Shift fixes the center
   await expect.poll(async () => (await state(page)).width).toBe(150);
   const result = await state(page); expect(result.height).toBe(60);
   expect(result.x + result.width / 2).toBeCloseTo(350, 3); expect(result.y + result.height / 2).toBeCloseTo(280, 3);
+
+  // Alt is available from keyboard state even when the host omits it from pointer args.
+  await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).width).toBe(100);
+  const beforeDuplicate = await state(page);
+  await page.keyboard.down('Alt'); await drag(page, [350, 280], [500, 360]); await page.keyboard.up('Alt');
+  await expect.poll(async () => (await state(page)).nodes).toBe(beforeDuplicate.nodes + 1);
+  expect((await state(page)).id).not.toBe('target');
+  await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).nodes).toBe(beforeDuplicate.nodes);
+  await page.keyboard.press('r'); await page.keyboard.down('Alt');
+  await drag(page, [500, 430], [550, 470]); await page.keyboard.up('Alt');
+  await expect.poll(async () => (await state(page)).nodes).toBe(beforeDuplicate.nodes + 1);
+  const drawn = await state(page);
+  expect(drawn.width).toBeCloseTo(100, 0); expect(drawn.height).toBeCloseTo(80, 0);
+  expect(drawn.x + drawn.width / 2).toBeCloseTo(500, 0); expect(drawn.y + drawn.height / 2).toBeCloseTo(430, 0);
 });

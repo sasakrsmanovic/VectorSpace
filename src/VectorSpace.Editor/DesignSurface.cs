@@ -155,7 +155,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             editor.BeginInteraction("Add guide"); _guide = new() { Horizontal = screen.Y < 20, Position = screen.Y < 20 ? world.Y : world.X }; editor.Page.Guides.Add(_guide); _gesture = Gesture.Guide; return;
         }
-        var shift = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift); var alt = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu);
+        var shift = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift); var alt = (Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu));
         if (editor.Tool == EditorTool.Comment)
         {
             var comment = editor.Document.Comments.FirstOrDefault(c => c.PageId == editor.Page.Id && !c.Resolved && c.Anchor.DistanceTo(world) * editor.Viewport.Zoom < 16);
@@ -278,7 +278,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                     var inverse = node.Parent?.WorldMatrix.Inverse ?? Matrix2D.Identity; var d = inverse.Map(delta) - inverse.Map(Vec2.Zero); node.X = original.X + d.X; node.Y = original.Y + d.Y;
                 }
                 editor.Preview(false); break;
-            case Gesture.Resize: ResizeSelection(world, shift, e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)); editor.Preview(); break;
+            case Gesture.Resize: ResizeSelection(world, shift, (Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu))); editor.Preview(); break;
             case Gesture.Rotate:
                 var centerWorld = _startBounds.Center; var angle = Math.Atan2(world.Y - centerWorld.Y, world.X - centerWorld.X) - Math.Atan2(_startWorld.Y - centerWorld.Y, _startWorld.X - centerWorld.X);
                 var degrees = angle * 180 / Math.PI;
@@ -290,7 +290,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 var matrix = _created.Parent?.WorldMatrix.Inverse ?? Matrix2D.Identity; var a = matrix.Map(_startWorld); var b = matrix.Map(world); var d2 = b - a;
                 if (shift) { var size = Math.Max(Math.Abs(d2.X), Math.Abs(d2.Y)); b = a + new Vec2(Math.Sign(d2.X) * size, Math.Sign(d2.Y) * size); }
                 var box = RectD.FromPoints(a, b);
-                if (e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)) box = new(a.X - Math.Abs(b.X - a.X), a.Y - Math.Abs(b.Y - a.Y), Math.Abs(b.X - a.X) * 2, Math.Abs(b.Y - a.Y) * 2);
+                if ((Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu))) box = new(a.X - Math.Abs(b.X - a.X), a.Y - Math.Abs(b.Y - a.Y), Math.Abs(b.X - a.X) * 2, Math.Abs(b.Y - a.Y) * 2);
                 _created.X = box.X; _created.Y = box.Y; _created.Width = Math.Max(1, box.Width); _created.Height = Math.Max(1, box.Height);
                 if (_created.Kind is NodeKind.Line or NodeKind.Arrow) { _created.FlipX = b.X < a.X; _created.FlipY = b.Y < a.Y; }
                 editor.Preview(); break;
@@ -315,7 +315,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 {
                     var opposite = _controlHandle < 0 ? vertex.ControlOut : vertex.ControlIn;
                     if (_controlHandle < 0) vertex.ControlIn = position; else vertex.ControlOut = position;
-                    if (!e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu) && opposite is { } other)
+                    if (!(Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)) && opposite is { } other)
                     {
                         var vector = position - vertex.Position; var length = vector.Length;
                         if (length > 1e-9)

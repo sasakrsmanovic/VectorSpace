@@ -22,6 +22,10 @@ session.CommitInteraction();
 
 Selection resize shares the same handle computation, but per-child min/max constraints can prevent a multi-selection from following a uniform affine scale. Arbitrary skew, flip-through gestures and overriding variable-bound dimensions are not added by this change. Bound dimensions remain source-driven at commit. Typography baseline alignment is a separate, unimplemented layout feature—not the same thing as a gesture's captured baseline.
 
+## Browser modifier routing
+
+The Uno Skia browser pointer bridge forwards Ctrl/Shift but not Alt. Canvas gestures combine routed Alt flags with the platform keyboard state instead of maintaining a separate sticky modifier cache. Browser acceptance also covers Alt-drag duplication and centered Alt drawing.
+
 ## Regression coverage
 
 Native tests exercise every handle at four rotations with reflected parent/child transforms, min/max anchoring, proportional side shrinking, centered clamping, wrapping reflow, repeated pointer previews, transaction history and invalid inputs. Browser tests import real fixture documents through the file picker, drag the actual handles, check undo/redo, and inspect downloaded native files to verify that hug-height persists. Tests do not mutate the document through browser diagnostic APIs.

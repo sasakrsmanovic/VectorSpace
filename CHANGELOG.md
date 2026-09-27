@@ -2,6 +2,8 @@
 
 ## 0.2.0-alpha.2
 
+- Normalize missing Alt pointer modifiers from Uno keyboard state for resize, drawing, duplication and tangent gestures.
+
 - Preserve hug/fill on untouched sizing axes during handle drags; horizontal resizing now reflows wrapping hug-height frames.
 - Keep opposite edges and centers stationary at min/max constraints, including nested rotation/reflection.
 - Fix proportional side-handle shrinking and centered proportional resizing; add reusable allocation-free resize geometry.
