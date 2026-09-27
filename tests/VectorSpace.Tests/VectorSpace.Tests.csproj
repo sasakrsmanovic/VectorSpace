@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VectorSpace.Skia/VectorSpace.Skia.csproj" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+</Project>
