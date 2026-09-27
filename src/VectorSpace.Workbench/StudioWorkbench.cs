@@ -30,6 +30,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private readonly DispatcherTimer _autosaveTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(4) };
     private readonly SemaphoreSlim _autosaveLock = new(1, 1);
+    private StudioButton? _createComponentButton;
     private string _layerSignature = "";
     private bool _refreshing, _assets, _prototype, _uiVisible = true, _initialFit, _disposed;
     private bool _aspectLocked;
@@ -152,6 +153,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         else if (e.Kind == EditorChangeKind.Selection)
         {
             RefreshLayerSelection(); RefreshInspector();
+            if (_createComponentButton is not null) _createComponentButton.IsEnabled = Session.SelectionRoots.Count == 1;
         }
         else if (e.Kind == EditorChangeKind.Viewport) _zoom.Content = Numbers.Format(Session.Viewport.Zoom * 100) + "%⌄";
         else if (e.Kind == EditorChangeKind.Tool) RefreshTools();
@@ -249,7 +251,8 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
             AutomationProperties.SetName(tile, "Insert " + component.Name);
             tile.Click += (_, _) => Run(() => { var p = Session.Viewport.ScreenToWorld(new(Surface.ActualWidth / 2, Surface.ActualHeight / 2)); ComponentService.InsertInstance(Session, definition, p - new Vec2(definition.Width / 2, definition.Height / 2)); }); root.Children.Add(tile);
         }
-        root.Children.Add(new StudioButton("Create component from selection", () => Run(() => ComponentService.MakeComponent(Session))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field), IsEnabled = Session.SelectionRoots.Count == 1 });
+        _createComponentButton = new StudioButton("Create component from selection", () => Run(() => ComponentService.MakeComponent(Session))) { RestBackground = Studio.Field, Background = Studio.Brush(Studio.Field), IsEnabled = Session.SelectionRoots.Count == 1 };
+        root.Children.Add(_createComponentButton);
         _leftContent.Content = Studio.Scroll(root);
     }
     private static bool InsideInstance(DesignNode node) { for (var p = node.Parent; p is not null; p = p.Parent) if (p.Kind == NodeKind.Instance) return true; return false; }

@@ -180,11 +180,7 @@ public sealed partial class StudioWorkbench
     private async Task CopyAsync(bool cut)
     {
         if (Session.Selection.Count == 0) return;
-        var nodes = Session.SelectionRoots.Select(n =>
-        {
-            var clone = DocumentJson.CloneNode(n); NodeGeometry.SetLocalMatrix(clone, n.WorldMatrix); return clone;
-        }).ToArray();
-        _clipboard = ClipboardPrefix + DocumentJson.SaveNodes(nodes);
+        _clipboard = ClipboardPrefix + Session.CopySelection();
         try { var package = new DataPackage(); package.SetText(_clipboard); Clipboard.SetContent(package); }
         catch { ShowStatus("Copied to this editor's clipboard. Browser clipboard access was unavailable."); }
         if (cut) Session.DeleteSelection();
@@ -305,16 +301,16 @@ public sealed partial class StudioWorkbench
     {
         var root = new StackPanel { Spacing = 10, Width = 410 }; var search = Studio.Input("", "Search quick actions"); search.PlaceholderText = "Search actions…"; search.Height = 38; root.Children.Add(search);
         var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.MaxHeight = 360; root.Children.Add(scroll);
-        var dialog = Dialog("Quick actions", root);
+        var dialog = Dialog("Quick actions", root); Action? selectedAction = null;
         void Filter()
         {
             results.Children.Clear(); foreach (var item in Actions().Where(a => a.Name.Contains(search.Text, StringComparison.OrdinalIgnoreCase)))
             {
                 var button = new StudioButton { Content = Studio.Columns((Studio.Text(item.Name, 12), -1), (Studio.Text(item.Shortcut, 10, Studio.Muted), 110)), HorizontalContentAlignment = HorizontalAlignment.Stretch, Height = 36, Padding = new(8) };
-                AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { dialog.Hide(); DispatcherQueue.TryEnqueue(() => item.Execute()); }; results.Children.Add(button);
+                AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { selectedAction = item.Execute; dialog.Hide(); }; results.Children.Add(button);
             }
         }
-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync();
+        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); selectedAction?.Invoke();
     }
     private async Task ShowFramePresetsAsync()
     {
