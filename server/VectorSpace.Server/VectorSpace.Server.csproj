@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>false</IsPackable><Description>Persistent collaboration service for VectorSpace.</Description></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/VectorSpace.Collaboration/VectorSpace.Collaboration.csproj" /></ItemGroup>
+</Project>
