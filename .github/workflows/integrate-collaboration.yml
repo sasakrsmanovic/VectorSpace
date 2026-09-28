@@ -1,0 +1,37 @@
+name: Integrate collaboration workbench
+on:
+  push:
+    branches: ['feat/collaboration-0.6']
+    paths: ['.github/workflows/integrate-collaboration.yml', 'scripts/integrate-collaboration.py']
+permissions:
+  contents: write
+concurrency:
+  group: integrate-collaboration
+  cancel-in-progress: true
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Apply exact source integration
+        run: python3 scripts/integrate-collaboration.py
+      - name: Validate collaboration and existing editor transactions
+        run: |
+          dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+          dotnet run --project tests/VectorSpace.Tests -c Release
+      - name: Compile reusable Uno workbench
+        run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Preserve compiled integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm scripts/integrate-collaboration.py
+          git add src Directory.Build.props scripts/integrate-collaboration.py
+          git commit -m 'feat: integrate collaborative history, sharing, recovery and participant controls'
+          git push origin HEAD:feat/collaboration-0.6
