@@ -28,6 +28,8 @@ jobs:
           cat artifacts/benchmarks/snap-index.json
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-appearance > artifacts/benchmarks/appearance.json
           cat artifacts/benchmarks/appearance.json
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-editing > artifacts/benchmarks/editing.json
+          cat artifacts/benchmarks/editing.json
       - uses: actions/upload-artifact@v7
         with:
           name: VectorSpace-performance

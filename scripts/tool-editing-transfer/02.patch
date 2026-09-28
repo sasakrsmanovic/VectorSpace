@@ -1,0 +1,127 @@
+diff --git a/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs b/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
+index 68906e6..86a389b 100644
+--- a/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
++++ b/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
+@@ -14,0 +15 @@ public sealed partial class StudioWorkbench
++        foreach (var action in EditingActions()) yield return action;
+@@ -82,0 +84,15 @@ public sealed partial class StudioWorkbench
++        if (Surface.IsVectorEditing)
++        {
++            AddMenu(menu, "Select all points", Surface.SelectAllPoints);
++            AddMenu(menu, "Smooth points", () => Run(() => Surface.SetPointTangents(TangentMode.Smooth)));
++            AddMenu(menu, "Corner points", () => Run(() => Surface.SetPointTangents(TangentMode.Corner)));
++            AddMenu(menu, "Split selected segments", () => Run(Surface.SplitSelectedSegments));
++            AddMenu(menu, "Delete selected anchors", () => Run(Surface.DeleteSelectedPoints));
++            AddMenu(menu, "Done editing", Surface.EndVectorEdit);
++            menu.ShowAt(Surface, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position }); return;
++        }
++        AddMenu(menu, "Edit vector points", () => Run(Surface.BeginVectorEdit), Session.Primary is { } vector && EditablePathConversion.Supports(vector));
++        AddMenu(menu, "Flip horizontal", () => Run(() => Session.FlipSelection(true)), selected);
++        AddMenu(menu, "Flip vertical", () => Run(() => Session.FlipSelection(false)), selected);
++        AddMenu(menu, "Paste in place", () => RunAsync(() => PasteAsync(true)));
++        menu.Items.Add(new MenuFlyoutSeparator());
+@@ -116,0 +133,5 @@ public sealed partial class StudioWorkbench
++        try
++        {
++            if (Surface.HandleToolKey(e.Key, control, shift, alt) || Surface.HandlePointKey(e.Key, control, shift, alt)) { e.Handled = true; return; }
++        }
++        catch (Exception error) when (error is InvalidOperationException or ArgumentException) { ShowStatus(error.Message); e.Handled = true; return; }
+@@ -121,0 +143,4 @@ public sealed partial class StudioWorkbench
++                VirtualKey.Left when alt => () => Session.ResizeSelectionBy(shift ? -10 : -1, 0),
++                VirtualKey.Right when alt => () => Session.ResizeSelectionBy(shift ? 10 : 1, 0),
++                VirtualKey.Up when alt => () => Session.ResizeSelectionBy(0, shift ? -10 : -1),
++                VirtualKey.Down when alt => () => Session.ResizeSelectionBy(0, shift ? 10 : 1),
+@@ -128 +153 @@ public sealed partial class StudioWorkbench
+-                VirtualKey.V => () => RunAsync(PasteAsync),
++                VirtualKey.V => () => RunAsync(() => PasteAsync(shift)),
+@@ -134 +158,0 @@ public sealed partial class StudioWorkbench
+-                VirtualKey.K when shift => () => RunAsync(() => PlaceImageAsync()),
+@@ -135,0 +160 @@ public sealed partial class StudioWorkbench
++                VirtualKey.K when shift => () => RunAsync(() => PlaceImageAsync()),
+@@ -152,0 +178 @@ public sealed partial class StudioWorkbench
++                VirtualKey.V when shift => () => Session.FlipSelection(false),
+@@ -161,0 +188 @@ public sealed partial class StudioWorkbench
++                VirtualKey.H when shift => () => Session.FlipSelection(true),
+@@ -174 +201 @@ public sealed partial class StudioWorkbench
+-                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else Session.SelectChild(); },
++                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else if (Session.Primary is { } vector && EditablePathConversion.Supports(vector)) Surface.BeginVectorEdit(); else Session.SelectChild(); },
+@@ -197 +224,2 @@ public sealed partial class StudioWorkbench
+-    private async Task PasteAsync()
++    private Task PasteAsync() => PasteAsync(false);
++    private async Task PasteAsync(bool inPlace)
+@@ -204 +232 @@ public sealed partial class StudioWorkbench
+-        if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..]);
++        if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..], inPlace);
+@@ -237,0 +266 @@ public sealed partial class StudioWorkbench
++        Surface.CommitPendingEdits();
+diff --git a/src/VectorSpace.Workbench/StudioWorkbench.Inspector.cs b/src/VectorSpace.Workbench/StudioWorkbench.Inspector.cs
+index db567f6..d182459 100644
+--- a/src/VectorSpace.Workbench/StudioWorkbench.Inspector.cs
++++ b/src/VectorSpace.Workbench/StudioWorkbench.Inspector.cs
+@@ -14,0 +15 @@ public sealed partial class StudioWorkbench
++        BuildEditingInspector(node);
+@@ -43,2 +44,2 @@ public sealed partial class StudioWorkbench
+-        var flip = new IconButton("flip", "Flip horizontally", () => Change("Flip horizontal", n => n.FlipX = !n.FlipX));
+-        var flipY = new IconButton("flip", "Flip vertically", () => Change("Flip vertical", n => n.FlipY = !n.FlipY)) { RenderTransform = new RotateTransform { Angle = 90 }, RenderTransformOrigin = new(.5, .5) };
++        var flip = new IconButton("flip", "Flip horizontally", () => Run(() => Session.FlipSelection(true)));
++        var flipY = new IconButton("flip", "Flip vertically", () => Run(() => Session.FlipSelection(false))) { RenderTransform = new RotateTransform { Angle = 90 }, RenderTransformOrigin = new(.5, .5) };
+@@ -136 +137,3 @@ public sealed partial class StudioWorkbench
+-            node.Layout.HugWidth = node.Layout.HugHeight = false; LayoutEngine.Resize(node, w, h);
++            if (width.HasValue || _aspectLocked) { node.Layout.HugWidth = false; node.FillWidth = false; }
++            if (height.HasValue || _aspectLocked) { node.Layout.HugHeight = false; node.FillHeight = false; }
++            LayoutEngine.Resize(node, w, h);
+diff --git a/src/VectorSpace.Workbench/StudioWorkbench.cs b/src/VectorSpace.Workbench/StudioWorkbench.cs
+index fb26402..d0681ea 100644
+--- a/src/VectorSpace.Workbench/StudioWorkbench.cs
++++ b/src/VectorSpace.Workbench/StudioWorkbench.cs
+@@ -53,0 +54 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
++        Surface.VectorSelectionChanged += RefreshInspector;
+@@ -163 +164 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
+-        else if (e.Kind == EditorChangeKind.Tool) RefreshTools();
++        else if (e.Kind == EditorChangeKind.Tool) { RefreshTools(); RefreshInspector(); }
+diff --git a/tests/VectorSpace.Tests/Program.cs b/tests/VectorSpace.Tests/Program.cs
+index 459962c..623a42b 100644
+--- a/tests/VectorSpace.Tests/Program.cs
++++ b/tests/VectorSpace.Tests/Program.cs
+@@ -8,0 +9 @@ using VectorSpace.Skia;
++if (args.Contains("--benchmark-editing")) return EditingBenchmarks.Run();
+@@ -81,0 +83 @@ ImageAdmissionTests.Register(Test);
++ToolEditingTests.Register(Test);
+--- a/src/VectorSpace.Editor/DesignSurface.VectorEditing.cs
++++ b/src/VectorSpace.Editor/DesignSurface.VectorEditing.cs
+@@ -12,0 +13,3 @@
++    private int _pointClickSelection = -1;
++    private bool _pointDragStarted;
++    private int[] _pointMarqueeOriginal = [];
+@@ -117,0 +121 @@
++        _pointClickSelection = -1; _pointDragStarted = false;
+@@ -123,0 +128,2 @@
++                // Preserve a multi-selection for dragging, but collapse a plain click on release.
++                if (!shift && _pointSelection.Count > 1 && _pointSelection.Contains(index)) _pointClickSelection = index;
+@@ -152 +158,2 @@
+-                _pointMarqueeBaseline = shift ? _pointSelection.ToArray() : [];
++                _pointMarqueeOriginal = _pointSelection.ToArray();
++                _pointMarqueeBaseline = shift ? _pointMarqueeOriginal : [];
+@@ -173 +180,3 @@
+-       
++        if (!_pointDragStarted && screen.DistanceTo(_startScreen) < 3) return;
++        _pointDragStarted = true; _pointClickSelection = -1;
++
+@@ -198 +207,3 @@
+-        _gesture = Gesture.None; _pointMarquee = null;
++        if (_gesture == Gesture.VertexMarquee)
++        { _pointSelection.Clear(); _pointSelection.UnionWith(_pointMarqueeOriginal); }
++        _gesture = Gesture.None; _pointMarquee = null; _pointClickSelection = -1; _pointDragStarted = false;
+@@ -199,0 +211,12 @@
++    }
++    private void FinishPointGesture(bool marquee)
++    {
++        if (!marquee)
++        {
++            Session?.CommitInteraction();
++            if (_pointClickSelection >= 0 && !_pointDragStarted)
++            { _pointSelection.Clear(); _pointSelection.Add(_pointClickSelection); }
++        }
++        _pointClickSelection = -1; _pointDragStarted = false;
++        _pointBaseline = []; _movingPoints = []; _pointMarquee = null; _pointMarqueeOriginal = [];
++        ValidateVectorTarget(); PointSelectionChanged();

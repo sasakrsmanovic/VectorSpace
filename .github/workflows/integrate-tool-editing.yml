@@ -1,0 +1,46 @@
+name: Integrate tool editing
+on:
+  push:
+    branches: ['feat/tool-editing-0.5']
+    paths: ['.github/workflows/integrate-tool-editing.yml']
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Apply and verify authored source
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess
+          root=pathlib.Path('scripts/tool-editing-transfer')
+          patch=b''.join(p.read_bytes() for p in sorted(root.glob('*.patch')))
+          subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--unidiff-zero','-'],input=patch,check=True)
+          errors=[]
+          for path,expected in json.loads((root/'hashes.json').read_text()).items():
+              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
+              if actual != expected: errors.append((path,expected,actual))
+          if errors: raise SystemExit('Source mismatch: '+repr(errors))
+          print('All 28 changed source, test and documentation files match their authored Git blob hashes.')
+          PY
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Validate engines and native workbench
+        run: |
+          dotnet run --project tests/VectorSpace.Tests -c Release
+          python3 -m unittest discover -s tests/scripts -v
+          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Commit validated implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -r scripts/tool-editing-transfer
+          git add src tests docs CHANGELOG.md Directory.Build.props README.md scripts/tool-editing-transfer
+          git commit -m 'feat: integrate direct point editing, improved drawing tools and native path geometry'
+          git push origin HEAD:feat/tool-editing-0.5

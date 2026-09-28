@@ -1,0 +1,149 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3c539be..811e232 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,0 +3,11 @@
++## 0.5.0-alpha.1
++
++- Add reusable cubic subdivision, tangent operations, point selection/drag/marquee/nudges, exact segment insertion, contour reversal/closure and transactional primitive conversion.
++- Add direct point-editing inspector and context menu with robust history rebinding and cancellation.
++- Fix line/arrow angle constraints and zero-height geometry; preserve subpixel SVG precision and canonical resizing.
++- Improve Pen/Pencil parenting, live preview, Backspace, whole-stroke undo, simplification and tool-switch lifecycle; add persistent tools and in-drag shape adjustments.
++- Add world-pivot flips/quarter-turns, keyboard axis-preserving resizing, paste in place, spacing and editable guides; keep constrained snapping on its permitted axis.
++- Build editable SKPath geometry directly rather than serializing/parsing SVG per edit. Add a scoped geometry/allocation benchmark.
++- Add 66 engine regressions and eight actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
++
++
+diff --git a/Directory.Build.props b/Directory.Build.props
+index da6f514..687c476 100644
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6 +6 @@
+-    <Version>0.4.0-alpha.1</Version>
++    <Version>0.5.0-alpha.1</Version>
+diff --git a/README.md b/README.md
+index e8118c1..789bb44 100644
+--- a/README.md
++++ b/README.md
+@@ -14 +14 @@ VectorSpace brings a compact UI3-style workspace to a real Uno application: an i
+-**Status: 0.4.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
++**Status: 0.5.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+@@ -164,0 +165,4 @@ Technical references: [Uno SDK](https://platform.uno/docs/articles/features/usin
++
++### Direct tool editing
++
++[Tools and editing](docs/EDITING.md) covers multi-anchor editing, Bézier handles, exact subdivision, constrained drawing, clipboard placement, editable guides and tool-specific shortcuts.
+diff --git a/docs/FEATURES.md b/docs/FEATURES.md
+index cbc7f44..1bd24a0 100644
+--- a/docs/FEATURES.md
++++ b/docs/FEATURES.md
+@@ -7 +7 @@ VectorSpace is an original Uno/Skia editor, not a complete reproduction of every
+-Scene nodes and nested transforms; frames/groups/pages; drawing, scoped hierarchy selection, deep selection, sibling navigation, marquee and matching-property selection; baseline-based move/resize/rotation with anchored min/max limits and axis-preserving hug/fill; alt-drag duplicate; visibility/locking; undo/redo and clipboard; alignment/distribution; pen/freehand paths and point movement; text; solid/gradient fills; strokes/dashes; opacity/blends; image paints; independent drop/inner shadows and layer blur; safe JSON/SVG imports; SVG/PNG exports; recovery; local comments; isolated local prototype playback.
++Scene nodes and nested transforms; frames/groups/pages; drawing, scoped hierarchy selection, deep selection, sibling navigation, marquee and matching-property selection; baseline-based move/resize/rotation with anchored min/max limits and axis-preserving hug/fill; alt-drag duplicate; visibility/locking; undo/redo and clipboard; alignment/distribution; pen/freehand paths, multi-anchor selection/editing and exact cubic splitting; text; solid/gradient fills; strokes/dashes; opacity/blends; image paints; independent drop/inner shadows and layer blur; safe JSON/SVG imports; SVG/PNG exports; recovery; local comments; isolated local prototype playback.
+@@ -23 +23 @@ The palette, panels, properties, rows, color picker, numeric scrubbing, icons an
+-- **Vectors:** cubic paths and point movement; no full vector networks, independent tangent-handle UI, non-destructive Boolean stack or corner smoothing.
++- **Vectors:** editable single contours, multi-point selection, independent/linked handles, exact cubic insertion, primitive conversion, reversal/closure and freehand simplification. Full vector networks, multi-contour topology editing, non-destructive Boolean stacks, variable-width strokes and corner smoothing remain absent. See [tool editing](EDITING.md).
+diff --git a/docs/VALIDATION.md b/docs/VALIDATION.md
+index 251788e..a7eef1e 100644
+--- a/docs/VALIDATION.md
++++ b/docs/VALIDATION.md
+@@ -5 +5 @@
+-The engine regression runner contains **310 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
++The engine regression runner contains **376 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
+@@ -11 +11 @@ The six Python publication tests validate static asset collection, source/output
+-Published-browser acceptance contains **25 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
++Published-browser acceptance contains **33 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground; eight cover tool activation, shape creation, point editing, guides and clipboard placement. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
+@@ -45,0 +46,4 @@ Full Figma feature compatibility, pixel identity, complete native interaction co
++
++## Tool editing (0.5)
++
++Sixty-six engine regressions cover cubic subdivision, tangent semantics, conversion, reflection, precision and native path equivalence. Eight browser workflows use real quick actions, mouse/keyboard/file input and downloaded native documents to verify all sixteen tool activations, shape adjustments, multi-anchor editing, subdivision, marquee/cancellation, pen lifecycle, guides and paste-in-place/keyboard resizing. Suite counts describe available tests; final-commit results must be checked separately.
+diff --git a/src/VectorSpace.App/Platforms/WebAssembly/BrowserWorkspaceStorage.cs b/src/VectorSpace.App/Platforms/WebAssembly/BrowserWorkspaceStorage.cs
+index 0b275ec..2a6fa5b 100644
+--- a/src/VectorSpace.App/Platforms/WebAssembly/BrowserWorkspaceStorage.cs
++++ b/src/VectorSpace.App/Platforms/WebAssembly/BrowserWorkspaceStorage.cs
+@@ -84,0 +85,7 @@ internal static class BrowserDiagnostics
++                json.WriteBoolean("vectorEditing", workbench.Surface.IsVectorEditing);
++                json.WriteStartArray("selectedPoints"); foreach (var index in workbench.Surface.SelectedPointIndices) json.WriteNumberValue(index); json.WriteEndArray();
++                json.WriteNumber("points", primary?.Points.Count ?? 0);
++                json.WriteNumber("sides", primary?.Sides ?? 0);
++                json.WriteNumber("guides", session.Page.Guides.Count);
++                json.WriteBoolean("interacting", session.IsInteracting);
++                json.WriteBoolean("closed", primary?.Closed ?? false);
+diff --git a/src/VectorSpace.Core/VectorPath.cs b/src/VectorSpace.Core/VectorPath.cs
+index 0eb8389..ec39aff 100644
+--- a/src/VectorSpace.Core/VectorPath.cs
++++ b/src/VectorSpace.Core/VectorPath.cs
+@@ -49 +49 @@ public static class VectorPath
+-    private static string N(double n) => Numbers.Format(n);
++    private static string N(double n) => n.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+diff --git a/src/VectorSpace.Documents/SvgFormat.cs b/src/VectorSpace.Documents/SvgFormat.cs
+index 646db57..a5fd839 100644
+--- a/src/VectorSpace.Documents/SvgFormat.cs
++++ b/src/VectorSpace.Documents/SvgFormat.cs
+@@ -66 +66 @@ public static partial class SvgFormat
+-        if (node.Kind == NodeKind.Path && node.PathWidth > 0 && node.PathHeight > 0) shape.SetAttributeValue("transform", $"scale({F(node.Width / node.PathWidth)} {F(node.Height / node.PathHeight)})");
++        if ((node.Kind == NodeKind.Path || node.PathData is not null) && node.PathWidth > 0 && node.PathHeight > 0) shape.SetAttributeValue("transform", $"scale({F(node.Width / node.PathWidth)} {F(node.Height / node.PathHeight)})");
+diff --git a/src/VectorSpace.Editing/EditorSession.cs b/src/VectorSpace.Editing/EditorSession.cs
+index 3d02240..e6485a6 100644
+--- a/src/VectorSpace.Editing/EditorSession.cs
++++ b/src/VectorSpace.Editing/EditorSession.cs
+@@ -222 +222,2 @@ public sealed partial class EditorSession
+-    public void Paste(string json)
++    public void Paste(string json) => Paste(json, false);
++    public void Paste(string json, bool inPlace)
+@@ -232 +233 @@ public sealed partial class EditorSession
+-            _selected.Clear(); foreach (var n in nodes) { n.X += 24; n.Y += 24; AddNode(n); _selected.Add(n.Id); }
++            _selected.Clear(); foreach (var n in nodes) { if (!inPlace) { n.X += 24; n.Y += 24; } AddNode(n); _selected.Add(n.Id); }
+diff --git a/src/VectorSpace.Editor/DesignSurface.Rendering.cs b/src/VectorSpace.Editor/DesignSurface.Rendering.cs
+index de66ccf..6fd2e9a 100644
+--- a/src/VectorSpace.Editor/DesignSurface.Rendering.cs
++++ b/src/VectorSpace.Editor/DesignSurface.Rendering.cs
+@@ -54,0 +55,15 @@ public sealed partial class DesignSurface
++            if (_penNode is not null)
++            {
++                DrawVertices(canvas, _penNode);
++                if (_pathPreviewWorld is { } preview && _penNode.Points.Count > 0 && _gesture == Gesture.None)
++                {
++                    var matrix = PathEditing.PointToWorld(_penNode); var last = _penNode.Points[^1];
++                    var a = viewport.WorldToScreen(matrix.Map(last.Position));
++                    var b = viewport.WorldToScreen(preview);
++                    if (Keyboard.Shift) b = a + DrawingGeometry.ConstrainAngle(b - a);
++                    using var path = new SKPath(); path.MoveTo(P(a));
++                    if (last.ControlOut is { } control) path.CubicTo(P(viewport.WorldToScreen(matrix.Map(control))), P(b), P(b)); else path.LineTo(P(b));
++                    using var pen = new SKPaint { Color = new SKColor(13, 153, 255), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
++                    canvas.DrawPath(path, pen);
++                }
++            }
+@@ -92,0 +108 @@ public sealed partial class DesignSurface
++        if (IsVectorEditing) return;
+@@ -132 +148,3 @@ public sealed partial class DesignSurface
+-        Vec2 Screen(Vec2 p)
++        var transform = PathEditing.PointToWorld(node);
++        Vec2 Screen(Vec2 p) => Session.Viewport.WorldToScreen(transform.Map(p));
++        for (var i = 0; i < node.Points.Count; i++)
+@@ -134,2 +152,14 @@ public sealed partial class DesignSurface
+-            if (node.PathWidth > 0 && node.PathHeight > 0) p = new(p.X * node.Width / node.PathWidth, p.Y * node.Height / node.PathHeight);
+-            return Session.Viewport.WorldToScreen(node.WorldMatrix.Map(p));
++            var point = node.Points[i]; var p = Screen(point.Position);
++            if (_pointSelection.Contains(i) || node == _penNode && i == node.Points.Count - 1)
++            {
++                if (point.ControlIn is { } incoming) Handle(incoming);
++                if (point.ControlOut is { } outgoing) Handle(outgoing);
++            }
++            if (p.X < -8 || p.Y < -8 || p.X > ActualWidth + 8 || p.Y > ActualHeight + 8) continue;
++            fill.Color = _pointSelection.Contains(i) ? stroke.Color : SKColors.White;
++            canvas.DrawCircle(P(p), 4, fill); canvas.DrawCircle(P(p), 4, stroke);
++            void Handle(Vec2 control)
++            {
++                var cp = Screen(control); fill.Color = SKColors.White;
++                canvas.DrawLine(P(p), P(cp), stroke); canvas.DrawCircle(P(cp), 3, fill); canvas.DrawCircle(P(cp), 3, stroke);
++            }
+@@ -137 +167 @@ public sealed partial class DesignSurface
+-        foreach (var point in node.Points)
++        if (_pointMarquee is { } marquee)
+@@ -139,3 +169 @@ public sealed partial class DesignSurface
+-            var p = Screen(point.Position);
+-            foreach (var control in new[] { point.ControlIn, point.ControlOut }.Where(c => c.HasValue)) { var cp = Screen(control!.Value); canvas.DrawLine(P(p), P(cp), stroke); canvas.DrawCircle(P(cp), 3, fill); canvas.DrawCircle(P(cp), 3, stroke); }
+-            canvas.DrawCircle(P(p), 4, fill); canvas.DrawCircle(P(p), 4, stroke);
++            fill.Color = new SKColor(13, 153, 255, 22); canvas.DrawRect(SceneRenderer.Rect(marquee), fill); canvas.DrawRect(SceneRenderer.Rect(marquee), stroke);
