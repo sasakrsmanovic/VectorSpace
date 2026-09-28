@@ -55,13 +55,14 @@ public sealed class RemotePresenceLayer : SKCanvasElement, IDisposable
     protected override void RenderOverride(SKCanvas canvas, Windows.Foundation.Size area)
     {
         if (_disposed || Session is not { } session) return;
-        canvas.Clear(SKColors.Transparent);
+        // Uno may supply a canvas shared with lower visual layers. This is an overlay,
+        // not an opaque scene: clearing it would erase the document underneath.
         canvas.Save(); canvas.ClipRect(new(0, 0, (float)area.Width, (float)area.Height));
         foreach (var peer in _peers)
         {
             if (peer.PageId != session.Page.Id) continue;
-            _paint.Color = SKColor.TryParse(peer.Color, out var color) ? color : SKColors.CornflowerBlue;
-            _paint.Style = SKPaintStyle.Stroke; _paint.StrokeWidth = 1.5f;
+            if (!SKColor.TryParse(peer.Color, out var color)) color = SKColors.CornflowerBlue;
+            _paint.Color = color; _paint.Style = SKPaintStyle.Stroke; _paint.StrokeWidth = 1.5f;
             foreach (var outline in _outlines)
             {
                 if (outline.Peer != peer.Id) continue;
@@ -79,6 +80,7 @@ public sealed class RemotePresenceLayer : SKCanvasElement, IDisposable
             _paint.Style = SKPaintStyle.Fill; _paint.Color = color; canvas.DrawPath(_cursor, _paint);
             var width = Math.Min(220, _font.MeasureText(peer.Name)) + 12;
             canvas.DrawRoundRect(new(12, 19, 12 + width, 38), 3, 3, _paint);
+            canvas.ClipRect(new(14, 19, 10 + width, 38));
             _paint.Color = SKColors.White; canvas.DrawText(peer.Name, 18, 32, _font, _paint);
             canvas.Restore();
         }
