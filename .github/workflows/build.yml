@@ -34,9 +34,44 @@ jobs:
         with:
           name: VectorSpace-performance
           path: artifacts/benchmarks
+  collaboration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Validate shared transactions and actual editor integration
+        run: |
+          dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+          dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release
+      - name: Compile and exercise the persistent server over HTTP
+        run: |
+          dotnet build server/VectorSpace.Server -c Release
+          python3 -m unittest discover -s tests/server -v
+      - name: Measure property projection and exact wire reduction
+        run: |
+          mkdir -p artifacts/collaboration-benchmarks
+          dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release --no-build -- --benchmark > artifacts/collaboration-benchmarks/collaboration.json
+          cat artifacts/collaboration-benchmarks/collaboration.json
+      - name: Publish self-hostable server
+        run: dotnet publish server/VectorSpace.Server -c Release -o artifacts/collaboration-server
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: VectorSpace-collaboration-validation
+          path: |
+            artifacts/collaboration-server.log
+            artifacts/collaboration-benchmarks
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VectorSpace-collaboration-server
+          path: artifacts/collaboration-server
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -60,12 +95,13 @@ jobs:
             case "$project" in */VectorSpace.App/*) continue;; esac
             dotnet pack "$project" -c Release -o artifacts/packages
           done
-      - name: Test real browser interactions
+      - name: Test real browser and multi-user interactions
         run: |
           npm ci
           npx playwright install --with-deps chromium
+          dotnet build server/VectorSpace.Server -c Release
           python3 scripts/serve-site.py --directory artifacts/site --port 4173 > artifacts/server.log 2>&1 &
-          npm run test:browser
+          python3 scripts/run-collaboration-browser-tests.py
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -89,6 +125,7 @@ jobs:
             artifacts/test-results
             artifacts/browser-results.xml
             artifacts/server.log
+            artifacts/collaboration-browser-server.log
           if-no-files-found: ignore
       - name: Source snapshot
         if: always()
