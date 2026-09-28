@@ -2,7 +2,7 @@ name: Integrate collaboration workbench
 on:
   push:
     branches: ['feat/collaboration-0.6']
-    paths: ['.github/workflows/integrate-collaboration.yml', 'scripts/integrate-collaboration.py']
+    paths: ['.github/workflows/integrate-collaboration.yml', 'scripts/integrate-collaboration.py', 'scripts/finalize-collaboration.py']
 permissions:
   contents: write
 concurrency:
@@ -20,18 +20,23 @@ jobs:
         with:
           global-json-file: global.json
       - name: Apply exact source integration
-        run: python3 scripts/integrate-collaboration.py
+        run: |
+          python3 scripts/integrate-collaboration.py
+          python3 scripts/finalize-collaboration.py
       - name: Validate collaboration and existing editor transactions
         run: |
           dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
           dotnet run --project tests/VectorSpace.Tests -c Release
-      - name: Compile reusable Uno workbench
-        run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Compile reusable Uno workbench and service
+        run: |
+          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+          dotnet build server/VectorSpace.Server -c Release
+          python3 -m unittest discover -s tests/server -v
       - name: Preserve compiled integration
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm scripts/integrate-collaboration.py
-          git add src Directory.Build.props scripts/integrate-collaboration.py
+          rm scripts/integrate-collaboration.py scripts/finalize-collaboration.py
+          git add src server Directory.Build.props scripts/integrate-collaboration.py scripts/finalize-collaboration.py
           git commit -m 'feat: integrate collaborative history, sharing, recovery and participant controls'
           git push origin HEAD:feat/collaboration-0.6
