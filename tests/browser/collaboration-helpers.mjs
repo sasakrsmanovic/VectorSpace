@@ -6,16 +6,12 @@ export const test = base.extend({
     const contexts = [];
     await use(async () => {
       const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL, viewport: { width: 1680, height: 1000 }, acceptDownloads: true });
-      await context.tracing.start({ screenshots: true, snapshots: true }); contexts.push(context);
+      contexts.push(context);
       return context.newPage();
     });
-    for (let i = 0; i < contexts.length; i++) {
-      if (testInfo.status !== testInfo.expectedStatus) {
-        const path = testInfo.outputPath('peer-' + i + '-trace.zip'); await contexts[i].tracing.stop({ path });
-        await testInfo.attach('Peer ' + i + ' trace', { path, contentType: 'application/zip' });
-      } else await contexts[i].tracing.stop();
-      await contexts[i].close();
-    }
+    // The Playwright Test runner owns tracing for every context it creates.
+    // Manually starting/stopping a trace here conflicts with retain-on-failure.
+    for (const context of contexts) await context.close();
   }
 });
 export { expect };

@@ -44,7 +44,7 @@ public static partial class DocumentProjection
             {
                 var array = new JsonArray();
                 if (children.TryGetValue((id, slot), out var list))
-                    foreach (var child in list.OrderBy(x => x.Rank).ThenBy(x => x.Id, StringComparer.Ordinal)) { Build(child.Id, child.Object, depth + 1); array.Add(child.Object); }
+                    foreach (var child in list.OrderBy(x => x.Rank).ThenBy(x => x.Id, StringComparer.Ordinal)) { Build(child.Id, child.Object, depth + 1); array.Add((JsonNode)child.Object); }
                 obj[slot] = array;
             }
         }

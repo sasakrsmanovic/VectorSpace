@@ -15,7 +15,8 @@ test('@collaboration owner creates a room and guest invitation through the real 
   await click(page, 'Close');
   await click(page, 'Share'); await click(page, 'Create invitation'); await input(page, 'Invitation label', 'Bob');
   await click(page, 'Create link'); await click(page, 'Copy link');
-  const link = await page.evaluate(() => navigator.clipboard.readText()); expect(link).toContain('#collaboration=');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('#collaboration=');
+  const link = await page.evaluate(() => navigator.clipboard.readText());
   const bob = await peer(); await bob.goto(link);
   await bob.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150000 });
   await control(bob, 'Collaboration invitation link');

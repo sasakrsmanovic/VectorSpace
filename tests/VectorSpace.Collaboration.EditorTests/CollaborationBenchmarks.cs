@@ -22,14 +22,27 @@ internal static class CollaborationBenchmarks
         var wire = JsonSerializer.SerializeToUtf8Bytes(batch, CollaborationJson.Default.EditBatch);
         var engine = new TransactionEngine(initial); var commit = engine.Prepare(batch, RoomRole.Editor, "Benchmark"); engine.Accept(commit);
         if (DocumentJson.Save(DocumentProjection.ToDocument(engine.State)) != json) throw new InvalidOperationException("Property delta differs from native document state.");
-        for (var i = 0; i < 3; i++) Project();
-        var elapsed = new List<double>(); var allocated = new List<long>();
+        List<CellChange> Reference() => DocumentProjection.Diff(initial, ProjectionOracle.FromJson(json, initial));
+        if (!changes.SequenceEqual(Reference())) throw new InvalidOperationException("Wire cells differ from reference.");
+        var checks = ProjectionChecks.Run();
+        for (var i = 0; i < 3; i++) { Project(); Reference(); }
+        var optimized = new List<(double Time, long Bytes)>(); var reference = new List<(double Time, long Bytes)>();
         for (var i = 0; i < 5; i++)
         {
-            var before = GC.GetAllocatedBytesForCurrentThread(); var clock = Stopwatch.StartNew();
-            Project(); clock.Stop(); elapsed.Add(clock.Elapsed.TotalMilliseconds); allocated.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+            if (i % 2 == 0) { reference.Add(Measure(Reference)); optimized.Add(Measure(Project)); }
+            else { optimized.Add(Measure(Project)); reference.Add(Measure(Reference)); }
         }
-        elapsed.Sort(); allocated.Sort();
+        static (double Time, long Bytes) Measure(Func<List<CellChange>> project)
+        {
+            var clock = new Stopwatch(); var before = GC.GetAllocatedBytesForCurrentThread(); clock.Start();
+            var result = project(); clock.Stop(); var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            if (result.Count != 1) throw new InvalidOperationException("Measured projection changed results.");
+            return (clock.Elapsed.TotalMilliseconds, bytes);
+        }
+        var fastTime = optimized.Select(x => x.Time).Order().ElementAt(2);
+        var oldTime = reference.Select(x => x.Time).Order().ElementAt(2);
+        var fastBytes = optimized.Select(x => x.Bytes).Order().ElementAt(2);
+        var oldBytes = reference.Select(x => x.Bytes).Order().ElementAt(2);
         var result = new JsonObject
         {
             ["workload"] = "1000 native scene layers; one scalar property changed; five warmed projection/diff samples",
@@ -38,8 +51,10 @@ internal static class CollaborationBenchmarks
             ["nativeDocumentUtf8Bytes"] = Encoding.UTF8.GetByteCount(json),
             ["editBatchUtf8Bytes"] = wire.Length,
             ["changedCells"] = changes.Count,
-            ["projectionMedianMilliseconds"] = elapsed[2],
-            ["projectionMedianManagedBytes"] = allocated[2],
+            ["referenceMedianMilliseconds"] = oldTime, ["retainedMedianMilliseconds"] = fastTime,
+            ["referenceMedianManagedBytes"] = oldBytes, ["retainedMedianManagedBytes"] = fastBytes,
+            ["observedProjectionSpeedRatio"] = oldTime / Math.Max(fastTime, .0001),
+            ["equivalenceAndReuseChecks"] = checks,
             ["exactNativeRoundtripVerified"] = true,
             ["scope"] = "Wire reduction is verified; projection still visits the whole document. Network latency, server durability, Uno UI, painting, native allocations and embedded-image workloads are excluded. No FPS or constant-time claim."
         };

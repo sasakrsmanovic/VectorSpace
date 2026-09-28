@@ -48,6 +48,7 @@ public sealed partial class StudioWorkbench
                                 json.WriteNumber("x", visible.X); json.WriteNumber("y", visible.Y); json.WriteNumber("width", visible.Width); json.WriteNumber("height", visible.Height);
                                 json.WriteBoolean("enabled", view is not Control control || control.IsEnabled);
                                 if (view is TextBox textBox && textBox.Tag as string != "Sensitive") json.WriteString("value", textBox.Text);
+                                if (view is ComboBox combo) json.WriteString("value", combo.SelectedItem is ComboBoxItem item ? item.Content?.ToString() : combo.SelectedItem?.ToString());
                                 json.WriteEndObject();
                             }
                         }

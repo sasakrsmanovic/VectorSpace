@@ -90,6 +90,8 @@ Test("loopback HTTP remains usable for actual local network tests", () => {
     Check(new RoomAddress("http://127.0.0.1:5097", new string('a', 32), new string('b', 43)).Endpoint().IsLoopback);
 });
 
+Test("retained projection matches reference and preserves unchanged storage", () => Check(ProjectionChecks.Run() == 59));
+
 var failures = 0;
 foreach (var (name, run) in tests) { try { run(); Console.WriteLine("PASS " + name); } catch (Exception e) { failures++; Console.WriteLine("FAIL " + name + "\n" + e); } }
 Console.WriteLine($"SHARED EDITOR RESULT: {tests.Count - failures}/{tests.Count} passed"); return failures == 0 ? 0 : 1;

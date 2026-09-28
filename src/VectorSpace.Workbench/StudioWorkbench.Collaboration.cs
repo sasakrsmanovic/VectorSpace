@@ -102,7 +102,7 @@ public sealed partial class StudioWorkbench
         {
             Session.Load(DocumentProjection.ToDocument(connection.Replica.Visible));
             _participantName = name.Trim(); _collaboration = connection;
-            _sharedRecoveryWriter = Guid.NewGuid().ToString("N"); _sharedRecoverySignature = ""; _sharedRecoveryJson = null;
+            _sharedRecoveryWriter = Guid.NewGuid().ToString("N"); _sharedRecoverySignature = ""; _sharedRecoveryJson = null; _sharedRecoverySaved = true;
             connection.ReceiveDispatcher = ReceiveShared;
             Session.AttachSharedHistory(new SharedHistoryAdapter(this, connection));
             connection.Changed += RefreshCollaboration;
@@ -129,15 +129,20 @@ public sealed partial class StudioWorkbench
             if (peer is null) _following = null;
             else if (!SharedBoundaryBlocked)
             {
-                if (Session.Page.Id != peer.PageId) Session.SetPage(peer.PageId);
-                Session.Viewport.ZoomAt(peer.Zoom, Vec2.Zero); Session.Viewport.Pan = new(peer.PanX, peer.PanY);
-                Session.Notify(EditorChangeKind.Viewport);
+                var changedPage = Session.Page.Id != peer.PageId;
+                if (changedPage) Session.SetPage(peer.PageId);
+                var pan = new Vec2(peer.PanX, peer.PanY);
+                if (changedPage || Session.Viewport.Zoom != peer.Zoom || Session.Viewport.Pan != pan)
+                {
+                    Session.Viewport.ZoomAt(peer.Zoom, Vec2.Zero); Session.Viewport.Pan = pan;
+                    Session.Notify(EditorChangeKind.Viewport);
+                }
             }
         }
-        var mayEdit = connection.Role is RoomRole.Owner or RoomRole.Editor && !connection.AccessDenied;
+        var mayEdit = connection.Role is RoomRole.Owner or RoomRole.Editor && connection.CanEdit;
         _inspector.IsHitTestVisible = mayEdit;
         foreach (var (tool, button) in _toolButtons)
-            button.IsEnabled = mayEdit || tool is EditorTool.Move or EditorTool.Hand || tool == EditorTool.Comment && connection.Role == RoomRole.Commenter;
+            button.IsEnabled = mayEdit || tool is EditorTool.Move or EditorTool.Hand || tool == EditorTool.Comment && connection.Role == RoomRole.Commenter && connection.CanEdit;
         _status.Text = connection.Status + (connection.Role is RoomRole.Viewer or RoomRole.Commenter ? " · " + connection.Role : "");
         _participants.Update([new("self", _participantName, "#AF7C2D"), .. connection.Participants.Select(p => new ParticipantIdentity(p.ClientId, p.Name, p.Color))], _following);
         _presenceLayer.Visibility = Surface.IsPresenting ? Visibility.Collapsed : Visibility.Visible;
@@ -149,7 +154,7 @@ public sealed partial class StudioWorkbench
         if (_disposed || _collaboration is not { } connection) return;
         var world = _cursorPosition is { } cursor ? Session.Viewport.ScreenToWorld(cursor) : Vec2.Zero;
         var selected = Session.SelectedIds.Take(100).ToList();
-        var signature = FormattableString.Invariant($"{Session.Page.Id}|{world.X:0.##}|{world.Y:0.##}|{_cursorPosition.HasValue}|{Session.Viewport.Zoom:R}|{Session.Viewport.Pan.X:R}|{Session.Viewport.Pan.Y:R}|") + string.Join(',', selected);
+        var signature = FormattableString.Invariant($"{Session.Page.Id}|{world.X:0.##}|{world.Y:0.##}|{_cursorPosition.HasValue}|{Surface.IsPresenting}|{Session.Viewport.Zoom:R}|{Session.Viewport.Pan.X:R}|{Session.Viewport.Pan.Y:R}|") + string.Join(',', selected);
         if (_presenceSignature == signature) return; _presenceSignature = signature;
         connection.SetPresence(new(connection.Replica.ClientId, _participantName, "", Session.Page.Id, world.X, world.Y,
             _cursorPosition.HasValue && !Surface.IsPresenting, Session.Viewport.Zoom, Session.Viewport.Pan.X, Session.Viewport.Pan.Y, selected, DateTimeOffset.UtcNow));

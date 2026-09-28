@@ -4,11 +4,11 @@ using System.Text.Json.Nodes;
 using VectorSpace.Core;
 using VectorSpace.Documents;
 
-namespace VectorSpace.Collaboration;
+using VectorSpace.Collaboration;
 
 /// <summary>Identity-addressed projection. Values without stable identities are atomic properties.
 /// Page/layer/comment/variable/mode membership and ordering are independent cells.</summary>
-public static partial class DocumentProjection
+internal static class ProjectionOracle
 {
     private const char Separator = '\u001f';
     public const int MaxCells = 500_000;
@@ -29,12 +29,39 @@ public static partial class DocumentProjection
     public static SharedSnapshot FromDocument(DesignDocument document, SharedSnapshot? baseline = null) => FromJson(DocumentJson.Save(document), baseline);
     public static SharedSnapshot FromJson(string json, SharedSnapshot? baseline = null)
     {
-        ArgumentNullException.ThrowIfNull(json);
         if (json.Length > MaxCharacters) throw new InvalidDataException("Shared documents are limited to 32 MiB of text.");
-        using var source = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 128 });
-        if (source.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Expected a document object.");
-        using var reader = new ProjectionReader(baseline);
-        return reader.Read(source.RootElement);
+        var root = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { MaxDepth = 128 }) as JsonObject ?? throw new InvalidDataException("Expected a document object.");
+        var result = new SharedSnapshot();
+        Flatten(root, "$root", null, null, 0);
+        if (result.Cells.Count > MaxCells) throw new InvalidDataException("Shared document cell limit exceeded.");
+        return result;
+
+        void Flatten(JsonObject value, string entity, string? parent, string? slot, decimal rank)
+        {
+            if (entity.Contains(Separator) || entity.Length > 512) throw new InvalidDataException("Invalid shared entity identifier.");
+            if (parent is not null)
+            {
+                Put("@parent", JsonValue.Create(parent)); Put("@slot", JsonValue.Create(slot)); Put("@rank", JsonValue.Create(rank));
+            }
+            foreach (var property in value)
+            {
+                if (property.Key.StartsWith('@') || property.Key.Contains(Separator)) throw new InvalidDataException("Reserved collaboration property name.");
+                if (entity.StartsWith("node:", StringComparison.Ordinal) && property.Key == "expanded") continue;
+                if (property.Value is JsonArray array && Lists.TryGetValue(property.Key, out var kind) && IsIdentityList(entity, property.Key))
+                {
+                    var objects = array.Select(n => n as JsonObject ?? throw new InvalidDataException("Invalid identity array.")).ToArray();
+                    var ids = objects.Select(o => kind + ":" + (o["id"]?.GetValue<string>() ?? throw new InvalidDataException("Missing entity identity."))).ToArray();
+                    if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Length) throw new InvalidDataException("Duplicate identity.");
+                    var ranks = Ranks(ids, entity, property.Key, baseline);
+                    for (var i = 0; i < objects.Length; i++) Flatten(objects[i], ids[i], entity, property.Key, ranks[i]);
+                }
+                else Put(property.Key, property.Value);
+            }
+            void Put(string name, JsonNode? node)
+            {
+                if (!result.Cells.TryAdd(Key(entity, name), node?.ToJsonString(Json) ?? "null")) throw new InvalidDataException("Duplicate shared entity.");
+            }
+        }
     }
     private static bool IsIdentityList(string entity, string slot) => entity == "$root"
         ? slot is "pages" or "comments" or "variableCollections" or "variables"
