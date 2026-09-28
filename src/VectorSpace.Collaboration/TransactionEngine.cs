@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using VectorSpace.Core;
+using VectorSpace.Documents;
 
 namespace VectorSpace.Collaboration;
 
@@ -7,12 +9,13 @@ namespace VectorSpace.Collaboration;
 /// before Accept. A conflict rejects the entire gesture rather than silently overwriting a peer.</summary>
 public sealed class TransactionEngine
 {
+    private readonly Action<DesignDocument>? _normalize;
     public SharedSnapshot State { get; private set; }
-    public TransactionEngine(SharedSnapshot state)
+    public TransactionEngine(SharedSnapshot state, Action<DesignDocument>? normalize = null)
     {
         _ = DocumentProjection.ToDocument(state);
         if (state.Revision < 0 || state.Versions.Values.Any(v => v < 0 || v > state.Revision)) throw new InvalidDataException("Invalid shared versions.");
-        State = state.Clone();
+        State = state.Clone(); _normalize = normalize;
     }
     public Commit Prepare(EditBatch batch, RoomRole role, string author)
     {
@@ -41,7 +44,18 @@ public sealed class TransactionEngine
         var candidate = State.Clone(); var revision = checked(State.Revision + 1);
         DocumentProjection.Apply(candidate, actual, revision); candidate.Revision = revision;
         if (candidate.Versions.Count > DocumentProjection.MaxCells * 2) throw new InvalidDataException("Room tombstone budget reached; export to a new room.");
-        _ = DocumentProjection.ToDocument(candidate);
+        var document = DocumentProjection.ToDocument(candidate);
+        if (_normalize is not null)
+        {
+            // The host uses the same deterministic layout/variable/component engines as the
+            // editor. Their resulting cells join the same atomic event and undo guards.
+            _normalize(document); DocumentJson.Validate(document);
+            var normalized = DocumentProjection.FromDocument(document, candidate);
+            actual = DocumentProjection.Diff(State, normalized);
+            if (actual.Count is 0 or > 50_000) throw new InvalidDataException("The normalized edit is empty or exceeds shared transaction limits.");
+            if (role == RoomRole.Commenter && actual.Any(c => !DocumentProjection.Address(c.Key).Entity.StartsWith("comment:", StringComparison.Ordinal)))
+                throw new InvalidDataException("A comment cannot change derived design properties; ask an editor to normalize the file first.");
+        }
         return new(revision, batch.Id, batch.ClientId, batch.Sequence, author, batch.Label, DateTimeOffset.UtcNow, actual);
     }
     public void Accept(Commit commit)
