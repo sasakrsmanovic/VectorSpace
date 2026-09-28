@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
 import { pixels } from './png-pixels.mjs';
 
-const image = 'iVBORw0KGgoAAAANSUhEUgAAAPAAAAB4CAIAAABD1OhwAAABXElEQVR4nO3SgQkAIADDMPX/n/UJUSjJBWN07sELc3j6hfV7ANwkaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkHCESAu8dQUSQAAAAAElFTkSuQmCC';
+const image = 'iVBORw0KGgoAAAANSUhEUgAAAPAAAAB4CAIAAABD1OhwAAABXElEQVR4nO3SgQkAIADDMPX/n/UJUSjJBWN07sELc3j6hfV7ANwkaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkCJoUQZMiaFIETYqgSRE0KYImRdCkHCESAu8dQUSQAAAAAElFTkSuQmCC';
 const state = page => page.evaluate(() => globalThis.__vectorSpaceState);
 async function control(page, name, type) {
   await expect.poll(() => page.evaluate(({ name, type }) => (globalThis.__vectorSpaceControls ?? []).some(c => c.name === name && (!type || c.type === type) && c.enabled), { name, type })).toBe(true);
@@ -65,8 +65,14 @@ test('image Fit changes actual browser pixels and persists its mode', async ({ p
 });
 
 test('on-canvas crop is baseline-relative, wheel anchored and cancels without moving the layer', async ({ page }) => {
-  await open(page); await select(page); await find(page, 'Edit image crop'); await click(page, 'Edit image crop');
+  // Fill ignores these retained crop offsets. Entering crop mode must preserve
+  // the visible placement instead of suddenly reactivating the old offsets.
+  const document = fixture({ kind: 'Image', imageData: 'data:image/png;base64,' + image, imageMode: 'Fill', imageOffset: { x: .75, y: -.5 } });
+  await open(page, { name: 'latent-crop.vectorspace', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });
+  await select(page); await find(page, 'Edit image crop'); await click(page, 'Edit image crop');
   await expect.poll(async () => (await state(page)).cropping).toBe(true);
+  await expect.poll(async () => (await state(page)).cropX).toBe(0);
+  await expect.poll(async () => (await state(page)).cropY).toBe(0);
   const a = await screen(page, 320, 290), b = await screen(page, 350, 302);
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 12 }); await page.mouse.up();
   await expect.poll(async () => (await state(page)).cropX).toBeCloseTo(.125, 2); await expect.poll(async () => (await state(page)).cropY).toBeCloseTo(.05, 2);

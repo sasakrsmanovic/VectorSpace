@@ -24,6 +24,9 @@ public sealed partial class DesignSurface
             editor.Edit("Enable image crop", () =>
             {
                 var old = ImagePlacement.Calculate(fill, node.Width, node.Height, image.Width, image.Height);
+                // Fill/Fit ignore stored crop offsets. Do not reactivate an old offset
+                // when entering crop mode: the currently visible image must stay put.
+                if (fill.ImageMode is ImageScaleMode.Fill or ImageScaleMode.Fit) fill.ImageOffset = Vec2.Zero;
                 fill.ImageMode = ImageScaleMode.Crop; fill.ImageScale = 1;
                 var next = ImagePlacement.Calculate(fill, node.Width, node.Height, image.Width, image.Height);
                 var oldScale = Math.Sqrt(old.M11 * old.M11 + old.M12 * old.M12);
