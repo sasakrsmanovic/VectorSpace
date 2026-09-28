@@ -1,0 +1,107 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 811e232..63614bd 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -11 +11 @@
+-- Add 66 engine regressions and eight actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
++- Add 75 engine regressions and ten actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
+diff --git a/docs/EDITING.md b/docs/EDITING.md
+index 5813790..251612d 100644
+--- a/docs/EDITING.md
++++ b/docs/EDITING.md
+@@ -9 +9 @@ Select a vector shape and press **Enter**, double-click it, or choose **Edit vec
+-Click an anchor to select it, Shift-click to toggle additional anchors, or drag a box to select points. Dragging a selected anchor moves all selected anchors and their tangent handles from one captured baseline. Arrow keys nudge selected points by one world unit; Shift uses ten. Layer coordinates do not change. Point coordinates account for path scaling and rotated/reflected ancestors.
++Click an anchor to select it, Shift-click to toggle additional anchors, or drag a box to select points. Dragging a selected anchor moves all selected anchors and their tangent handles from one captured baseline. Arrow keys nudge selected points by one world unit; Shift uses ten. A plain click on an already selected anchor collapses the selection on release; dragging preserves it. Layer coordinates do not change. Point coordinates account for path scaling and rotated/reflected ancestors.
+@@ -29 +29 @@ While drawing, Up/Down changes polygon/star sides. Alt+Up/Down adjusts the star'
+-Pen shows live anchors, handles and a prospective next segment. Shift constrains the next point; click-drag makes Bézier handles; click the first anchor closes the path. Backspace removes the last uncommitted anchor. Ctrl+Z retains the established behavior of canceling the entire unfinished stroke. Enter finishes. New pen/pencil strokes use the enclosing unlocked frame's local coordinates; drawing inside an auto-layout frame creates an absolute child instead of fighting its allocation during the gesture.
++Pen shows live anchors, handles and a prospective next segment. Shift constrains the next point; click-drag makes Bézier handles; click the first anchor closes the path. Backspace removes the last uncommitted anchor. Ctrl+Z retains the established behavior of canceling the entire unfinished stroke. Enter finishes. New shapes and pen/pencil strokes choose the topmost unlocked, visible frame using local bounds and ancestor clipping, excluding instance subtrees. New pen/pencil strokes use that frame's local coordinates; drawing inside an auto-layout frame creates an absolute child instead of fighting its allocation during the gesture.
+diff --git a/docs/VALIDATION.md b/docs/VALIDATION.md
+index a7eef1e..8e2dc5d 100644
+--- a/docs/VALIDATION.md
++++ b/docs/VALIDATION.md
+@@ -5 +5 @@
+-The engine regression runner contains **376 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
++The engine regression runner contains **385 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
+@@ -11 +11 @@ The six Python publication tests validate static asset collection, source/output
+-Published-browser acceptance contains **33 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground; eight cover tool activation, shape creation, point editing, guides and clipboard placement. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
++Published-browser acceptance contains **35 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground; ten cover tool activation, shape creation, point editing, guides, clipboard placement, persistent Pencil strokes and text transactions. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
+@@ -49 +49 @@ Full Figma feature compatibility, pixel identity, complete native interaction co
+-Sixty-six engine regressions cover cubic subdivision, tangent semantics, conversion, reflection, precision and native path equivalence. Eight browser workflows use real quick actions, mouse/keyboard/file input and downloaded native documents to verify all sixteen tool activations, shape adjustments, multi-anchor editing, subdivision, marquee/cancellation, pen lifecycle, guides and paste-in-place/keyboard resizing. Suite counts describe available tests; final-commit results must be checked separately.
++Seventy-five engine regressions cover cubic subdivision, tangent semantics, conversion, reflection, precision and native path equivalence. Ten browser workflows use real quick actions, mouse/keyboard/file input and downloaded native documents to verify all sixteen tool activations, shape adjustments, multi-anchor editing, subdivision, marquee/cancellation, pen lifecycle, guides, paste-in-place/keyboard resizing, Pencil simplification/persistence and text save/cancellation. Suite counts describe available tests; final-commit results must be checked separately.
+diff --git a/src/VectorSpace.App/VectorSpace.App.csproj b/src/VectorSpace.App/VectorSpace.App.csproj
+index 0a4d902..be4c72a 100644
+--- a/src/VectorSpace.App/VectorSpace.App.csproj
++++ b/src/VectorSpace.App/VectorSpace.App.csproj
+@@ -10,2 +10,2 @@
+-    <ApplicationDisplayVersion>0.4.0</ApplicationDisplayVersion>
+-    <ApplicationVersion>4</ApplicationVersion>
++    <ApplicationDisplayVersion>0.5.0</ApplicationDisplayVersion>
++    <ApplicationVersion>5</ApplicationVersion>
+diff --git a/src/VectorSpace.Editing/DrawingGeometry.cs b/src/VectorSpace.Editing/DrawingGeometry.cs
+index ff77447..e86e6df 100644
+--- a/src/VectorSpace.Editing/DrawingGeometry.cs
++++ b/src/VectorSpace.Editing/DrawingGeometry.cs
+@@ -13 +13,5 @@ public static class DrawingGeometry
+-        return new(Math.Cos(snapped) * vector.Length, Math.Sin(snapped) * vector.Length);
++        var x = Math.Cos(snapped); var y = Math.Sin(snapped);
++        // Cardinal directions remain exact rather than retaining floating-point trig residue.
++        if (Math.Abs(x) < 1e-12) x = 0;
++        if (Math.Abs(y) < 1e-12) y = 0;
++        return new(x * vector.Length, y * vector.Length);
+diff --git a/src/VectorSpace.Editing/PathEditing.cs b/src/VectorSpace.Editing/PathEditing.cs
+index 31ac57a..bc0ac20 100644
+--- a/src/VectorSpace.Editing/PathEditing.cs
++++ b/src/VectorSpace.Editing/PathEditing.cs
+@@ -14,2 +14,3 @@ public static class PathEditing
+-        Matrix2D.Scale(node.PathWidth > 0 ? node.Width / node.PathWidth : 1,
+-            node.PathHeight > 0 ? node.Height / node.PathHeight : 1) * node.WorldMatrix;
++        (node.PathWidth > 0 && node.PathHeight > 0
++            ? Matrix2D.Scale(node.Width / node.PathWidth, node.Height / node.PathHeight)
++            : Matrix2D.Identity) * node.WorldMatrix;
+diff --git a/src/VectorSpace.Editor/DesignSurface.cs b/src/VectorSpace.Editor/DesignSurface.cs
+index 4611eb9..72b88ca 100644
+--- a/src/VectorSpace.Editor/DesignSurface.cs
++++ b/src/VectorSpace.Editor/DesignSurface.cs
+@@ -193 +193 @@ public sealed partial class DesignSurface : UserControl, IDisposable
+-            var parent = editor.Page.AllNodes().Reverse().FirstOrDefault(n => n.IsFrame && !n.IsEffectivelyLocked && n.WorldBounds.Contains(world));
++            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
+@@ -391 +391 @@ public sealed partial class DesignSurface : UserControl, IDisposable
+-            var parent = editor.Page.AllNodes().Reverse().FirstOrDefault(n => n.IsFrame && n.Kind != NodeKind.Instance && !n.IsEffectivelyLocked && n.WorldBounds.Contains(world));
++            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
+@@ -431,2 +431,12 @@ public sealed partial class DesignSurface : UserControl, IDisposable
+-        _finishingText = true; var box = _textEditor; _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
+-        if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); _finishingText = false; RequestFrame();
++        _finishingText = true; var box = _textEditor;
++        var returnFocus = box.FocusState != FocusState.Unfocused;
++        _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
++        try { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }
++        finally
++        {
++            _finishingText = false;
++            // Completing/canceling a focused editor must not leave keyboard input on
++            // its removed text box. A normal LostFocus to an inspector keeps that focus.
++            if (returnFocus && !_disposed) FocusCanvas();
++            RequestFrame();
++        }
+diff --git a/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs b/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
+index 86a389b..e55717d 100644
+--- a/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
++++ b/src/VectorSpace.Workbench/StudioWorkbench.Commands.cs
+@@ -331 +331 @@ public sealed partial class StudioWorkbench
+-        foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Hide panels / Cancel / Rename", "Tab / Esc / F2") })
++        foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Next sibling / Cancel / Rename", "Tab / Esc / F2"), ("Edit points / Select all anchors", "Enter / Ctrl A"), ("Smooth points / Corner points", "B / Alt B"), ("Flip horizontal / Vertical", "Shift H / Shift V"), ("Paste in place / Resize layer", "Ctrl Shift V / Ctrl Alt arrows") })
+@@ -334 +334 @@ public sealed partial class StudioWorkbench
+-        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote design libraries, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
++        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote libraries, plugins, rich text and full vector networks remain unavailable. Local prototype playback, image cropping and single-contour point editing are supported. SVG import reports unsupported elements instead of executing them.", 10));
+@@ -340 +340 @@ public sealed partial class StudioWorkbench
+-        var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.MaxHeight = 360; root.Children.Add(scroll);
++        var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.Height = 360; root.Children.Add(scroll);
+@@ -350 +350 @@ public sealed partial class StudioWorkbench
+-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); selectedAction?.Invoke();
++        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
+diff --git a/tests/VectorSpace.Tests/Program.cs b/tests/VectorSpace.Tests/Program.cs
+index 623a42b..3eb144e 100644
+--- a/tests/VectorSpace.Tests/Program.cs
++++ b/tests/VectorSpace.Tests/Program.cs
+@@ -83,0 +84 @@ ToolEditingTests.Register(Test);
++DrawingTargetTests.Register(Test);

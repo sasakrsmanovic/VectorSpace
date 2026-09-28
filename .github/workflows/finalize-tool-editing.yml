@@ -1,0 +1,46 @@
+name: Finalize tool editing
+on:
+  push:
+    branches: ['feat/tool-editing-0.5']
+    paths: ['.github/workflows/finalize-tool-editing.yml']
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Apply and verify reviewed fixes
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,subprocess
+          root=pathlib.Path('scripts/tools-followup')
+          patch=b''.join(p.read_bytes() for p in sorted(root.glob('*.patch')))
+          subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--unidiff-zero','-'],input=patch,check=True)
+          errors=[]
+          for path,expected in json.loads((root/'hashes.json').read_text()).items():
+              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
+              if actual!=expected: errors.append((path,expected,actual))
+          if errors: raise SystemExit('Source mismatch: '+repr(errors))
+          print('All twelve finalized source/test/documentation files match their reviewed Git blob hashes.')
+          PY
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Validate engines and native workbench
+        run: |
+          dotnet run --project tests/VectorSpace.Tests -c Release
+          python3 -m unittest discover -s tests/scripts -v
+          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Commit validated fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -r scripts/tools-followup
+          git add src tests docs CHANGELOG.md scripts/tools-followup
+          git commit -m 'fix: precise drawing targets, stable quick actions, text focus and browser editing coverage'
+          git push origin HEAD:feat/tool-editing-0.5
