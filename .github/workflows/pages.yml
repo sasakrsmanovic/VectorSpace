@@ -10,9 +10,6 @@ on:
         description: Successful main-branch Build run to deploy (empty selects the latest)
         required: false
         type: string
-  push:
-    branches: [main]
-    paths: ['.github/workflows/pages.yml']
 permissions:
   contents: read
   actions: read
@@ -25,7 +22,7 @@ jobs:
   deploy:
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -76,7 +73,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - name: Verify deployed browser application
+      - name: Verify deployed static editor application
         env:
           VECTORSPACE_URL: ${{ steps.deployment.outputs.page_url }}
           EXPECTED_SHA: ${{ steps.build.outputs.sha }}
@@ -85,7 +82,9 @@ jobs:
           jq -e --arg sha "$EXPECTED_SHA" '.commit == $sha' /tmp/live-build.json
           npm ci
           npx playwright install --with-deps chromium
-          npm run test:browser
+          # Multi-user cases already passed with the same artifact and the real
+          # ephemeral server in Build. Pages does not host an ASP.NET backend.
+          npm run test:browser -- --grep-invert @collaboration
       - uses: actions/upload-artifact@v7
         if: always()
         with:
