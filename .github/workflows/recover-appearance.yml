@@ -16,52 +16,83 @@ jobs:
       - name: Recover original checksum-verified source
         run: |
           python3 -u - <<'PY'
-          import base64, gzip, hashlib, pathlib, subprocess, zlib, time
+          import base64, codecs, gzip, hashlib, pathlib, subprocess, zlib, time
           expected='7a66268d38b873dd0bf0a823083a868ac99251fd9fcffe9faec6d10cc87dd881'
           paths=sorted(pathlib.Path('scripts/appearance-transfer').glob('*.b64'))
           text=''.join(p.read_text().strip() for p in paths)
-          for p in paths: print('PART',p,len(p.read_text().strip()),hashlib.sha256(p.read_bytes()).hexdigest())
-          raw=base64.b64decode(text,validate=True)
-          def verified(raw):
-              try:
-                  patch=gzip.decompress(raw)
-                  return patch if hashlib.sha256(patch).hexdigest()==expected else None
-              except (OSError,EOFError,zlib.error): return None
-          patch=verified(raw)
-          if patch is None:
-              decoder=zlib.decompressobj(31); output=bytearray(); failed=len(raw)
-              for offset, value in enumerate(raw):
-                  try: output.extend(decoder.decompress(bytes([value])))
-                  except zlib.error as error:
-                      failed=offset; print('FIRST ERROR byte',offset,'base64 near',offset*4//3,str(error)); break
-              print('LAST DECODED SOURCE',repr(bytes(output[-3000:])))
-              index=failed*4//3
-              print('ENCODED CONTEXT',index,repr(text[max(0,index-160):index+80]))
-              alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-              start=time.monotonic()
-              # Most transcription damage is close to the failing deflate block.
-              # Accept only the exact pre-existing source digest, never a plausible decode.
-              lo=max(0,index-1024); hi=min(len(text),index+12)
-              for i in range(hi-1,lo-1,-1):
-                  old=text[i]
-                  for ch in alphabet:
-                      if ch==old: continue
-                      candidate=text[:i]+ch+text[i+1:]
-                      patch=verified(base64.b64decode(candidate))
-                      if patch is not None:
-                          print('RECOVERED CHARACTER',i,old,'->',ch); break
-                  if patch is not None: break
-              print('RECOVERY SECONDS',time.monotonic()-start)
-          if patch is None: raise SystemExit('No exact checksum match. Source was not applied or committed.')
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          start=time.monotonic()
+          def decode(s): return base64.b64decode(s[:len(s)//4*4])
+          def scan(s, prefix=None):
+              raw=decode(s)
+              if prefix:
+                  d,u,head,pos=prefix; d=d.copy(); v=codecs.getincrementaldecoder('utf-8')(); v.setstate(u); out=bytearray(head)
+              else:
+                  d=zlib.decompressobj(31);v=codecs.getincrementaldecoder('utf-8')();out=bytearray();pos=0
+              while pos<len(raw):
+                  oldd=d.copy(); oldu=v.getstate()
+                  try:
+                      result=d.decompress(raw[pos:pos+256],1_000_000)
+                      decoded=v.decode(result)
+                      if any(ord(c)<32 and c not in '\n\r\t' for c in decoded): raise ValueError('Control character')
+                      out.extend(result); pos+=min(256,len(raw)-pos)
+                  except (ValueError,UnicodeError,zlib.error):
+                      d=oldd;v.setstate(oldu)
+                      for j in range(pos,min(pos+256,len(raw))):
+                          try:
+                              result=d.decompress(raw[j:j+1],1_000_000); decoded=v.decode(result)
+                              if any(ord(c)<32 and c not in '\n\r\t' for c in decoded): raise ValueError('Control character')
+                              out.extend(result)
+                          except (ValueError,UnicodeError,zlib.error): return j,bytes(out),False
+                      return pos,bytes(out),False
+              return len(raw),bytes(out),d.eof
+          changes=[]; patch=None
+          for iteration in range(16):
+              position,output,eof=scan(text)
+              digest=hashlib.sha256(output).hexdigest()
+              print('PASS',iteration,'base64',len(text),'progress',position,'output',len(output),'eof',eof,'sha',digest)
+              print('TAIL',repr(output[-350:]))
+              if digest==expected:
+                  patch=output;break
+              index=position*4//3
+              best=(position,None,None)
+              for window in [320,1400]:
+                  lo=max(16,index-window)//4*4;hi=min(len(text)-1,index+8)
+                  rawhead=decode(text[:lo]);d=zlib.decompressobj(31);head=d.decompress(rawhead)
+                  u=codecs.getincrementaldecoder('utf-8')();u.decode(head)
+                  prefix=(d,u.getstate(),head,len(rawhead))
+                  for kind in ['delete','insert','replace']:
+                      for i in range(hi,lo-1,-1):
+                          options=[''] if kind=='delete' else alphabet
+                          for ch in options:
+                              if kind=='replace' and ch==text[i]:continue
+                              end=i+(kind!='insert')
+                              candidate=text[:i]+ch+text[end:]
+                              try: p,o,finished=scan(candidate,prefix)
+                              except Exception: continue
+                              if hashlib.sha256(o).hexdigest()==expected:
+                                  best=(p,candidate,(kind,i,text[i:i+1],ch));patch=o;break
+                              if p>best[0]+4: best=(p,candidate,(kind,i,text[i:i+1],ch))
+                          if patch is not None:break
+                      if patch is not None:break
+                  if best[0]>position+256 or patch is not None:break
+              if best[1] is None or best[0]<position+32:
+                  print('No advancing exact-source candidate',index,repr(text[max(0,index-120):index+60]));break
+              changes.append(best[2]);text=best[1];print('TENTATIVE TRANSFER REPAIR',best[2],'advanced to',best[0])
+              if patch is not None:break
+              if time.monotonic()-start>400:break
+          print('REPAIRS',changes,'SECONDS',time.monotonic()-start)
+          if patch is None: raise SystemExit('No original SHA-256 match; no source applied.')
           assert hashlib.sha256(patch).hexdigest()==expected
+          # Also retain the gzip integrity check independently of the patch checksum.
+          assert gzip.decompress(base64.b64decode(text))==patch
           for line in patch.decode('utf-8').splitlines():
               if line.startswith('+++ b/'):
                   path=line[6:]
                   assert '..' not in path.split('/') and (path.startswith(('src/','tests/','docs/')) or path in ('README.md','CHANGELOG.md','Directory.Build.props','.gitignore'))
           subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=patch,check=True)
           subprocess.run(['git','apply','--unidiff-zero','-'],input=patch,check=True)
-          print('SOURCE VERIFIED',expected,len(patch))
-          subprocess.run(['git','diff','--stat'],check=True)
+          print('SOURCE VERIFIED',expected,len(patch));subprocess.run(['git','diff','--stat'],check=True)
           PY
       - name: Preserve recovered implementation for review
         run: |
