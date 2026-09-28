@@ -30,7 +30,7 @@ internal sealed class RoomRepository : IDisposable
     }
     public Invitation Create(CreateRoom request)
     {
-        var document = DocumentJson.Load(request.Document);
+        var document = DocumentJson.Load(request.Document); ServerDocument.Normalize(document);
         var state = DocumentProjection.FromDocument(document);
         _ = DocumentProjection.ToDocument(state);
         var (token, grant) = Room.NewGrant(request.Name, RoomRole.Owner);

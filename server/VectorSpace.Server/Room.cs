@@ -24,7 +24,7 @@ internal sealed partial class Room
     public Room(string metadataPath, RoomMetadata metadata)
     {
         _metadataPath = metadataPath; _journalPath = Path.ChangeExtension(metadataPath, ".journal");
-        _metadata = metadata; _engine = new(metadata.Initial);
+        _metadata = metadata; _engine = new(metadata.Initial, ServerDocument.Normalize);
         foreach (var record in RoomJournal.Read(_journalPath))
         {
             if (record.Commit is { } commit) { _engine.Accept(commit); Remember(commit); }
