@@ -1,0 +1,116 @@
+name: Finish collaboration integration
+on:
+  push:
+    branches: ['feat/collaboration-0.6']
+    paths: ['.github/workflows/finish-pr13.yml']
+permissions:
+  contents: write
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Apply reviewed source changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, json, subprocess
+          b=Path('.')
+          def rep(path, old, new, n=1):
+              p=b/path; s=p.read_text(); assert s.count(old)==n,(path,old[:100],s.count(old)); p.write_text(s.replace(old,new))
+          def blob(path, sha):
+              data=json.loads(subprocess.check_output(['gh','api','repos/wieslawsoltes/VectorSpace/git/blobs/'+sha]))
+              value=base64.b64decode(data['content']); p=b/path; p.write_bytes(value)
+              assert subprocess.check_output(['git','hash-object',str(p)],text=True).strip()==sha
+          blob('src/VectorSpace.Collaboration/DocumentProjection.Reader.cs','cb1acbfc74639ac7a9e2fc876a94b5f9c618a847')
+          blob('tests/VectorSpace.Collaboration.EditorTests/ProjectionChecks.cs','8284f694751e5615e2b8cd0dcd33131e738eea11')
+          p=b/'tests/browser/collaboration-helpers.mjs';s=p.read_text()
+          s=s.replace('await context.tracing.start({ screenshots: true, snapshots: true }); contexts.push(context);','contexts.push(context);')
+          a=s.index('    for (let i = 0; i < contexts.length; i++) {');e=s.index('\n  }\n});',a)
+          s=s[:a]+'''    // The Playwright Test runner owns tracing for every context it creates.
+              // Manually starting/stopping a trace here conflicts with retain-on-failure.
+              for (const context of contexts) await context.close();'''+s[e:];p.write_text(s)
+          rep('tests/browser/collaboration-sharing.spec.mjs', "const link = await page.evaluate(() => navigator.clipboard.readText()); expect(link).toContain('#collaboration=');", "await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('#collaboration=');\n  const link = await page.evaluate(() => navigator.clipboard.readText());")
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Automation.cs','if (view is TextBox textBox && textBox.Tag as string != "Sensitive") json.WriteString("value", textBox.Text);','''if (view is TextBox textBox && textBox.Tag as string != "Sensitive") json.WriteString("value", textBox.Text);
+                                          if (view is ComboBox combo) json.WriteString("value", combo.SelectedItem is ComboBoxItem item ? item.Content?.ToString() : combo.SelectedItem?.ToString());''')
+          rep('tests/browser/prototype.spec.mjs',"async function choose(page, name, value) { await click(page, name, 'ComboBox'); await click(page, value, 'ComboBoxItem'); }", """async function choose(page, name, value) {
+            await click(page, name, 'ComboBox'); await click(page, value, 'ComboBoxItem');
+            // Changing action kind rebuilds the inspector. A preceding diagnostics sample
+            // still has clickable bounds for the detached destination control.
+            await expect.poll(() => page.evaluate(({ name }) => globalThis.__vectorSpaceControls?.filter(c => c.name === name && c.type === 'ComboBox').at(-1)?.value, { name })).toBe(value);
+          }""")
+          rep('src/VectorSpace.Collaboration/DocumentProjection.Materialize.cs','array.Add(child.Object);','array.Add((JsonNode)child.Object);')
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Collaboration.cs','_sharedRecoveryJson = null;','_sharedRecoveryJson = null; _sharedRecoverySaved = true;')
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Collaboration.cs','''if (Session.Page.Id != peer.PageId) Session.SetPage(peer.PageId);
+                          Session.Viewport.ZoomAt(peer.Zoom, Vec2.Zero); Session.Viewport.Pan = new(peer.PanX, peer.PanY);
+                          Session.Notify(EditorChangeKind.Viewport);''','''var changedPage = Session.Page.Id != peer.PageId;
+                          if (changedPage) Session.SetPage(peer.PageId);
+                          var pan = new Vec2(peer.PanX, peer.PanY);
+                          if (changedPage || Session.Viewport.Zoom != peer.Zoom || Session.Viewport.Pan != pan)
+                          {
+                              Session.Viewport.ZoomAt(peer.Zoom, Vec2.Zero); Session.Viewport.Pan = pan;
+                              Session.Notify(EditorChangeKind.Viewport);
+                          }''')
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Collaboration.cs','var mayEdit = connection.Role is RoomRole.Owner or RoomRole.Editor && !connection.AccessDenied;','var mayEdit = connection.Role is RoomRole.Owner or RoomRole.Editor && connection.CanEdit;')
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Collaboration.cs','tool == EditorTool.Comment && connection.Role == RoomRole.Commenter;', 'tool == EditorTool.Comment && connection.Role == RoomRole.Commenter && connection.CanEdit;')
+          rep('src/VectorSpace.Workbench/StudioWorkbench.Collaboration.cs','{_cursorPosition.HasValue}|{Session.Viewport.Zoom:R}', '{_cursorPosition.HasValue}|{Surface.IsPresenting}|{Session.Viewport.Zoom:R}')
+          p=b/'src/VectorSpace.Collaboration/DocumentProjection.cs';s=p.read_text()
+          (b/'tests/VectorSpace.Collaboration.EditorTests/ProjectionOracle.cs').write_text(s.replace('namespace VectorSpace.Collaboration;','using VectorSpace.Collaboration;').replace('public static partial class DocumentProjection','internal static class ProjectionOracle'))
+          a=s.index('        if (json.Length > MaxCharacters)',s.index('public static SharedSnapshot FromJson'));e=s.index('    private static bool IsIdentityList',a)
+          s=s[:a]+'''        ArgumentNullException.ThrowIfNull(json);
+                  if (json.Length > MaxCharacters) throw new InvalidDataException("Shared documents are limited to 32 MiB of text.");
+                  using var source = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 128 });
+                  if (source.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Expected a document object.");
+                  using var reader = new ProjectionReader(baseline);
+                  return reader.Read(source.RootElement);
+              }
+          '''+s[e:];p.write_text(s)
+          rep('tests/VectorSpace.Collaboration.EditorTests/Program.cs','var failures = 0;','Test("retained projection matches reference and preserves unchanged storage", () => Check(ProjectionChecks.Run() == 59));\n\nvar failures = 0;')
+          p=b/'tests/VectorSpace.Collaboration.EditorTests/CollaborationBenchmarks.cs';s=p.read_text();a=s.index('        for (var i = 0; i < 3;');e=s.index('        var result = new JsonObject',a)
+          s=s[:a]+'''        List<CellChange> Reference() => DocumentProjection.Diff(initial, ProjectionOracle.FromJson(json, initial));
+                  if (!changes.SequenceEqual(Reference())) throw new InvalidOperationException("Wire cells differ from reference.");
+                  var checks = ProjectionChecks.Run();
+                  for (var i = 0; i < 3; i++) { Project(); Reference(); }
+                  var optimized = new List<(double Time, long Bytes)>(); var reference = new List<(double Time, long Bytes)>();
+                  for (var i = 0; i < 5; i++)
+                  {
+                      if (i % 2 == 0) { reference.Add(Measure(Reference)); optimized.Add(Measure(Project)); }
+                      else { optimized.Add(Measure(Project)); reference.Add(Measure(Reference)); }
+                  }
+                  static (double Time, long Bytes) Measure(Func<List<CellChange>> project)
+                  {
+                      var clock = new Stopwatch(); var before = GC.GetAllocatedBytesForCurrentThread(); clock.Start();
+                      var result = project(); clock.Stop(); var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                      if (result.Count != 1) throw new InvalidOperationException("Measured projection changed results.");
+                      return (clock.Elapsed.TotalMilliseconds, bytes);
+                  }
+                  var fastTime = optimized.Select(x => x.Time).Order().ElementAt(2);
+                  var oldTime = reference.Select(x => x.Time).Order().ElementAt(2);
+                  var fastBytes = optimized.Select(x => x.Bytes).Order().ElementAt(2);
+                  var oldBytes = reference.Select(x => x.Bytes).Order().ElementAt(2);
+          '''+s[e:]
+          s=s.replace('["projectionMedianMilliseconds"] = elapsed[2],\n            ["projectionMedianManagedBytes"] = allocated[2],','''["referenceMedianMilliseconds"] = oldTime, ["retainedMedianMilliseconds"] = fastTime,
+                      ["referenceMedianManagedBytes"] = oldBytes, ["retainedMedianManagedBytes"] = fastBytes,
+                      ["observedProjectionSpeedRatio"] = oldTime / Math.Max(fastTime, .0001),
+                      ["equivalenceAndReuseChecks"] = checks,''');p.write_text(s)
+          PY
+      - name: Validate models, shared editor and Uno integration
+        run: |
+          dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+          dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release
+          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Commit verified changes and remove this one-time workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm .github/workflows/finish-pr13.yml
+          git add src tests .github/workflows/finish-pr13.yml
+          git diff --cached --check
+          git commit -m 'fix: finish collaboration browser boundaries and retain unchanged projection cells'
+          git push origin HEAD:feat/collaboration-0.6
