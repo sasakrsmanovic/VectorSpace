@@ -1,0 +1,24 @@
+name: Collaboration
+on:
+  push:
+    branches: [main, 'feat/collaboration-0.6']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: collaboration-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  transactions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Collaboration convergence and conditional history
+        run: dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+      - name: Existing editor regressions
+        run: dotnet run --project tests/VectorSpace.Tests -c Release
