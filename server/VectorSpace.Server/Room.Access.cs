@@ -54,6 +54,6 @@ internal sealed partial class Room
         if (_participants.TryGetValue(p.ClientId, out var old) && old.Grant != grant.Id) throw new UnauthorizedAccessException("Participant identity belongs to another invitation.");
         string[] colors = ["#0D99FF", "#9747FF", "#F24822", "#14AE5C", "#E38B00", "#D94EAB"];
         var color = colors[SHA256.HashData(Encoding.UTF8.GetBytes(p.ClientId))[0] % colors.Length];
-        _participants[p.ClientId] = (grant.Id, p with { Color = color, SeenAt = DateTimeOffset.UtcNow }); Pulse();
+        _participants[p.ClientId] = (grant.Id, p with { Color = color, SeenAt = DateTimeOffset.UtcNow }); QueuePresenceNotification();
     }
 }

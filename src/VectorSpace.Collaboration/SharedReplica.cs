@@ -4,7 +4,7 @@ namespace VectorSpace.Collaboration;
 
 /// <summary>Single-thread-owned optimistic replica. Transport must serialize access. Pending edits
 /// retain a recoverable native file and never overwrite a server conflict silently.</summary>
-public sealed class SharedReplica
+public sealed partial class SharedReplica
 {
     private sealed class Entry(Commit commit)
     {
@@ -21,7 +21,9 @@ public sealed class SharedReplica
     public List<RecoveryEdit> Recovery { get; } = [];
     public string? LastError { get; private set; }
     public int PendingCount => _pending.Count;
-    public bool CanEdit => _pending.Count < 8 && Recovery.Count < 8;
+    public string? PendingDocument => _pending.LastOrDefault()?.Document;
+    public long LastSequence => _sequence;
+    public bool CanEdit => _pending.Count < 8 && Recovery.Count == 0 && !_projectionConflict;
     public bool CanUndo => _pending.Count == 0 && _undo.Count != 0;
     public bool CanRedo => _pending.Count == 0 && _redo.Count != 0;
     public string UndoLabel => _undo.LastOrDefault()?.Commit.Label ?? "";
@@ -35,6 +37,7 @@ public sealed class SharedReplica
     public void Submit(string documentJson, string label)
     {
         if (!CanEdit) throw new InvalidOperationException("Wait for synchronization or save the conflict recovery files before editing further.");
+        CheckPendingBudget(documentJson);
         var next = DocumentProjection.FromJson(documentJson, Visible);
         var changes = DocumentProjection.Diff(Visible, next);
         if (changes.Count == 0) return;
@@ -102,6 +105,7 @@ public sealed class SharedReplica
         }
         Visible = Confirmed.Clone();
         foreach (var pending in _pending) DocumentProjection.Apply(Visible, pending.Batch.Changes, -pending.Batch.Sequence);
+        ValidateOptimisticProjection();
     }
     private void Complete(Commit commit)
     {
@@ -127,6 +131,7 @@ public sealed class SharedReplica
         var destination = pending.HistoryDirection < 0 ? _redo : _undo;
         destination.Add(new(commit));
         while (destination.Count > 150) destination.RemoveAt(0);
+        TrimSharedHistory();
     }
     public string VisibleJson() => DocumentProjection.ToJson(Visible);
 }

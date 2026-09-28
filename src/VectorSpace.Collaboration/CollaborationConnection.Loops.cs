@@ -14,7 +14,7 @@ public sealed partial class CollaborationConnection
                 long revision = -1, afterEvent = -1;
                 await _dispatch(() => { revision = Replica.Confirmed.Revision; afterEvent = _event; });
                 var reply = await Transport.SyncAsync(revision, afterEvent, true, token);
-                await _dispatch(() => Receive(reply)); failures = 0;
+                await Deliver(reply); failures = 0;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or InvalidDataException or JsonException or InvalidOperationException)
@@ -32,7 +32,7 @@ public sealed partial class CollaborationConnection
                 await _dispatch(() => { batch = Replica.NextBatch(); });
                 if (batch is null) { await _sendSignal.WaitAsync(token); continue; }
                 var reply = await Transport.SubmitAsync(batch, token);
-                await _dispatch(() => Receive(reply)); failures = 0;
+                await Deliver(reply); failures = 0;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or InvalidDataException or JsonException or InvalidOperationException)

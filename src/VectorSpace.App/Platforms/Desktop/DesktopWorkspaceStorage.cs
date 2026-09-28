@@ -4,7 +4,7 @@ using Windows.Storage.Pickers;
 
 namespace VectorSpace.App;
 
-internal sealed class DesktopWorkspaceStorage : IWorkspaceStorage
+internal sealed partial class DesktopWorkspaceStorage : IWorkspaceStorage
 {
     private static readonly string DirectoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VectorSpace");
     private static string AutosavePath => Path.Combine(DirectoryPath, "workspace.vectorspace");

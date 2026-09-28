@@ -6,7 +6,7 @@ using VectorSpace.Workbench;
 
 namespace VectorSpace.App;
 
-internal sealed class BrowserWorkspaceStorage : IWorkspaceStorage
+internal sealed partial class BrowserWorkspaceStorage : IWorkspaceStorage
 {
     public async Task<string?> ReadAutosaveAsync(CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); return await BrowserFiles.Load(); }
     public async Task WriteAutosaveAsync(string document, CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); await BrowserFiles.Save(document); }
@@ -64,7 +64,7 @@ internal static class BrowserDiagnostics
             using var stream = new MemoryStream();
             using (var json = new Utf8JsonWriter(stream))
             {
-                json.WriteStartObject(); json.WriteBoolean("ready", true); json.WriteString("tool", session.Tool.ToString());
+                json.WriteStartObject(); workbench.WriteCollaborationDiagnostics(json); json.WriteBoolean("ready", true); json.WriteString("tool", session.Tool.ToString());
                 json.WriteNumber("nodes", session.Page.AllNodes().Count()); json.WriteNumber("roots", session.Page.Nodes.Count);
                 json.WriteNumber("pages", session.Document.Pages.Count); json.WriteNumber("selection", session.Selection.Count);
                 json.WriteNumber("history", session.History.Count); json.WriteNumber("zoom", session.Viewport.Zoom);

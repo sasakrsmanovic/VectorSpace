@@ -72,7 +72,7 @@ public sealed partial class CollaborationConnection : IDisposable
         await _dispatch(() => {
             if (_disposed) return;
             Online = false;
-            AccessDenied = error is HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound };
+            AccessDenied = error is HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.RequestEntityTooLarge };
             Status = AccessDenied ? "Access revoked or room unavailable. Save a local copy before leaving." : "Reconnecting; unsent edits remain in this window. " + error.Message;
             Changed?.Invoke(false);
             if (AccessDenied) _stop.Cancel();

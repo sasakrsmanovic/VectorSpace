@@ -65,7 +65,8 @@ public sealed partial class StudioWorkbench
         else if (!await ConfirmAsync("Leave shared file?", "Keep a local copy in this window and stop receiving remote edits? Keep your private access link to rejoin later.")) return;
         await PersistSharedRecoveryAsync();
         _collaboration = null; connection.Changed -= RefreshCollaboration;
-        Session.DetachSharedHistory(); _presenceTimer.Stop();
+        Session.DetachSharedHistory(); _presenceTimer.Stop(); _inspector.IsHitTestVisible = true;
+        foreach (var button in _toolButtons.Values) button.IsEnabled = true;
         while (_remoteDeliveries.TryDequeue(out var item)) item.Done.TrySetResult();
         connection.Dispose(); _following = null; _presenceSignature = "";
         _presenceLayer.Update([]); _participants.Update([new("self", "You", "#AF7C2D")]);

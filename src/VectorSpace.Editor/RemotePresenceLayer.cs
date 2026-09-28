@@ -45,7 +45,7 @@ public sealed class RemotePresenceLayer : SKCanvasElement, IDisposable
                         if (nodes.TryGetValue(id, out var n) && n.Visible)
                         {
                             var m = n.WorldMatrix;
-                            _outlines.Add(new(peer.Id, [m.Map(Vec2.Zero), m.Map(new(n.Width, 0)), m.Map(new(n.Width, n.Height)), m.Map(new(0, n.Height))]));
+                            _outlines.Add(new(peer.Id, [m.Map(Vec2.Zero), m.Map(new Vec2(n.Width, 0)), m.Map(new Vec2(n.Width, n.Height)), m.Map(new Vec2(0, n.Height))]));
                         }
             }
         }
@@ -84,7 +84,7 @@ public sealed class RemotePresenceLayer : SKCanvasElement, IDisposable
         }
         canvas.Restore();
     }
-    public void Dispose()
+    public new void Dispose()
     {
         if (_disposed) return; _disposed = true; _paint.Dispose(); _font.Dispose(); _cursor.Dispose(); _peers = []; _outlines.Clear(); Session = null;
     }

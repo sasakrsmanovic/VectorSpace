@@ -13,7 +13,7 @@ public sealed class ParticipantStrip : StackPanel
     public event Action<string>? ParticipantInvoked;
     public ParticipantStrip()
     {
-        Orientation = Orientation.Horizontal; Spacing = -5; VerticalAlignment = VerticalAlignment.Center;
+        Orientation = Orientation.Horizontal; Spacing = 3; VerticalAlignment = VerticalAlignment.Center;
         AutomationProperties.SetName(this, "File participants");
     }
     public void Update(IReadOnlyList<ParticipantIdentity> participants, string? following = null)

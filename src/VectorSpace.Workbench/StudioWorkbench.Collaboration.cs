@@ -52,16 +52,17 @@ public sealed partial class StudioWorkbench
         })) done.TrySetCanceled();
         return done.Task;
     }
-    private Task ReceiveShared(Action action, bool changesModel)
+    private async Task ReceiveShared(Action action, bool changesModel)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _ = DispatchShared(() =>
+        await DispatchShared(() =>
         {
             if (_disposed || _collaboration is null) { done.TrySetResult(); return; }
             if (changesModel && SharedBoundaryBlocked) _remoteDeliveries.Enqueue((action, done));
             else { try { action(); done.TrySetResult(); } catch (Exception e) { done.TrySetException(e); } }
         });
-        return done.Task;
+        if (_disposed || _collaboration is null) done.TrySetResult();
+        await done.Task;
     }
     private void FlushRemoteDeliveries()
     {
@@ -101,6 +102,7 @@ public sealed partial class StudioWorkbench
         {
             Session.Load(DocumentProjection.ToDocument(connection.Replica.Visible));
             _participantName = name.Trim(); _collaboration = connection;
+            _sharedRecoveryWriter = Guid.NewGuid().ToString("N"); _sharedRecoverySignature = ""; _sharedRecoveryJson = null;
             connection.ReceiveDispatcher = ReceiveShared;
             Session.AttachSharedHistory(new SharedHistoryAdapter(this, connection));
             connection.Changed += RefreshCollaboration;
@@ -132,6 +134,10 @@ public sealed partial class StudioWorkbench
                 Session.Notify(EditorChangeKind.Viewport);
             }
         }
+        var mayEdit = connection.Role is RoomRole.Owner or RoomRole.Editor && !connection.AccessDenied;
+        _inspector.IsHitTestVisible = mayEdit;
+        foreach (var (tool, button) in _toolButtons)
+            button.IsEnabled = mayEdit || tool is EditorTool.Move or EditorTool.Hand || tool == EditorTool.Comment && connection.Role == RoomRole.Commenter;
         _status.Text = connection.Status + (connection.Role is RoomRole.Viewer or RoomRole.Commenter ? " · " + connection.Role : "");
         _participants.Update([new("self", _participantName, "#AF7C2D"), .. connection.Participants.Select(p => new ParticipantIdentity(p.ClientId, p.Name, p.Color))], _following);
         _presenceLayer.Visibility = Surface.IsPresenting ? Visibility.Collapsed : Visibility.Visible;

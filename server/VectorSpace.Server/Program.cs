@@ -18,7 +18,7 @@ if (origins.Any(o => !Uri.TryCreate(o, UriKind.Absolute, out var u) || u.Scheme 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(origins).WithMethods("GET", "POST", "DELETE").WithHeaders("Authorization", "Content-Type", "X-VectorSpace-Create-Key")));
 builder.Services.AddRateLimiter(o => {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddPolicy("api", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new() { PermitLimit = 3000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.AddPolicy("api", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new() { PermitLimit = 60000, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 using var repository = new RoomRepository(builder.Configuration["VECTORSPACE_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data"));
 var app = builder.Build();
@@ -37,6 +37,18 @@ app.Use(async (context, next) => {
 app.UseCors(); app.UseRateLimiter();
 app.MapGet("/health", () => Results.Text("VectorSpace collaboration service ready"));
 var api = app.MapGroup("/api/rooms").RequireRateLimiting("api");
+api.AddEndpointFilter(async (context, next) =>
+{
+    // Reject unauthorized callers before reading a potentially large JSON body.
+    // Mutation handlers recheck the invitation under the room lock after reading.
+    var request = context.HttpContext;
+    if (request.Request.RouteValues["id"] is string id)
+    {
+        var room = repository.Get(id); await room.Gate.WaitAsync(request.RequestAborted);
+        try { _ = room.Authorize(Token(request)); } finally { room.Gate.Release(); }
+    }
+    return await next(context);
+});
 api.MapPost("", async (HttpContext c) => {
     var supplied = c.Request.Headers["X-VectorSpace-Create-Key"].ToString();
     if (supplied.Length > 256 || !CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(supplied)), SHA256.HashData(Encoding.UTF8.GetBytes(createKey)))) throw new UnauthorizedAccessException("A valid room-creation key is required.");

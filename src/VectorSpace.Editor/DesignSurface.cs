@@ -70,13 +70,17 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         AutomationProperties.SetName(this, "Design canvas");
         var root = new Grid(); root.Children.Add(_canvas); root.Children.Add(_overlay); Content = root;
         _canvas.Draw = (canvas, size) => { _frameQueued = false; Paint(canvas, size); };
-        _canvas.PointerPressed += Pressed; _canvas.PointerMoved += Moved; _canvas.PointerReleased += Released;
+        _canvas.PointerPressed += (sender, e) =>
+        {
+            try { Pressed(sender, e); }
+            catch (InvalidOperationException error) { CancelGesture(); StatusChanged?.Invoke(error.Message); }
+        }; _canvas.PointerMoved += Moved; _canvas.PointerReleased += Released;
         _canvas.PointerCanceled += (_, _) => CancelGesture();
         _canvas.PointerCaptureLost += (_, _) => { if (_gesture is not Gesture.None and not Gesture.PenControl) CancelGesture(); };
         _canvas.PointerWheelChanged += Wheel;
         _canvas.DoubleTapped += (_, e) =>
         {
-            if (Session is null || IsPresenting || IsImageCropping) return;
+            if (Session is null || IsPresenting || IsImageCropping || Session.SharedHistory?.CanEdit("Edit layer") == false) return;
             if (_penNode is not null) { FinishPath(false); e.Handled = true; return; }
             if (_vectorNode is { } vector)
             {
@@ -184,6 +188,10 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             var comment = editor.Document.Comments.FirstOrDefault(c => c.PageId == editor.Page.Id && !c.Resolved && c.Anchor.DistanceTo(world) * editor.Viewport.Zoom < 16);
             CommentRequested?.Invoke(world, comment); return;
+        }
+        if (editor.SharedHistory?.CanEdit("Edit layer") == false)
+        {
+            editor.Select(Hit(world, screen, Keyboard.Control), shift); return;
         }
         if (PressVectorEdit(screen, world, shift)) return;
         if (editor.Tool is EditorTool.Pen or EditorTool.Pencil) { StartPath(world, editor.Tool == EditorTool.Pencil); return; }

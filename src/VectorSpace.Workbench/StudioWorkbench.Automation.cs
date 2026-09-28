@@ -47,7 +47,7 @@ public sealed partial class StudioWorkbench
                                 json.WriteStartObject(); json.WriteString("name", name); json.WriteString("type", view.GetType().Name);
                                 json.WriteNumber("x", visible.X); json.WriteNumber("y", visible.Y); json.WriteNumber("width", visible.Width); json.WriteNumber("height", visible.Height);
                                 json.WriteBoolean("enabled", view is not Control control || control.IsEnabled);
-                                if (view is TextBox textBox) json.WriteString("value", textBox.Text);
+                                if (view is TextBox textBox && textBox.Tag as string != "Sensitive") json.WriteString("value", textBox.Text);
                                 json.WriteEndObject();
                             }
                         }

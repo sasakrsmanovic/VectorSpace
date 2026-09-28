@@ -19,7 +19,7 @@ public sealed class TransactionEngine
         if (role == RoomRole.Viewer) throw new UnauthorizedAccessException("This invitation can view but cannot edit.");
         if (!Enum.IsDefined(role) || string.IsNullOrWhiteSpace(batch.Id) || batch.Id.Length > 96 || string.IsNullOrWhiteSpace(batch.ClientId) || batch.ClientId.Length > 96 || batch.Sequence <= 0 || batch.BaseRevision < 0 || batch.BaseRevision > State.Revision)
             throw new InvalidDataException("Invalid transaction identity or revision.");
-        if (batch.Label is null || batch.Label.Length > 160 || batch.Changes is null || batch.Changes.Count is 0 or > 50_000 || batch.Changes.Any(c => c is null) || batch.Changes.Sum(c => (long)(c.Before?.Length ?? 0) + (c.After?.Length ?? 0)) > 40L * 1024 * 1024)
+        if (batch.Label is null || batch.Label.Length > 160 || batch.Label.Any(char.IsControl) || batch.Changes is null || batch.Changes.Count is 0 or > 50_000 || batch.Changes.Any(c => c is null) || batch.Changes.Sum(c => (long)(c.Before?.Length ?? 0) + (c.After?.Length ?? 0)) > 40L * 1024 * 1024)
             throw new InvalidDataException("Transaction limits exceeded.");
         var seen = new HashSet<string>(StringComparer.Ordinal); var actual = new List<CellChange>(batch.Changes.Count);
         foreach (var change in batch.Changes)
@@ -27,6 +27,7 @@ public sealed class TransactionEngine
             if (change.Key is null || change.Key.Length > 1024 || !seen.Add(change.Key)) throw new InvalidDataException("Duplicate or invalid changed cell.");
             var (entity, property) = DocumentProjection.Address(change.Key);
             if (role == RoomRole.Commenter && !entity.StartsWith("comment:", StringComparison.Ordinal)) throw new UnauthorizedAccessException("This invitation can comment but cannot change the design.");
+            if (entity == "$root" && property is "id" or "formatVersion") throw new InvalidDataException("Shared file identity and schema are immutable.");
             if (change.Before == change.After || change.ExpectedVersion < 0) throw new InvalidDataException("No-op or invalid transaction cell.");
             var value = State.Value(change.Key);
             if (State.Version(change.Key) != change.ExpectedVersion || value != change.Before)

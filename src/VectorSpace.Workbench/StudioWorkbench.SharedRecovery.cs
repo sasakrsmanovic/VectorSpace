@@ -96,8 +96,8 @@ public sealed partial class StudioWorkbench
         if (discard && await ConfirmAsync("Discard recovery copies?", "This deletes the listed local recovery files. Unsynchronized current edits will still retain their latest safety copy."))
         {
             if (_storage is ISharedRecoveryStorage persistent)
-                foreach (var writer in saved.Keys.Where(w => w != _sharedRecoveryWriter)) await persistent.WriteSharedRecoveryAsync(writer, null);
-            _collaboration?.Replica.Recovery.Clear(); _sharedRecoverySignature = ""; QueueSharedRecovery();
+                foreach (var writer in saved.Keys.Where(w => _collaboration is null || w != _sharedRecoveryWriter)) await persistent.WriteSharedRecoveryAsync(writer, null);
+            _collaboration?.Replica.AcknowledgeRecovery(); _sharedRecoverySignature = ""; QueueSharedRecovery();
         }
     }
 }
