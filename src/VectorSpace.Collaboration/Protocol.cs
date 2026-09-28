@@ -3,8 +3,6 @@ using System.Text.Json.Serialization;
 namespace VectorSpace.Collaboration;
 
 public enum RoomRole { Viewer, Commenter, Editor, Owner }
-
-/// <summary>Null means an absent cell. The string "null" is an explicit JSON null.</summary>
 public sealed record CellChange(string Key, string? Before, string? After, long ExpectedVersion = 0);
 public sealed record EditBatch(string Id, string ClientId, long Sequence, string Label, long BaseRevision, List<CellChange> Changes);
 public sealed record Commit(long Revision, string Id, string ClientId, long Sequence, string Author, string Label, DateTimeOffset Time, List<CellChange> Changes);
@@ -36,6 +34,7 @@ public sealed class SyncReply
     public List<Commit> Commits { get; set; } = [];
     public List<Participant> Participants { get; set; } = [];
     public Receipt? Receipt { get; set; }
+    public Commit? Acknowledged { get; set; }
 }
 public sealed record RecoveryEdit(string Label, string Reason, string Document, DateTimeOffset Time);
 
