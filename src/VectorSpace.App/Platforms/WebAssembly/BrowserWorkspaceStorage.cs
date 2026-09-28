@@ -16,6 +16,13 @@ internal sealed class BrowserWorkspaceStorage : IWorkspaceStorage
         if (string.IsNullOrEmpty(result)) return null;
         using var data = JsonDocument.Parse(result); return (data.RootElement.GetProperty("name").GetString()!, data.RootElement.GetProperty("text").GetString()!);
     }
+    public async Task<(string Name, byte[] Bytes)?> OpenImageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested(); var result = await BrowserFiles.OpenImage();
+        cancellationToken.ThrowIfCancellationRequested(); if (string.IsNullOrEmpty(result)) return null;
+        using var data = JsonDocument.Parse(result);
+        return (data.RootElement.GetProperty("name").GetString()!, EmbeddedImage.Decode(data.RootElement.GetProperty("data").GetString()!).Bytes);
+    }
     public async Task SaveAsync(string name, byte[] bytes, string contentType, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested(); await BrowserFiles.Download(name, Convert.ToBase64String(bytes), contentType);
@@ -32,6 +39,9 @@ internal static partial class BrowserFiles
     [JSImport("globalThis.vectorSpaceStorage.open")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     internal static partial Task<string> Open();
+    [JSImport("globalThis.vectorSpaceStorage.openImage")]
+    [return: JSMarshalAs<JSType.Promise<JSType.String>>]
+    internal static partial Task<string> OpenImage();
     [JSImport("globalThis.vectorSpaceStorage.download")]
     [return: JSMarshalAs<JSType.Promise<JSType.String>>]
     internal static partial Task<string> Download(string name, string base64, string contentType);
@@ -69,6 +79,13 @@ internal static class BrowserDiagnostics
                 json.WriteNumber("variables", session.Document.Variables.Count);
                 json.WriteNumber("collections", session.Document.VariableCollections.Count);
                 json.WriteNumber("componentSets", session.Document.AllNodes().Count(n => n.Kind == VectorSpace.Core.NodeKind.ComponentSet));
+                json.WriteString("imageMode", primary?.Fills.FirstOrDefault(f => f.Kind == VectorSpace.Core.FillKind.Image)?.ImageMode.ToString());
+                json.WriteNumber("imageScale", primary?.Fills.FirstOrDefault(f => f.Kind == VectorSpace.Core.FillKind.Image)?.ImageScale ?? 0);
+                json.WriteNumber("effects", primary?.Shadows.Count ?? 0);
+                json.WriteBoolean("cropping", workbench.Surface.IsImageCropping);
+                json.WriteNumber("cropX", primary?.Fills.FirstOrDefault()?.ImageOffset.X ?? 0);
+                json.WriteNumber("cropY", primary?.Fills.FirstOrDefault()?.ImageOffset.Y ?? 0);
+                json.WriteNumber("imageDecodes", workbench.Surface.Renderer.Images.DecodeCount);
                 json.WriteNumber("bindings", primary?.VariableBindings.Count(p => !p.Value.Disabled) ?? 0);
                 json.WriteString("layout", primary?.Layout.Direction.ToString());
                 json.WriteStartObject("variants");

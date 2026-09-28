@@ -103,6 +103,18 @@ public sealed partial class DesignSurface
             blue.StrokeWidth = 1;
         }
         for (var i = 0; i < 8; i += 2) canvas.DrawLine(P(points[i]), P(points[(i + 2) % 8]), blue);
+        if (IsImageCropping)
+        {
+            // Crop mode manipulates image placement, not layer geometry. Replace resize/rotation
+            // handles with thirds so the visible affordance matches the active gesture.
+            for (var i = 1; i < 3; i++)
+            {
+                var t = i / 3d; blue.Color = SKColors.White.WithAlpha(150);
+                canvas.DrawLine(P(points[0] + (points[2] - points[0]) * t), P(points[6] + (points[4] - points[6]) * t), blue);
+                canvas.DrawLine(P(points[0] + (points[6] - points[0]) * t), P(points[2] + (points[4] - points[2]) * t), blue);
+            }
+            return;
+        }
         if (editor.SelectionRoots.Any(n => n.IsEffectivelyLocked)) return;
         canvas.DrawLine(P(points[1]), P(points[8]), blue); canvas.DrawCircle(P(points[8]), 3.5f, fill); canvas.DrawCircle(P(points[8]), 3.5f, blue);
         for (var i = 0; i < 8; i++) { var r = new SKRect((float)points[i].X - 3, (float)points[i].Y - 3, (float)points[i].X + 3, (float)points[i].Y + 3); canvas.DrawRect(r, fill); canvas.DrawRect(r, blue); }

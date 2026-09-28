@@ -21,11 +21,13 @@ jobs:
       - name: Validate publication metadata and asset collection
         run: python3 -m unittest discover -s tests/scripts -v
       - run: dotnet run --project tests/VectorSpace.Tests -c Release
-      - name: Measure indexed snapping and verify reference equivalence
+      - name: Measure indexed snapping and retained appearance resources
         run: |
           mkdir -p artifacts/benchmarks
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark > artifacts/benchmarks/snap-index.json
           cat artifacts/benchmarks/snap-index.json
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-appearance > artifacts/benchmarks/appearance.json
+          cat artifacts/benchmarks/appearance.json
       - uses: actions/upload-artifact@v7
         with:
           name: VectorSpace-performance

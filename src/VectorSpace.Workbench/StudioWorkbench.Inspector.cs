@@ -150,21 +150,37 @@ public sealed partial class StudioWorkbench
     }
     private void BuildFills(DesignNode node)
     {
-        var fills = AddSection("Fill", "plus", () => Change("Add fill", n => n.Fills.Add(new())));
+        var fills = AddSection("Fill", "plus", () => ChangeAppearance("Add fill", n => n.Fills.Add(new())));
         for (var index = 0; index < node.Fills.Count; index++)
         {
             var i = index; var fill = node.Fills[i];
-            fills.Body.Children.Add(Studio.Columns((new ColorField(fill.Color, c => Change("Fill color", n => { if (n.Fills.Count > i) { n.Fills[i].Color = c; ComponentService.SetOverride(n, fill: c); } })), -1), (Number("%", fill.Opacity * 100, v => Change("Fill opacity", n => { if (n.Fills.Count > i) n.Fills[i].Opacity = v / 100; }), 0, 100), 65), (new IconButton(fill.Visible ? "eye" : "eye-off", "Toggle fill", () => Change("Toggle fill", n => { if (n.Fills.Count > i) n.Fills[i].Visible = !n.Fills[i].Visible; })) { Width = 23 }, 23), (new IconButton("minus", "Remove fill", () => Change("Remove fill", n => { if (n.Fills.Count > i) n.Fills.RemoveAt(i); })) { Width = 23 }, 23)));
-            fills.Body.Children.Add(Studio.Choice(Enum.GetNames<FillKind>(), fill.Kind.ToString(), value => Change("Fill type", n => { if (n.Fills.Count > i) n.Fills[i].Kind = Enum.Parse<FillKind>(value); }), "Fill type"));
-            if (fill.Kind != FillKind.Solid)
+            FrameworkElement swatch = fill.Kind == FillKind.Solid
+                ? new ColorField(fill.Color, c => ChangeAppearance("Fill color", n => { if (n.Fills.Count > i) n.Fills[i].Color = c; }))
+                : Studio.Text(fill.Kind == FillKind.Image ? "Image" : fill.Kind == FillKind.LinearGradient ? "Linear" : "Radial", 11);
+            fills.Body.Children.Add(Studio.Columns((swatch, -1), (Number("%", fill.Opacity * 100, v => ChangeAppearance("Fill opacity", n => { if (n.Fills.Count > i) n.Fills[i].Opacity = v / 100; }), 0, 100), 65), (new IconButton(fill.Visible ? "eye" : "eye-off", "Toggle fill", () => ChangeAppearance("Toggle fill", n => { if (n.Fills.Count > i) n.Fills[i].Visible = !n.Fills[i].Visible; })) { Width = 23 }, 23), (new IconButton("minus", "Remove fill", () => ChangeAppearance("Remove fill", n => { if (n.Fills.Count > i) n.Fills.RemoveAt(i); })) { Width = 23 }, 23)));
+            fills.Body.Children.Add(Studio.Choice(Enum.GetNames<FillKind>(), fill.Kind.ToString(), value => ChangeAppearance("Fill type", n => { if (n.Fills.Count > i) n.Fills[i].Kind = Enum.Parse<FillKind>(value); }), "Fill type"));
+            fills.Body.Children.Add(Studio.Choice(Enum.GetNames<BlendKind>(), fill.Blend.ToString(), v => ChangeAppearance("Fill blend", n => { if (n.Fills.Count > i) n.Fills[i].Blend = Enum.Parse<BlendKind>(v); }), "Fill blend"));
+            fills.Body.Children.Add(new StudioButton("Move fill up", () => ChangeAppearance("Reorder fills", n => { if (i + 1 < n.Fills.Count) (n.Fills[i + 1], n.Fills[i]) = (n.Fills[i], n.Fills[i + 1]); })) { IsEnabled = i + 1 < node.Fills.Count });
+            if (fill.Kind == FillKind.Image) BuildImageFill(fills, node, i);
+            if (fill.Kind is FillKind.LinearGradient or FillKind.RadialGradient)
             {
                 for (var stopIndex = 0; stopIndex < fill.Stops.Count; stopIndex++)
                 {
                     var s = stopIndex; var stop = fill.Stops[s];
-                    fills.Body.Children.Add(Studio.Columns((new ColorField(stop.Color, color => Change("Gradient stop color", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > s) n.Fills[i].Stops[s].Color = color; })), -1), (Number("%", stop.Offset * 100, value => Change("Gradient stop position", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > s) n.Fills[i].Stops[s].Offset = value / 100; }), 0, 100), 75)));
+                    fills.Body.Children.Add(Studio.Columns((new ColorField(stop.Color, color => ChangeAppearance("Gradient stop color", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > s) n.Fills[i].Stops[s].Color = color; })), -1), (Number("%", stop.Offset * 100, value => ChangeAppearance("Gradient stop position", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > s) n.Fills[i].Stops[s].Offset = value / 100; }), 0, 100), 75)));
+                    fills.Body.Children.Add(Studio.Columns((Number("Alpha", stop.Opacity * 100, value => ChangeAppearance("Gradient stop opacity", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > s) n.Fills[i].Stops[s].Opacity = value / 100; }), 0, 100), -1),
+                        (new IconButton("minus", "Remove gradient stop", () => ChangeAppearance("Remove gradient stop", n => { if (n.Fills.Count > i && n.Fills[i].Stops.Count > 1 && n.Fills[i].Stops.Count > s) n.Fills[i].Stops.RemoveAt(s); })) { IsEnabled = fill.Stops.Count > 1 }, 24)));
                 }
-                fills.Body.Children.Add(new StudioButton("Add gradient stop", () => Change("Add gradient stop", n => { if (n.Fills.Count > i) n.Fills[i].Stops.Add(new() { Offset = .5, Color = "#FFFFFF" }); })));
-                fills.Body.Children.Add(Studio.Columns((Number("X1", fill.Start.X, v => Change("Gradient start", n => { if (n.Fills.Count > i) n.Fills[i].Start = n.Fills[i].Start with { X = v }; }), 0, 1), -1), (Number("Y1", fill.Start.Y, v => Change("Gradient start", n => { if (n.Fills.Count > i) n.Fills[i].Start = n.Fills[i].Start with { Y = v }; }), 0, 1), -1)));
+                fills.Body.Children.Add(Studio.Choice(Enum.GetNames<GradientSpread>(), fill.Spread.ToString(), value => ChangeAppearance("Gradient spread", n => { if (n.Fills.Count > i) n.Fills[i].Spread = Enum.Parse<GradientSpread>(value); }), "Gradient spread"));
+                fills.Body.Children.Add(new StudioButton("Add gradient stop", () => ChangeAppearance("Add gradient stop", n => { if (n.Fills.Count > i) n.Fills[i].Stops.Add(new() { Offset = .5, Color = "#FFFFFF" }); })));
+                fills.Body.Children.Add(Studio.Columns((Number("X1", fill.Start.X, v => ChangeAppearance("Gradient start", n => { if (n.Fills.Count > i) n.Fills[i].Start = n.Fills[i].Start with { X = v }; }), -100000, 100000), -1), (Number("Y1", fill.Start.Y, v => ChangeAppearance("Gradient start", n => { if (n.Fills.Count > i) n.Fills[i].Start = n.Fills[i].Start with { Y = v }; }), -100000, 100000), -1)));
+                if (fill.Kind == FillKind.RadialGradient && fill.GradientRadius is { } radialRadius)
+                {
+                    fills.Body.Children.Add(Number("Radius", radialRadius, v => ChangeAppearance("Gradient radius", n => { if (n.Fills.Count > i) n.Fills[i].GradientRadius = v; }), .00001, 100000));
+                    var focal = fill.GradientFocal ?? fill.Start;
+                    fills.Body.Children.Add(Studio.Columns((Number("FX", focal.X, v => ChangeAppearance("Gradient focus", n => { if (n.Fills.Count > i) n.Fills[i].GradientFocal = (n.Fills[i].GradientFocal ?? n.Fills[i].Start) with { X = v }; }), -100000, 100000), -1), (Number("FY", focal.Y, v => ChangeAppearance("Gradient focus", n => { if (n.Fills.Count > i) n.Fills[i].GradientFocal = (n.Fills[i].GradientFocal ?? n.Fills[i].Start) with { Y = v }; }), -100000, 100000), -1)));
+                }
+                else fills.Body.Children.Add(Studio.Columns((Number("X2", fill.End.X, v => ChangeAppearance("Gradient end", n => { if (n.Fills.Count > i) n.Fills[i].End = n.Fills[i].End with { X = v }; }), -100000, 100000), -1), (Number("Y2", fill.End.Y, v => ChangeAppearance("Gradient end", n => { if (n.Fills.Count > i) n.Fills[i].End = n.Fills[i].End with { Y = v }; }), -100000, 100000), -1)));
             }
         }
     }
@@ -178,15 +194,7 @@ public sealed partial class StudioWorkbench
             section.Body.Children.Add(Studio.Columns((Number("%", stroke.Opacity * 100, v => Change("Stroke opacity", n => { if (n.Strokes.Count > i) n.Strokes[i].Opacity = v / 100; }), 0, 100), -1), (Studio.Choice(["Solid", "Dashed", "Dotted"], stroke.Dashes.Count == 0 ? "Solid" : stroke.Dashes[0] == 1 ? "Dotted" : "Dashed", value => Change("Stroke dash", n => { if (n.Strokes.Count > i) n.Strokes[i].Dashes = value == "Dashed" ? [8, 6] : value == "Dotted" ? [1, 5] : []; }), "Stroke dash"), -1)));
         }
     }
-    private void BuildEffects(DesignNode node)
-    {
-        var effects = AddSection("Effects", "plus", () => Change("Add shadow", n => { if (n.Shadows.Count == 0) n.Shadows.Add(new()); }));
-        if (node.Shadows.FirstOrDefault() is not { } shadow) return;
-        effects.Body.Children.Add(Studio.Columns((Studio.Text("Drop shadow", 11), -1), (new IconButton(shadow.Visible ? "eye" : "eye-off", "Toggle shadow", () => Change("Toggle shadow", n => { if (n.Shadows.Count > 0) n.Shadows[0].Visible = !n.Shadows[0].Visible; })), 24), (new IconButton("minus", "Remove shadow", () => Change("Remove shadow", n => n.Shadows.Clear())), 24)));
-        effects.Body.Children.Add(Studio.Columns((Number("X", shadow.X, v => Change("Shadow X", n => { if (n.Shadows.Count > 0) n.Shadows[0].X = v; })), -1), (Number("Y", shadow.Y, v => Change("Shadow Y", n => { if (n.Shadows.Count > 0) n.Shadows[0].Y = v; })), -1)));
-        effects.Body.Children.Add(Studio.Columns((Number("Blur", shadow.Blur, v => Change("Shadow blur", n => { if (n.Shadows.Count > 0) n.Shadows[0].Blur = v; }), 0, 512), -1), (Number("%", shadow.Opacity * 100, v => Change("Shadow opacity", n => { if (n.Shadows.Count > 0) n.Shadows[0].Opacity = v / 100; }), 0, 100), -1)));
-        effects.Body.Children.Add(new ColorField(shadow.Color, c => Change("Shadow color", n => { if (n.Shadows.Count > 0) n.Shadows[0].Color = c; })));
-    }
+    private void BuildEffects(DesignNode node) => BuildAppearanceEffects(node);
     private void AddExportSection()
     {
         var section = AddSection("Export");

@@ -60,6 +60,20 @@ public static class ComponentService
         if (!instance.Overrides.TryGetValue(node.SourceId, out var value)) instance.Overrides[node.SourceId] = value = new();
         if (text is not null) value.Text = text; if (fill is not null) value.Fill = fill;
     }
+    /// <summary>Capture complete appearance overrides instead of reducing an image or gradient to a color.</summary>
+    public static void SetAppearanceOverride(DesignNode node, bool fills = true, bool effects = true)
+    {
+        var instance = node;
+        while (instance is not null && instance.Kind != NodeKind.Instance) instance = instance.Parent;
+        if (instance is null || node.SourceId is null) return;
+        if (!instance.Overrides.TryGetValue(node.SourceId, out var value)) instance.Overrides[node.SourceId] = value = new();
+        if (fills) { value.Fill = null; value.Fills = CloneFills(node.Fills); }
+        if (effects) value.Effects = CloneEffects(node.Shadows);
+    }
+    private static List<FillStyle> CloneFills(List<FillStyle> values) => System.Text.Json.JsonSerializer.Deserialize(
+        System.Text.Json.JsonSerializer.Serialize(values, VectorSpaceJsonContext.Default.ListFillStyle), VectorSpaceJsonContext.Default.ListFillStyle)!;
+    private static List<ShadowStyle> CloneEffects(List<ShadowStyle> values) => System.Text.Json.JsonSerializer.Deserialize(
+        System.Text.Json.JsonSerializer.Serialize(values, VectorSpaceJsonContext.Default.ListShadowStyle), VectorSpaceJsonContext.Default.ListShadowStyle)!;
     /// <summary>Resolve acyclic local component dependencies, preserve scoped descendant IDs, and skip unchanged instances.</summary>
     public static SynchronizationStatistics Synchronize(DesignDocument document)
     {
@@ -169,6 +183,8 @@ public static class ComponentService
         if (node.SourceId is { } source && overrides.TryGetValue(source, out var o))
         {
             if (o.Text is not null) node.Text = o.Text;
+            if (o.Fills is not null) node.Fills = CloneFills(o.Fills);
+            if (o.Effects is not null) node.Shadows = CloneEffects(o.Effects);
             if (o.Fill is not null) node.Fill = o.Fill;
             if (o.Visible.HasValue) node.Visible = o.Visible.Value;
         }
@@ -194,6 +210,8 @@ public static class ComponentService
             foreach (var pair in node.Overrides.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
                 Add(node.SourceId); Add(pair.Key); Add(pair.Value.Text); Add(pair.Value.Fill); Add(pair.Value.Visible?.ToString());
+                if (pair.Value.Fills is not null) Add(System.Text.Json.JsonSerializer.Serialize(pair.Value.Fills, VectorSpaceJsonContext.Default.ListFillStyle));
+                if (pair.Value.Effects is not null) Add(System.Text.Json.JsonSerializer.Serialize(pair.Value.Effects, VectorSpaceJsonContext.Default.ListShadowStyle));
             }
             foreach (var pair in node.VariableBindings.Where(p => p.Value.IsOverride).OrderBy(p => p.Key)) { Add(node.SourceId); Add(pair.Key.ToString()); Add(pair.Value.VariableId); Add(pair.Value.Disabled.ToString()); Add(pair.Value.Fallback.ToString()); }
             foreach (var pair in node.VariableModes.OrderBy(p => p.Key, StringComparer.Ordinal)) { Add(node.SourceId); Add(pair.Key); Add(pair.Value); }

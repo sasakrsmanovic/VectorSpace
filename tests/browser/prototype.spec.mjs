@@ -99,7 +99,7 @@ test('prototype inspector authors actions and saves schema v3 without a mutation
   await click(page, 'Prototype'); await choose(page, 'Action type', 'OpenOverlay'); await choose(page, 'Prototype destination', 'Modal');
   const beforeSave = await state(page); const download = page.waitForEvent('download'); await page.keyboard.press('Control+s'); const saved = await download; await saved.saveAs('artifacts/prototype-authored.vectorspace');
   const doc = JSON.parse(await fs.readFile('artifacts/prototype-authored.vectorspace', 'utf8')); const action = doc.pages[0].nodes[0].children.find(n => n.id === 'go').reactions[0].actions[0];
-  expect(doc.formatVersion).toBe(3); expect(action.kind).toBe('OpenOverlay'); expect(action.targetId).toBe('modal'); expect(beforeSave.history).toBeGreaterThan(0);
+  expect(doc.formatVersion).toBe(4); expect(action.kind).toBe('OpenOverlay'); expect(action.targetId).toBe('modal'); expect(beforeSave.history).toBeGreaterThan(0);
   await page.screenshot({ path: 'artifacts/screenshots/prototype-inspector.png' });
 });
 

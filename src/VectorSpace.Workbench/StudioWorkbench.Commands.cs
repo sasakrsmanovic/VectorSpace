@@ -15,6 +15,7 @@ public sealed partial class StudioWorkbench
         yield return new("New document", "", () => RunAsync(NewDocumentAsync));
         yield return new("Open document or import SVG", "Ctrl O", () => RunAsync(OpenAsync));
         yield return new("Save document", "Ctrl S", () => RunAsync(SaveAsync));
+        yield return new("Place image", "Ctrl Shift K", () => RunAsync(() => PlaceImageAsync()));
         yield return new("Export PNG", "", () => RunAsync(() => ExportAsync(false)));
         yield return new("Export SVG", "", () => RunAsync(() => ExportAsync(true)));
         yield return new("Undo", "Ctrl Z", () => Run(Session.Undo));
@@ -41,6 +42,7 @@ public sealed partial class StudioWorkbench
         yield return new("Toggle rulers", "Shift R", () => { Session.RulersVisible = !Session.RulersVisible; Surface.Invalidate(); });
         yield return new("Toggle outlines", "Ctrl Shift O", () => { Session.OutlinesVisible = !Session.OutlinesVisible; Surface.Invalidate(); });
         yield return new("Toggle snapping", "", () => { Session.SnapEnabled = !Session.SnapEnabled; ShowStatus(Session.SnapEnabled ? "Snapping on" : "Snapping off"); });
+        yield return new("Appearance playground", "", () => RunAsync(OpenAppearancePlaygroundAsync));
         yield return new("Prototype playground", "", () => RunAsync(OpenPrototypePlaygroundAsync));
         yield return new("Present prototype", "", () => Run(Surface.Present));
         yield return new("Keyboard shortcuts", "?", () => RunAsync(ShowHelpAsync));
@@ -55,6 +57,8 @@ public sealed partial class StudioWorkbench
         AddMenu(menu, "New document", () => RunAsync(NewDocumentAsync));
         AddMenu(menu, "Open…                         Ctrl O", () => RunAsync(OpenAsync));
         AddMenu(menu, "Save a local copy…        Ctrl S", () => RunAsync(SaveAsync));
+        AddMenu(menu, "Place image…              Ctrl Shift K", () => RunAsync(() => PlaceImageAsync()));
+        AddMenu(menu, "Appearance playground", () => RunAsync(OpenAppearancePlaygroundAsync));
         AddMenu(menu, "Prototype playground", () => RunAsync(OpenPrototypePlaygroundAsync));
         AddMenu(menu, "Reset to sample", () => RunAsync(async () => { if (await ConfirmAsync("Replace document?", "This restores the editable Aether sample. Download a copy first to keep your current document.")) { Session.Load(SampleDocument.Create()); Surface.Fit(firstFrame: true); } }));
         menu.Items.Add(new MenuFlyoutSeparator());
@@ -107,6 +111,7 @@ public sealed partial class StudioWorkbench
     {
         var control = Keyboard.Control; var shift = Keyboard.Shift; var alt = Keyboard.Alt;
         if (Surface.IsPresenting) { if (e.Key == VirtualKey.Escape) { Surface.ExitPresentation(); e.Handled = true; } return; }
+        if (Surface.IsImageCropping && e.Key is VirtualKey.Escape or VirtualKey.Enter) { Surface.EndImageCrop(e.Key == VirtualKey.Escape); e.Handled = true; return; }
         if (control && e.Key == VirtualKey.S) { RunAsync(SaveAsync); e.Handled = true; return; }
         if (Keyboard.IsTextInput(e.OriginalSource as DependencyObject)) return;
         Action? action = null;
@@ -126,6 +131,7 @@ public sealed partial class StudioWorkbench
                 VirtualKey.G when alt => () => Session.GroupSelection(true),
                 VirtualKey.G when shift => Session.UngroupSelection,
                 VirtualKey.G => () => Session.GroupSelection(),
+                VirtualKey.K when shift => () => RunAsync(() => PlaceImageAsync()),
                 VirtualKey.K when alt => () => ComponentService.MakeComponent(Session),
                 VirtualKey.K => () => RunAsync(ShowQuickActionsAsync),
                 _ => null

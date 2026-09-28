@@ -11,11 +11,11 @@ VectorSpace brings a compact UI3-style workspace to a real Uno application: an i
 
 ![VectorSpace running in the browser](docs/images/workbench.png)
 
-**Status: 0.3.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+**Status: 0.4.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
 
-**[Open the browser editor](https://wieslawsoltes.github.io/VectorSpace/)** · **[Prototyping guide](docs/PROTOTYPING.md)** · **[Design systems](docs/DESIGN_SYSTEMS.md)**
+**[Open the browser editor](https://wieslawsoltes.github.io/VectorSpace/)** · **[Images and effects](docs/APPEARANCE.md)** · **[Prototyping guide](docs/PROTOTYPING.md)** · **[Design systems](docs/DESIGN_SYSTEMS.md)**
 
 Windows, macOS, Linux and browser hosts share the same workbench and canvas. Browser recovery uses IndexedDB; desktop recovery uses the local application-data directory. **Save a local copy** downloads an editable `.vectorspace` document. Browser storage is not a backup service.
 
@@ -25,7 +25,7 @@ A successful **Pages** workflow is the deployment source of truth. GitHub Action
 
 - **Vector editing:** rectangles, rounded rectangles, ellipses, lines, arrows, polygons, stars, frames, sections, slices, cubic pen paths, freehand paths, editable text and Boolean operations.
 - **Canvas interaction:** scoped/deep/marquee selection, move, eight anchored resize handles, rotation, modifier constraints, duplication, snapping, guides, rulers, grid, zoom-to-cursor, pan, touch gestures, outlines and inline text editing.
-- **Layout and appearance:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, radius, drop shadows, typography, horizontal/vertical wrapping, grid tracks/spans, constrained fill, axis-preserving hug/fill resize, absolute children and edge/scale constraints.
+- **Layout and appearance:** layered fills, linear/radial gradients, strokes/dashes, opacity/blends, radius, independent drop/inner shadows, layer blur, typography, horizontal/vertical wrapping, grid tracks/spans, constrained fill, axis-preserving hug/fill resize, absolute children and edge/scale constraints.
 - **Local design systems:** component sets and variants, linked instances, stable descendants, supported overrides, typed variables, aliases, inherited modes, dependency-aware clipboard operations and local comments.
 - **Prototyping:** private playback, flow starts, ordered trigger/action sequences, typed conditions, navigation/back, modal overlays, frame scrolling, runtime variables, interactive variants, transitions and supported smart interpolation. Preview changes never alter editor history or saved design values.
 
@@ -33,7 +33,9 @@ A successful **Pages** workflow is the deployment source of truth. GitHub Action
 
 **Design systems:** use **Local variables** in the menu or quick actions; bind properties and choose modes in the inspector. Add/combine component variants, insert from Assets and switch instance properties. See the [design-system guide](docs/DESIGN_SYSTEMS.md).
 
-**Performance:** gesture-scoped indexed snapping, retained geometry/text caches, conservative viewport culling, unchanged-instance synchronization skips, selection-only layer updates, cached prototype view references and prepared interpolation trees. See [measurements and limitations](docs/PERFORMANCE.md). No whole-app FPS claim is made.
+**Performance:** gesture-scoped indexed snapping, retained geometry/text caches, bounded image/gradient/effect resources, conservative filter-processing bounds, conservative viewport culling, unchanged-instance synchronization skips, selection-only layer updates, cached prototype view references and prepared interpolation trees. See [measurements and limitations](docs/PERFORMANCE.md). No whole-app FPS claim is made.
+
+**Appearance studies:** open **Appearance playground** from quick actions; use **Place image** (Ctrl+Shift+K), edit Fill/Fit/Crop/Tile, crop directly on canvas, or configure layered effects. Gradient SVG paint servers and embedded raster images now import as editable paints. See [image, effect and SVG behavior](docs/APPEARANCE.md).
 
 ## Pinned toolchain
 
@@ -140,6 +142,7 @@ The [prototyping guide](docs/PROTOTYPING.md#reuse-without-uno) shows UI-independ
 | Group / ungroup / auto-layout | Ctrl G / Ctrl Shift G / Shift A |
 | Nudge / large nudge | Arrow / Shift-arrow |
 | Fit all / selected | Shift 1 / Shift 2 |
+| Place image | Ctrl Shift K |
 | Save / open / quick actions | Ctrl S / Ctrl O / Ctrl K |
 | Hide panels / cancel / rename | Tab / Escape / F2 |
 | Prototype restart / back / dismiss or exit | R / Backspace / Escape |
@@ -148,7 +151,7 @@ Native text inputs retain their own editing shortcuts. Browser-reserved keys and
 
 ## Persistence, CI and releases
 
-Native schema **3** migrates version-1/2 documents on load and preserves legacy prototype links. SVG/PNG are interchange/rendering outputs, not lossless substitutes for the editable native document. `.fig`, hosted collaboration, cloud history and plugin execution are not implemented.
+Native schema **4** migrates version-1/2/3 documents on load and preserves legacy prototype links. SVG/PNG are interchange/rendering outputs, not lossless substitutes for the editable native document. `.fig`, hosted collaboration, cloud history and plugin execution are not implemented.
 
 **Build** validates engines and publication metadata, publishes and tests the real browser application, benchmarks snapping equivalence and packs libraries. **Desktop** compiles Windows/Linux/macOS. **Pages** deploys successful main-branch Build artifacts and tests the public URL. **Release** validates tagged snapshots and publishes source/browser/package archives with checksums. An artifact upload is not a live deployment.
 

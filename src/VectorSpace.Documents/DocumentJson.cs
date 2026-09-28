@@ -9,6 +9,8 @@ namespace VectorSpace.Documents;
 [JsonSerializable(typeof(DesignNode))]
 [JsonSerializable(typeof(List<DesignNode>))]
 [JsonSerializable(typeof(List<PrototypeReaction>))]
+[JsonSerializable(typeof(List<FillStyle>))]
+[JsonSerializable(typeof(List<ShadowStyle>))]
 public partial class VectorSpaceJsonContext : JsonSerializerContext;
 
 public static class DocumentJson
@@ -20,7 +22,7 @@ public static class DocumentJson
     {
         if (json.Length > MaxDocumentCharacters) throw new InvalidDataException("The document exceeds the 32 MiB text limit.");
         var document = JsonSerializer.Deserialize(json, VectorSpaceJsonContext.Default.DesignDocument) ?? throw new InvalidDataException("The file does not contain a VectorSpace document.");
-        Validate(document); document.FormatVersion = 3; document.RebuildParents(); return document;
+        Validate(document); document.FormatVersion = 4; document.RebuildParents(); return document;
     }
     public static DesignNode CloneNode(DesignNode node, bool newIds = false)
     {
@@ -52,9 +54,9 @@ public static class DocumentJson
     }
     public static void Validate(DesignDocument document)
     {
-        if (document.FormatVersion is not (1 or 2 or 3)) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
+        if (document.FormatVersion is not (1 or 2 or 3 or 4)) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
         if (document.Pages is null || document.Pages.Count is < 1 or > 1000) throw new InvalidDataException("A document must have between 1 and 1000 pages.");
-        var ids = new HashSet<string>(StringComparer.Ordinal); var count = 0;
+        var ids = new HashSet<string>(StringComparer.Ordinal); var count = 0; long imageCharacters = 0;
         foreach (var page in document.Pages)
         {
             if (string.IsNullOrWhiteSpace(page.Id) || !ids.Add(page.Id) || page.Nodes is null) throw new InvalidDataException("Invalid or duplicate page identifier.");
@@ -74,6 +76,7 @@ public static class DocumentJson
             if (l.GridColumns is < 1 or > 128 || l.Columns is null || l.Rows is null || l.Columns.Count > 128 || l.Rows.Count > 10000 || n.ColumnSpan is < 1 or > 128 || n.RowSpan is < 1 or > 128 || n.GridColumn is < -1 or > 127 || n.GridRow is < -1 or > 10000) throw new InvalidDataException("Invalid grid placement.");
             foreach (var track in l.Columns.Concat(l.Rows))
                 if (track is null || !double.IsFinite(track.Value) || !double.IsFinite(track.Min) || !double.IsFinite(track.Max) || track.Value < 0 || track.Min < 0 || track.Max < track.Min || track.Max > 1e7) throw new InvalidDataException("Invalid grid track.");
+            AppearanceValidation.Validate(n, ref imageCharacters);
             n.Opacity = Numbers.Clamp(n.Opacity, 0, 1); n.FontSize = Numbers.Clamp(n.FontSize, 1, 4096);
             n.CornerRadius = Numbers.Clamp(n.CornerRadius, 0, 1e6); n.Sides = Math.Clamp(n.Sides, 3, 128);
             n.StarRatio = Numbers.Clamp(n.StarRatio, .01, 1); n.LineHeight = Numbers.Clamp(n.LineHeight, .2, 10);
@@ -90,4 +93,6 @@ public interface IWorkspaceStorage
     Task WriteAutosaveAsync(string document, CancellationToken cancellationToken = default);
     Task<(string Name, string Text)?> OpenAsync(CancellationToken cancellationToken = default);
     Task SaveAsync(string name, byte[] bytes, string contentType, CancellationToken cancellationToken = default);
+    Task<(string Name, byte[] Bytes)?> OpenImageAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This host does not provide an image picker.");
 }

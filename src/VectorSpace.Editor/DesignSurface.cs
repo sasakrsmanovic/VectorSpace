@@ -15,7 +15,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         public Action<SKCanvas, Size>? Draw { get; set; }
         protected override void RenderOverride(SKCanvas canvas, Size area) => Draw?.Invoke(canvas, area);
     }
-    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex }
+    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex, ImageCrop }
     private readonly DrawingCanvas _canvas = new();
     private readonly Canvas _overlay = new();
     private EditorSession? _session;
@@ -74,7 +74,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         _canvas.PointerWheelChanged += Wheel;
         _canvas.DoubleTapped += (_, e) =>
         {
-            if (Session is null || IsPresenting) return;
+            if (Session is null || IsPresenting || IsImageCropping) return;
             if (_penNode is not null) { FinishPath(false); e.Handled = true; return; }
             var p = e.GetPosition(_canvas);
             var deepest = Renderer.HitTest(Session.Page.Nodes, Session.Viewport.ScreenToWorld(new(p.X, p.Y)), true, 4 / Session.Viewport.Zoom);
@@ -95,6 +95,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     private void SessionChanged(object? sender, EditorChangedEventArgs e)
     {
+        if (IsImageCropping) CropTarget(out _, out _);
+        if (e.Kind == EditorChangeKind.Tool) { _cropNodeId = null; _cropDocument = null; }
         if (e.Kind == EditorChangeKind.Document)
         {
             // Undo/load can replace every node while a pen or pointer gesture is active.
@@ -148,6 +150,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         _startScreen = screen; _startWorld = world; _startPan = editor.Viewport.Pan;
         _canvas.CapturePointer(e.Pointer); e.Handled = true;
         if (IsSpaceDown || editor.Tool == EditorTool.Hand || point.Properties.IsMiddleButtonPressed) { _gesture = Gesture.Pan; return; }
+        if (PressImageCrop(world)) return;
         if (editor.RulersVisible && (screen.X < 20 || screen.Y < 20))
         {
             editor.BeginInteraction("Add guide"); _guide = new() { Horizontal = screen.Y < 20, Position = screen.Y < 20 ? world.Y : world.X }; editor.Page.Guides.Add(_guide); _gesture = Gesture.Guide; return;
@@ -250,6 +253,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         var shift = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift);
         switch (_gesture)
         {
+            case Gesture.ImageCrop: MoveImageCrop(world); break;
             case Gesture.Pan: editor.Viewport.Pan = _startPan + screen - _startScreen; editor.Notify(EditorChangeKind.Viewport); break;
             case Gesture.Move:
                 if (screen.DistanceTo(_startScreen) < 3) break;
@@ -340,6 +344,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         var gesture = _gesture; _gesture = Gesture.None;
         _canvas.ReleasePointerCapture(e.Pointer); e.Handled = true;
         if (gesture == Gesture.Pinch) return;
+        if (gesture == Gesture.ImageCrop && CropTarget(out var cropped, out _)) ComponentService.SetAppearanceOverride(cropped, true, false);
         if (gesture == Gesture.Marquee && _marquee is { } box)
         {
             var ids = SelectionQuery.Marquee(editor.Page.Nodes, box, Keyboard.Control || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control)).Select(n => n.Id);
@@ -359,6 +364,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     {
         if (Session is not { } editor || IsPresenting) return;
         var point = e.GetCurrentPoint(_canvas); var delta = point.Properties.MouseWheelDelta;
+        if (ZoomImageCrop(new(point.Position.X, point.Position.Y), delta)) { e.Handled = true; return; }
         if (e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control)) editor.Viewport.ZoomAt(editor.Viewport.Zoom * Math.Exp(delta * .0015), new(point.Position.X, point.Position.Y));
         else if (point.Properties.IsHorizontalMouseWheel || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift)) editor.Viewport.Pan += new Vec2(delta * .65, 0);
         else editor.Viewport.Pan += new Vec2(0, delta * .65);
@@ -366,7 +372,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     public void CancelGesture()
     {
-        _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _vectorNode = null;
+        _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _vectorNode = null;
         Session?.CancelInteraction(); RequestFrame();
     }
     private static DesignNode NewNode(EditorTool tool, Vec2 point)

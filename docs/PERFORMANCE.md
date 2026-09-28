@@ -32,3 +32,23 @@ These are **synthetic CPU snapping-query results**, not a Figma comparison, end-
 ## Remaining scalability limits
 
 History still serializes before/after snapshots with entry and character budgets. Definition fingerprinting and document validation still visit document data at commit. Hit testing is not a full retained spatial acceleration structure; the viewport does not use damage-tile compositing. Large instance expansions, text shaping and large document load/startup need further profiling. No million-layer or fixed frame-rate claim is made.
+
+
+## Appearance resource retention (0.4)
+
+```bash
+dotnet run --project tests/VectorSpace.Tests -c Release -- --benchmark-appearance
+```
+
+This separate CPU raster benchmark draws 48 layers with images/gradients and 16 two-shadow stacks into a 512×384 surface. It measures five batches of ten frames, comparing per-frame resource rebuilding against retention. PNG comparison is outside timing; identical pixels and zero additional image/gradient/effect constructions in the retained phase are asserted. Managed allocation measurements exclude native Skia memory. CI uploads its exact-run JSON alongside snapping results.
+
+Development profiling exposed a different dominant cost: an inner-shadow recoloring filter that affects transparent black processed a viewport-sized region for every small layer. A `SaveLayer` bounds hint alone did not constrain that filter. Explicit processing crops for simple leaves/clipped frames reduced one local retained batch from **4817.31 ms to 311.108 ms for ten frames**. That is an implementation-development comparison for this particular new appearance workload, not a claimed speedup over the v0.3 application or Figma. Unclipped containers and uncertain text/path footprints remain conservative.
+
+On that bounded development run, retained frames allocated **18,240 managed bytes/frame**, compared with **88,688 bytes/frame** when resource caches were cleared each frame, and built **zero** additional images, gradient shaders or filter graphs after warming. Retained vs rebuilt wall time was within noise (**311.108 vs 309.273 ms/batch**); the verified retention benefit here is resource reuse and reduced allocation, not a measured rendering speedup. Local hardware, native backends and CI measurements differ; the raw records are retained in `docs/benchmarks/appearance-*.json`.
+
+Image cache budgets apply to decoded RGBA storage and entry count, not all process memory. Encoded strings, immutable snapshots, temporary codec buffers, SKPaint/shader instances and driver allocations still exist. SVG import/export and history can duplicate embedded strings; they are not O(1) with asset size. The renderer is single-thread-owned. See [appearance ownership and limits](APPEARANCE.md).
+
+
+### Image admission and cloned payloads
+
+The 0.4 finalization adds dimension-based admission before pixel decoding, a separately enforced codec pixel budget, direct-span content hashing and Base64 decoding, and immediate capacity reductions for gradient/filter caches. Seventeen regressions cover these contracts. A cloned 256x256 noisy PNG lookup must reuse the same decoded image and allocate under 16 KiB of managed memory; constructing the input and native memory are excluded. This checks bounded transient managed allocation, not constant-time hashing: a new string identity still requires reading its content once. See [appearance admission guarantees](APPEARANCE.md#admission-and-budget-guarantees).
