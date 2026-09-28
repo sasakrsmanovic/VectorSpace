@@ -1,16 +1,17 @@
 **/bin/
 **/obj/
+artifacts/
+node_modules/
 .vs/
 .idea/
 *.user
 *.suo
-artifacts/
-TestResults/
-node_modules/
-playwright-report/
 .DS_Store
 src/VectorSpace.App/Assets/Fonts/*.ttf
-
-# Python script/test caches
-__pycache__/
-*.py[cod]
+src/VectorSpace.App/Assets/Fonts/*.otf
+.env
+.env.*
+*.room.json
+*.room.journal
+service.lock
+**/shared-recovery/

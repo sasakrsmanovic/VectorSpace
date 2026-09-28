@@ -1,49 +1,47 @@
 # Validation and delivery
 
-## Regression suites
+## Separate suites and evidence
 
-The engine regression runner contains **385 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
+The original editor runner contains **385 cases**, covering geometry, layout, transactions, design systems, prototype state, images/effects, SVG and tool editing. Six Python publication cases cover version/provenance and static asset collection. Exact-commit Actions logs remain the source of truth for passing status; a source count does not certify a green build.
 
-**Fourteen compact-JSON regressions** distinguish omitted optional literal fields from explicit nulls. Boolean, number, string and color values round-trip through the source-generated serializer. A compact conditional prototype imports, navigates and restarts without changing its source document. An explicitly null text field remains invalid; the fix does not relax document validation.
+The collaboration model runner adds **20 cases** for projection, independent property merging, conditional history, concurrent insertion/replies, conflict recovery, hierarchy validation and generated wire serialization. The shared editor runner adds **21 cases** for transaction boundaries, rollback, viewer guards, local selection/viewport preservation, history detachment, remote deletion, recovery, version restoration and invitation endpoint handling.
 
-The six Python publication tests validate static asset collection, source/output separation, version resolution and provenance metadata. Indexed snapping is checked against its linear reference, including a seeded randomized equivalence test and an independently retained synthetic CPU benchmark.
+Eight black-box Python cases start the **actual ASP.NET process**. They exercise authorization, invitation revocation, viewer restrictions, concurrent requests, atomic conflicts, idempotent retries, long-poll deltas, ephemeral presence and service restart with an incomplete journal tail. No in-memory transport substitutes for the real server.
 
-Published-browser acceptance contains **35 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground; ten cover tool activation, shape creation, point editing, guides, clipboard placement, persistent Pencil strokes and text transactions. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
+Published-browser acceptance contains **44 Chromium cases**: 35 existing editor/design-system/prototype/appearance/tool workflows plus nine tagged `@collaboration` multi-window workflows. Tests use actual pointer, keyboard, clipboard and file-picker operations on the Uno application. Read-only `?test=1` diagnostics expose control bounds/state, not document-mutation commands. Sensitive invitation inputs omit diagnostic values.
 
-Counts describe the suite, not proof of a passing build. Check the Actions run for the exact source commit.
+## Multi-user browser acceptance
 
-## Appearance coverage
+Separate browser contexts join actual service rooms through the Share dialog. Cases cover synchronized presence and independent edits; own undo preserving a peer's properties; an active pointer transaction deferring remote application; viewer/commenter behavior; disconnected edits and reconnect; conflicting work recovered after reload; participant following; concurrent replies across modal boundaries; room/invitation creation through controls; version download/restore and active-access revocation.
 
-Seventy-seven new engine cases cover orientation in all eight JPEG configurations, PNG/JPEG/WebP import, header/pixel limits, decoded cache ownership and dynamic budgets, actual image/gradient/effect pixels, complete appearance overrides, clipboard/migration, native matrix serialization and SVG gradient/viewBox/group semantics. Inner-shadow regressions check translucent alpha, independent outer shadows and footprint invalidation. A filtered-child test passes a real viewport to verify culling does not discard required offscreen inputs.
+A test harness creates an ephemeral backend, key and room directory, runs Playwright against a separately published/served client, and disposes the backend afterward. API calls seed test rooms/invitations, while document editing and workbench workflows use real controls. Test credentials refer only to the disposable test service.
 
-Seventeen admission-specific regressions additionally verify header-budget rejection before pixel decoding, immutable image lifetime, allocation-bounded equal-content lookup, oversized-key rejection, Base64 spans and immediate gradient/effect cache budget reductions.
+## Build and deployment gates
 
-Six browser cases use actual image/file pickers, inspector choices, crop drag/wheel/cancel, effects and quick actions. Screenshot pixel assertions check image letterboxing/color and SVG gradients. Read-only diagnostics do not expose mutation commands. The appearance benchmark checks identical cached/rebuilt pixels and zero repeated decode/shader/filter construction on stable frames; it does not enforce a timing threshold.
+**Build** has engine, collaboration and browser jobs. Successful browser artifacts require all three. It publishes ten reusable package/symbol pairs and a self-hostable server, preserves source snapshots and records benchmark/test artifacts. **Desktop** independently compiles Windows, Linux and macOS; compilation is not full native interaction certification.
 
-## Browser coverage
+**Pages** deploys the successful main-branch browser artifact, verifies its source commit through `build-info.json` and executes the **35 static editor cases** against the public URL. The nine collaboration cases already ran against the same artifact and an actual temporary backend in Build. They are explicitly excluded from the static-only public check; that does not constitute live public-backend verification.
 
-The original editor cases exercise creation, nudging, duplication/deletion, undo/redo, editable-document download, IndexedDB recovery, cursor-anchored zoom, pen transaction cancellation and compact layout. Design-system cases drive variable modes, variant selectors, local-variable authoring and cross-document clipboard dependencies through actual controls.
+A public collaboration server must be deployed separately with HTTPS and persistent storage. A hosting blueprint, uploaded server artifact or passing CI service does not mean such a deployment exists. Generated NuGet archives are not evidence of publication to NuGet.org.
 
-Resize cases import native fixtures, drag actual handles, test anchored min/max limits, modifier behavior, undo/redo and saved hug-height state. Native cases cover every handle under rotation/reflection, untouched hug/fill axes, proportional side shrinking and wrapping reflow. See [resizing semantics](RESIZING.md).
+## Reproduce
 
-Prototype cases cover release-click navigation, editor viewport preservation, modal click consumption and Escape ordering, private variables and saved-file isolation, scrolling and keyboard navigation, inspector edits, deadlines and player disposal. Pointer cases verify one hover entry while crossing sibling hit targets, hover leave, drag/release cancellation, prevention of release activation in a frame entered during the same press and hover reconciliation after an animation ends without further mouse input. The Back-navigation test checks the exact saved scroll offset after observing the returned frame rather than reading a stale diagnostics sample. See [prototype behavior](PROTOTYPING.md) and [import and input validation](PROTOTYPE_VALIDATION.md).
+```bash
+dotnet run --project tests/VectorSpace.Tests -c Release
+dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release
+python3 -m unittest discover -s tests/scripts -v
+dotnet build server/VectorSpace.Server -c Release
+python3 -m unittest discover -s tests/server -v
 
-## Build, native hosts and deployment
+# With the published client already served on port 4173:
+python3 scripts/run-collaboration-browser-tests.py
+# Static-only checks against a configured URL:
+npm run test:browser -- --grep-invert @collaboration
+```
 
-**Build** validates the platform-independent engines and publication scripts, publishes the actual Uno WebAssembly application, runs browser acceptance and creates **nine reusable package artifacts**. Benchmark output, browser reports, screenshots, traces, packages and source snapshots are retained as Actions artifacts.
+The collaborator benchmark verifies a one-property batch reconstructs the exact native document and reports both wire bytes and projection/diff CPU/allocation cost. Existing snapping, appearance and direct-path benchmarks retain their own oracle/pixel checks. No whole-application FPS, constant-time projection or arbitrary-scale collaboration claim is made.
 
-**Desktop** independently compiles Windows, Linux and macOS hosts so a native runner queue does not hold up an already verified browser deployment. Compilation is not equivalent to native interaction coverage. The browser suite currently uses Chromium; other browser engines are not certified by these runs.
+## Remaining certification boundaries
 
-**Pages** deploys only successful main-branch Build artifacts, checks their source provenance and runs the same browser suite against the public URL. `build-info.json` records the deployed source commit and project version. Workflow configuration or an artifact upload alone does not prove deployment; the deployment and public verification results must be checked.
-
-Generated `.nupkg` and `.snupkg` files are downloadable build outputs, not evidence of publication to NuGet.org. A tagged release is a separate workflow.
-
-## Evidence and boundaries
-
-Actions logs and retained screenshots/traces are the source of truth for each run. Screenshots are captured from the real application, not a static mockup. Browser test mode uses a diagnostics timer that does not run in ordinary usage.
-
-Full Figma feature compatibility, pixel identity, complete native interaction coverage, broad assistive-technology certification, native `.fig` interoperability and whole-application FPS improvements are not claimed. Performance measurements must retain their workload, runtime, allocation scope and exclusions.
-
-## Tool editing (0.5)
-
-Seventy-five engine regressions cover cubic subdivision, tangent semantics, conversion, reflection, precision and native path equivalence. Ten browser workflows use real quick actions, mouse/keyboard/file input and downloaded native documents to verify all sixteen tool activations, shape adjustments, multi-anchor editing, subdivision, marquee/cancellation, pen lifecycle, guides, paste-in-place/keyboard resizing, Pencil simplification/persistence and text save/cancellation. Suite counts describe available tests; final-commit results must be checked separately.
+Chromium is the browser acceptance target. Native UI interaction, other browser engines, broad accessibility, production security/load testing, power-loss durability on every filesystem, distributed storage and complete Figma feature/pixel compatibility are not certified by these checks. See [features](FEATURES.md), [collaboration semantics](COLLABORATION.md) and [hosting](HOSTING.md).
