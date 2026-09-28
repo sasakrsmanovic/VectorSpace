@@ -23,7 +23,7 @@ public sealed partial class StudioWorkbench
     {
         if (_collaboration is not { } connection) return;
         var r = connection.Replica;
-        var signature = $"{r.Confirmed.Revision}:{r.LastSequence}:{r.PendingCount}:{r.Recovery.Count}";
+        var signature = $"{r.LastSequence}:{r.PendingCount}:{r.Recovery.Count}";
         if (_sharedRecoverySignature == signature) return; _sharedRecoverySignature = signature;
         var entries = CurrentRecovery();
         _sharedRecoveryJson = entries.Count == 0 ? null : JsonSerializer.Serialize(entries, CollaborationJson.Default.ListRecoveryEdit);

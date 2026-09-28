@@ -70,15 +70,13 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         AutomationProperties.SetName(this, "Design canvas");
         var root = new Grid(); root.Children.Add(_canvas); root.Children.Add(_overlay); Content = root;
         _canvas.Draw = (canvas, size) => { _frameQueued = false; Paint(canvas, size); };
-        _canvas.PointerPressed += (sender, e) =>
-        {
-            try { Pressed(sender, e); }
-            catch (InvalidOperationException error) { CancelGesture(); StatusChanged?.Invoke(error.Message); }
-        }; _canvas.PointerMoved += Moved; _canvas.PointerReleased += Released;
+        _canvas.PointerPressed += (sender, e) => ExecuteInput(() => Pressed(sender, e));
+        _canvas.PointerMoved += (sender, e) => ExecuteInput(() => Moved(sender, e));
+        _canvas.PointerReleased += (sender, e) => ExecuteInput(() => Released(sender, e));
         _canvas.PointerCanceled += (_, _) => CancelGesture();
         _canvas.PointerCaptureLost += (_, _) => { if (_gesture is not Gesture.None and not Gesture.PenControl) CancelGesture(); };
-        _canvas.PointerWheelChanged += Wheel;
-        _canvas.DoubleTapped += (_, e) =>
+        _canvas.PointerWheelChanged += (sender, e) => ExecuteInput(() => Wheel(sender, e));
+        _canvas.DoubleTapped += (_, e) => ExecuteInput(() =>
         {
             if (Session is null || IsPresenting || IsImageCropping || Session.SharedHistory?.CanEdit("Edit layer") == false) return;
             if (_penNode is not null) { FinishPath(false); e.Handled = true; return; }
@@ -107,7 +105,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 try { BeginVectorEdit(); } catch (InvalidOperationException error) { StatusChanged?.Invoke(error.Message); }
                 e.Handled = true;
             }
-        };
+        });
         _canvas.RightTapped += (_, e) => { CanvasContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; };
         _canvas.SizeChanged += (_, _) =>
         {
@@ -446,7 +444,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             node.Text = box.Text; ComponentService.SetOverride(node, text: box.Text);
         }
         _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
-        try { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }
+        try { ExecuteInput(() => { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }); }
         finally
         {
             _finishingText = false;

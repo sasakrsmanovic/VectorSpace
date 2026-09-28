@@ -74,6 +74,7 @@ internal static class BrowserDiagnostics
                 json.WriteString("kind", primary?.Kind.ToString()); json.WriteBoolean("visible", primary?.Visible ?? false); json.WriteBoolean("locked", primary?.Locked ?? false); json.WriteNumber("x", primary?.X ?? 0); json.WriteNumber("y", primary?.Y ?? 0);
                 json.WriteNumber("width", primary?.Width ?? 0); json.WriteNumber("height", primary?.Height ?? 0);
                 json.WriteBoolean("canUndo", session.CanUndo); json.WriteBoolean("canRedo", session.CanRedo);
+                json.WriteString("text", primary?.Text); json.WriteBoolean("textEditing", workbench.Surface.IsTextEditing);
                 json.WriteString("id", primary?.Id); json.WriteString("fill", primary?.Fill);
                 json.WriteString("componentId", primary?.ComponentId);
                 json.WriteNumber("variables", session.Document.Variables.Count);

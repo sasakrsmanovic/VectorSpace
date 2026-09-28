@@ -39,7 +39,7 @@ test('@collaboration viewer input cannot mutate the design and commenter input c
   await select(bob, 'a'); await bob.keyboard.press('ArrowRight'); await bob.keyboard.press('Delete');
   await bob.waitForTimeout(300); expect((await shared(bob)).revision).toBe(0); expect((await state(bob)).x).toBe(80);
   await join(review, commenter, 'Reviewer'); await point(review, 600, 420); await review.keyboard.press('c'); await point(review, 620, 430);
-  await input(review, 'Add a comment', 'Review from another window'); await click(review, 'Continue');
+  await input(review, 'Leave a comment', 'Review from another window'); await click(review, 'Save');
   await synced(review, 1); await synced(page, 1);
   const saved = await document(page, 'shared-comment.vectorspace');
   expect(saved.comments.some(c => c.text === 'Review from another window' && c.author === 'Reviewer')).toBe(true);
@@ -89,7 +89,7 @@ test('@collaboration concurrent comment replies survive modal boundaries and loc
   const owner = await room(request), guest = await invite(request, owner), bob = await peer();
   await join(page, owner, 'Alice'); await join(bob, guest, 'Bob');
   for (const p of [page, bob]) { await point(p, 600, 420); await p.keyboard.press('c'); await point(p, 580, 300); }
-  await input(page, 'Reply', 'First response'); await input(bob, 'Reply', 'Second response');
+  await input(page, 'Reply to comment', 'First response'); await input(bob, 'Reply to comment', 'Second response');
   await click(page, 'Reply', 'Button'); await synced(page, 1);
   await click(bob, 'Reply', 'Button'); await synced(bob, 2); await synced(page, 2);
   const saved = await document(page, 'shared-replies.vectorspace');

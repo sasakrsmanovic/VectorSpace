@@ -15,3 +15,7 @@ src/VectorSpace.App/Assets/Fonts/*.otf
 *.room.journal
 service.lock
 **/shared-recovery/
+
+# Python validation caches
+__pycache__/
+*.py[cod]

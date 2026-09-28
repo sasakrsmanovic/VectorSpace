@@ -61,8 +61,12 @@ public sealed partial class CollaborationConnection : IDisposable
             else
                 changed = reply.Commits.Concat(reply.Acknowledged is { } ack ? new[] { ack } : []).SelectMany(c => c.Changes).Any(c => before.Value(c.Key) != Replica.Visible.Value(c.Key));
         }
-        Role = reply.Role; _event = reply.Event; Online = true;
-        Status = Replica.LastError ?? (Replica.PendingCount == 0 ? "All changes synchronized" : $"Synchronizing {Replica.PendingCount} edit(s)");
+        Role = reply.Role; _event = reply.Event;
+        // A response queued at a local edit boundary can arrive after revocation.
+        // Apply acknowledged data without advertising restored access from that response.
+        Online = !AccessDenied;
+        if (!AccessDenied)
+            Status = Replica.LastError ?? (Replica.PendingCount == 0 ? "All changes synchronized" : $"Synchronizing {Replica.PendingCount} edit(s)");
         Participants = reply.Participants.Where(p => p.ClientId != Replica.ClientId).ToArray();
         Changed?.Invoke(changed); if (Replica.PendingCount > 0) Wake();
     }

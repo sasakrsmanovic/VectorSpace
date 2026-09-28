@@ -92,6 +92,14 @@ Test("loopback HTTP remains usable for actual local network tests", () => {
 
 Test("retained projection matches reference and preserves unchanged storage", () => Check(ProjectionChecks.Run() == 59));
 
+Test("shared commit rejected after an active gesture can roll back without losing selection", () => {
+    var e = Editor(); var h = new History(); e.AttachSharedHistory(h); e.Select(e.Document.Find("a"));
+    e.BeginInteraction("Drag"); e.Primary!.X = 99; h.Fail = true;
+    Throws<InvalidOperationException>(() => e.CommitInteraction());
+    Check(e.IsInteracting); e.CancelInteraction();
+    Check(!e.IsInteracting && e.Primary!.X == 0 && e.Primary.Id == "a" && h.Commits.Count == 0);
+});
+
 var failures = 0;
 foreach (var (name, run) in tests) { try { run(); Console.WriteLine("PASS " + name); } catch (Exception e) { failures++; Console.WriteLine("FAIL " + name + "\n" + e); } }
 Console.WriteLine($"SHARED EDITOR RESULT: {tests.Count - failures}/{tests.Count} passed"); return failures == 0 ? 0 : 1;
