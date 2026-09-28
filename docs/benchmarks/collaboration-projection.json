@@ -1,0 +1,17 @@
+{
+  "implementationCommit": "811867d39cd76d92f04ceb740b743dc6e95d29b5",
+  "environment": "Local Linux x64 validation container; .NET 10.0.12; SDK 10.0.401",
+  "workload": "1000 native scene layers; one scalar property changed; five interleaved warmed projection/diff samples per implementation",
+  "nativeDocumentUtf8Bytes": 1732800,
+  "editBatchUtf8Bytes": 209,
+  "changedCells": 1,
+  "referenceMedianMilliseconds": 99.524,
+  "retainedMedianMilliseconds": 48.3378,
+  "referenceMedianManagedBytes": 28405816,
+  "retainedMedianManagedBytes": 4552184,
+  "observedProjectionSpeedRatio": 2.0589269681284628,
+  "equivalenceAndReuseChecks": 59,
+  "exactNativeRoundtripVerified": true,
+  "reproduce": "dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release -- --benchmark",
+  "scope": "The reference is the prior mutable-JSON projection retained only in tests. Both implementations produce identical cells and native documents. Projection still visits the entire document. Measurements exclude network latency, server durability, UI dispatch, painting, native allocations, snapshot construction and embedded-image workloads; no application-wide FPS or constant-time claim. CI records its own independent measurements."
+}
