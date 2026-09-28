@@ -4,7 +4,7 @@ VectorSpace is an original Uno/Skia editor, not a complete reproduction of every
 
 ## Working end-to-end
 
-Scene nodes and nested transforms; frames/groups/pages; drawing, scoped hierarchy selection, deep selection, sibling navigation, marquee and matching-property selection; baseline-based move/resize/rotation with anchored min/max limits and axis-preserving hug/fill; alt-drag duplicate; visibility/locking; undo/redo and clipboard; alignment/distribution; pen/freehand paths and point movement; text; solid/gradient fills; strokes/dashes; opacity/blends; image paints; independent drop/inner shadows and layer blur; safe JSON/SVG imports; SVG/PNG exports; recovery; local comments; isolated local prototype playback.
+Scene nodes and nested transforms; frames/groups/pages; drawing, scoped hierarchy selection, deep selection, sibling navigation, marquee and matching-property selection; baseline-based move/resize/rotation with anchored min/max limits and axis-preserving hug/fill; alt-drag duplicate; visibility/locking; undo/redo and clipboard; alignment/distribution; pen/freehand paths, multi-anchor selection/editing and exact cubic splitting; text; solid/gradient fills; strokes/dashes; opacity/blends; image paints; independent drop/inner shadows and layer blur; safe JSON/SVG imports; SVG/PNG exports; recovery; local comments; isolated local prototype playback.
 
 **Auto-layout:** horizontal and vertical flow, wrapping, grid fixed/auto/fraction tracks, spans, padding, gap, hug/fill, min/max-constrained redistribution, cross-axis/primary alignment, hidden/absolute children, edge and scale constraints. Alignment controls, wrap/grid configuration and item sizing are editable in the inspector. Text-baseline alignment is not implemented; this does not certify every Figma layout precedence rule.
 
@@ -20,7 +20,7 @@ The palette, panels, properties, rows, color picker, numeric scrubbing, icons an
 
 - **Visual/UI parity:** UI3-style workspace, not pixel-certified across every Figma screen, theme, menu and responsive breakpoint.
 - **Text:** wrapping, family/size/weight, alignment, line height and spacing; no mixed rich-text runs or complete OpenType/multi-script editing guarantees.
-- **Vectors:** cubic paths and point movement; no full vector networks, independent tangent-handle UI, non-destructive Boolean stack or corner smoothing.
+- **Vectors:** editable single contours, multi-point selection, independent/linked handles, exact cubic insertion, primitive conversion, reversal/closure and freehand simplification. Full vector networks, multi-contour topology editing, non-destructive Boolean stacks, variable-width strokes and corner smoothing remain absent. See [tool editing](EDITING.md).
 - **Transforms:** rigid transforms, flips and scaling; arbitrary affine skew is not lossless.
 - **Components/variables:** local variants and value bindings, not the complete exposed-property system, remote libraries, expressions, publishing workflow, every nested swap override or Figma interchange semantics.
 - **Effects:** multiple drop/inner shadows, spread and layer blur; no background blur, full masks, arbitrary effect interleaving or complete Figma effect-blend semantics.

@@ -11,7 +11,7 @@ VectorSpace brings a compact UI3-style workspace to a real Uno application: an i
 
 ![VectorSpace running in the browser](docs/images/workbench.png)
 
-**Status: 0.4.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
+**Status: 0.5.0-alpha.1.** Independent implementation with original code, icons and sample artwork. Not affiliated with Figma; no `.fig` import or claim of complete Figma feature/pixel parity. See the [feature boundary](docs/FEATURES.md).
 
 ## Browser and desktop
 
@@ -162,3 +162,7 @@ See [architecture](docs/ARCHITECTURE.md), [feature boundaries](docs/FEATURES.md)
 MIT for original VectorSpace source, icons and samples. Dependencies retain their licenses; Inter is SIL OFL 1.1. Figma is a trademark of its respective owner and is referenced only for requested design/interaction behavior.
 
 Technical references: [Uno SDK](https://platform.uno/docs/articles/features/using-the-uno-sdk.html), [SKCanvasElement](https://platform.uno/docs/articles/controls/SKCanvasElement.html), [SkiaSharp](https://github.com/mono/SkiaSharp), [Figma reaction documentation](https://developers.figma.com/docs/plugins/api/Reaction/).
+
+### Direct tool editing
+
+[Tools and editing](docs/EDITING.md) covers multi-anchor editing, Bézier handles, exact subdivision, constrained drawing, clipboard placement, editable guides and tool-specific shortcuts.

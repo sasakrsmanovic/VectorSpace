@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0-alpha.1
+
+- Add reusable cubic subdivision, tangent operations, point selection/drag/marquee/nudges, exact segment insertion, contour reversal/closure and transactional primitive conversion.
+- Add direct point-editing inspector and context menu with robust history rebinding and cancellation.
+- Fix line/arrow angle constraints and zero-height geometry; preserve subpixel SVG precision and canonical resizing.
+- Improve Pen/Pencil parenting, live preview, Backspace, whole-stroke undo, simplification and tool-switch lifecycle; add persistent tools and in-drag shape adjustments.
+- Add world-pivot flips/quarter-turns, keyboard axis-preserving resizing, paste in place, spacing and editable guides; keep constrained snapping on its permitted axis.
+- Build editable SKPath geometry directly rather than serializing/parsing SVG per edit. Add a scoped geometry/allocation benchmark.
+- Add 75 engine regressions and ten actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
+
+
 ## 0.4.0-alpha.1
 
 - Add bounded PNG/JPEG/WebP importing, EXIF orientation normalization, embedded image paints, Fill/Fit/Crop/Tile, rotation and exposure/contrast/saturation controls.

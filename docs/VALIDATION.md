@@ -2,13 +2,13 @@
 
 ## Regression suites
 
-The engine regression runner contains **310 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
+The engine regression runner contains **385 cases**. It covers affine transforms, wrapping/grid layout and constraints, snapping, native document validation, safe SVG parsing, transactional history, selection and clipboard dependencies, components and variants, hit testing, PNG pixels, Boolean paths and sample rendering. Prototype coverage includes isolation, typed action execution and rollback, navigation, overlays, timers, URL policy, scrolling, interpolation, rendering and reference remapping.
 
 **Fourteen compact-JSON regressions** distinguish omitted optional literal fields from explicit nulls. Boolean, number, string and color values round-trip through the source-generated serializer. A compact conditional prototype imports, navigates and restarts without changing its source document. An explicitly null text field remains invalid; the fix does not relax document validation.
 
 The six Python publication tests validate static asset collection, source/output separation, version resolution and provenance metadata. Indexed snapping is checked against its linear reference, including a seeded randomized equivalence test and an independently retained synthetic CPU benchmark.
 
-Published-browser acceptance contains **25 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
+Published-browser acceptance contains **35 Chromium cases** using real pointer, keyboard, file-picker and clipboard input. Nine cover the editor/design-system/resize workflows; ten cover prototype playback, authoring and input boundaries; six exercise image/effect/SVG authoring and the appearance playground; ten cover tool activation, shape creation, point editing, guides, clipboard placement, persistent Pencil strokes and text transactions. Read-only `?test=1` diagnostics expose state and control bounds for the Skia-rendered UI. Tests do not execute document mutations through JavaScript.
 
 Counts describe the suite, not proof of a passing build. Check the Actions run for the exact source commit.
 
@@ -43,3 +43,7 @@ Generated `.nupkg` and `.snupkg` files are downloadable build outputs, not evide
 Actions logs and retained screenshots/traces are the source of truth for each run. Screenshots are captured from the real application, not a static mockup. Browser test mode uses a diagnostics timer that does not run in ordinary usage.
 
 Full Figma feature compatibility, pixel identity, complete native interaction coverage, broad assistive-technology certification, native `.fig` interoperability and whole-application FPS improvements are not claimed. Performance measurements must retain their workload, runtime, allocation scope and exclusions.
+
+## Tool editing (0.5)
+
+Seventy-five engine regressions cover cubic subdivision, tangent semantics, conversion, reflection, precision and native path equivalence. Ten browser workflows use real quick actions, mouse/keyboard/file input and downloaded native documents to verify all sixteen tool activations, shape adjustments, multi-anchor editing, subdivision, marquee/cancellation, pen lifecycle, guides, paste-in-place/keyboard resizing, Pencil simplification/persistence and text save/cancellation. Suite counts describe available tests; final-commit results must be checked separately.

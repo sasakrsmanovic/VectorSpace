@@ -63,7 +63,7 @@ public static partial class SvgFormat
             return element;
         }
         var shape = new XElement(Ns + "path", new XAttribute("d", VectorPath.Build(node)));
-        if (node.Kind == NodeKind.Path && node.PathWidth > 0 && node.PathHeight > 0) shape.SetAttributeValue("transform", $"scale({F(node.Width / node.PathWidth)} {F(node.Height / node.PathHeight)})");
+        if ((node.Kind == NodeKind.Path || node.PathData is not null) && node.PathWidth > 0 && node.PathHeight > 0) shape.SetAttributeValue("transform", $"scale({F(node.Width / node.PathWidth)} {F(node.Height / node.PathHeight)})");
         return shape;
     }
     public static SvgImportResult Import(string source, string name = "Imported SVG")

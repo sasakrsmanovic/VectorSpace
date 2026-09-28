@@ -82,6 +82,13 @@ internal static class BrowserDiagnostics
                 json.WriteString("imageMode", primary?.Fills.FirstOrDefault(f => f.Kind == VectorSpace.Core.FillKind.Image)?.ImageMode.ToString());
                 json.WriteNumber("imageScale", primary?.Fills.FirstOrDefault(f => f.Kind == VectorSpace.Core.FillKind.Image)?.ImageScale ?? 0);
                 json.WriteNumber("effects", primary?.Shadows.Count ?? 0);
+                json.WriteBoolean("vectorEditing", workbench.Surface.IsVectorEditing);
+                json.WriteStartArray("selectedPoints"); foreach (var index in workbench.Surface.SelectedPointIndices) json.WriteNumberValue(index); json.WriteEndArray();
+                json.WriteNumber("points", primary?.Points.Count ?? 0);
+                json.WriteNumber("sides", primary?.Sides ?? 0);
+                json.WriteNumber("guides", session.Page.Guides.Count);
+                json.WriteBoolean("interacting", session.IsInteracting);
+                json.WriteBoolean("closed", primary?.Closed ?? false);
                 json.WriteBoolean("cropping", workbench.Surface.IsImageCropping);
                 json.WriteNumber("cropX", primary?.Fills.FirstOrDefault()?.ImageOffset.X ?? 0);
                 json.WriteNumber("cropY", primary?.Fills.FirstOrDefault()?.ImageOffset.Y ?? 0);

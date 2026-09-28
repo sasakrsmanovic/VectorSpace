@@ -15,7 +15,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         public Action<SKCanvas, Size>? Draw { get; set; }
         protected override void RenderOverride(SKCanvas canvas, Size area) => Draw?.Invoke(canvas, area);
     }
-    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex, ImageCrop }
+    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex, VertexMarquee, ImageCrop }
     private readonly DrawingCanvas _canvas = new();
     private readonly Canvas _overlay = new();
     private EditorSession? _session;
@@ -28,6 +28,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private Matrix2D _resizeMatrix;
     private Guide? _guide;
     private RectD? _marquee;
+    private Vec2? _pathPreviewWorld;
     private string[] _marqueeBaseline = [];
     private SnapIndex _snapIndex = SnapIndex.Empty;
     private DesignNode? _pendingDuplicate;
@@ -56,6 +57,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         set
         {
             if (_session == value) return;
+            FinishTextEdit(false); CancelGesture();
             if (_session is not null) _session.Changed -= SessionChanged;
             ExitPresentation(); _session = value;
             if (_session is not null) _session.Changed += SessionChanged;
@@ -76,6 +78,16 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             if (Session is null || IsPresenting || IsImageCropping) return;
             if (_penNode is not null) { FinishPath(false); e.Handled = true; return; }
+            if (_vectorNode is { } vector)
+            {
+                var at = e.GetPosition(_canvas); var index = HitPoint(new(at.X, at.Y), out var handle);
+                if (index >= 0 && handle == 0)
+                {
+                    _pointSelection.Clear(); _pointSelection.Add(index);
+                    var point = vector.Points[index]; SetPointTangents(point.ControlIn is null && point.ControlOut is null ? TangentMode.Smooth : TangentMode.Corner);
+                }
+                e.Handled = true; return;
+            }
             var p = e.GetPosition(_canvas);
             var deepest = Renderer.HitTest(Session.Page.Nodes, Session.Viewport.ScreenToWorld(new(p.X, p.Y)), true, 4 / Session.Viewport.Zoom);
             if (Session.Primary is { IsContainer: true } parent && deepest is not null && deepest.IsDescendantOf(parent))
@@ -85,7 +97,12 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 Session.Select(next); e.Handled = true; return;
             }
             if (deepest?.Kind == NodeKind.Text) { BeginTextEdit(deepest); e.Handled = true; }
-            else if (deepest?.Kind == NodeKind.Path && deepest.Points.Count > 0) { Session.Select(deepest); _vectorNode = deepest; RequestFrame(); e.Handled = true; }
+            else if (deepest is not null && EditablePathConversion.Supports(deepest))
+            {
+                Session.Select(deepest);
+                try { BeginVectorEdit(); } catch (InvalidOperationException error) { StatusChanged?.Invoke(error.Message); }
+                e.Handled = true;
+            }
         };
         _canvas.RightTapped += (_, e) => { CanvasContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; };
         _canvas.SizeChanged += (_, _) =>
@@ -110,7 +127,13 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             Renderer.TrimCache(Session?.Page.AllNodes().Select(n => n.Id) ?? []); _hover = null;
             if (_vectorNode is not null) _vectorNode = Session?.Document.Find(_vectorNode.Id);
         }
-        if (e.Kind == EditorChangeKind.Tool && _penNode is not null) FinishPath(false);
+        if (e.Kind == EditorChangeKind.Tool)
+        {
+            if (_penNode is not null) CompletePath(false, false);
+            else if (Session?.IsInteracting == true && !IsTextEditing) CancelGesture();
+            if (Session?.Tool != EditorTool.Move) { _vectorNode = null; _pointSelection.Clear(); }
+        }
+        if (e.Kind is EditorChangeKind.Document or EditorChangeKind.Selection) ValidateVectorTarget();
         RequestFrame();
     }
     private void RequestFrame()
@@ -155,40 +178,22 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             editor.BeginInteraction("Add guide"); _guide = new() { Horizontal = screen.Y < 20, Position = screen.Y < 20 ? world.Y : world.X }; editor.Page.Guides.Add(_guide); _gesture = Gesture.Guide; return;
         }
-        var shift = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift); var alt = (Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu));
+        if (PressGuide(screen, world)) return;
+        var shift = Keyboard.Shift || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift); var alt = (Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu));
         if (editor.Tool == EditorTool.Comment)
         {
             var comment = editor.Document.Comments.FirstOrDefault(c => c.PageId == editor.Page.Id && !c.Resolved && c.Anchor.DistanceTo(world) * editor.Viewport.Zoom < 16);
             CommentRequested?.Invoke(world, comment); return;
         }
-        if (_vectorNode is not null && editor.Tool == EditorTool.Move)
-        {
-            _controlHandle = 0;
-            for (var i = 0; i < _vectorNode.Points.Count; i++)
-            {
-                var vertex = _vectorNode.Points[i];
-                foreach (var (controlPoint, which) in new[] { (vertex.ControlIn, -1), (vertex.ControlOut, 1) })
-                {
-                    if (controlPoint is not { } cp || editor.Viewport.WorldToScreen(_vectorNode.WorldMatrix.Map(VectorPointPosition(_vectorNode, cp))).DistanceTo(screen) >= 7) continue;
-                    editor.BeginInteraction("Move Bézier handle"); _gesture = Gesture.Vertex; _vertexIndex = i; _controlHandle = which; return;
-                }
-            }
-            for (var i = 0; i < _vectorNode.Points.Count; i++)
-            {
-                if (editor.Viewport.WorldToScreen(_vectorNode.WorldMatrix.Map(VectorPointPosition(_vectorNode, _vectorNode.Points[i].Position))).DistanceTo(screen) < 9)
-                {
-                    editor.BeginInteraction("Move vector point"); _gesture = Gesture.Vertex; _vertexIndex = i; return;
-                }
-            }
-            _vectorNode = null;
-        }
+        if (PressVectorEdit(screen, world, shift)) return;
         if (editor.Tool is EditorTool.Pen or EditorTool.Pencil) { StartPath(world, editor.Tool == EditorTool.Pencil); return; }
         if (editor.Tool is not EditorTool.Move and not EditorTool.Scale)
         {
             editor.BeginInteraction("Draw " + editor.Tool); _created = NewNode(editor.Tool, world);
-            var parent = editor.Page.AllNodes().Reverse().FirstOrDefault(n => n.IsFrame && !n.IsEffectivelyLocked && n.WorldBounds.Contains(world));
+            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
             if (_created.Kind is NodeKind.Frame or NodeKind.Section or NodeKind.Slice) parent = null;
             if (parent is not null) { var local = parent.WorldMatrix.Inverse.Map(world); _created.X = local.X; _created.Y = local.Y; }
+            if (parent?.Layout.Direction != LayoutDirection.None && parent is not null) _created.AbsolutePosition = true;
             editor.AddNode(_created, parent); editor.Select(_created); _gesture = Gesture.Create; editor.Preview(); return;
         }
         var handles = GetHandles();
@@ -235,8 +240,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private void CaptureOriginals()
     {
         _originals.Clear(); if (Session is null) return;
-        foreach (var node in Session.SelectionRoots) _originals[node.Id] = DocumentJson.CloneNode(node);
-        _startBounds = Session.SelectionBounds();
+        foreach (var node in Session.SelectionRoots.Where(n => !n.IsEffectivelyLocked)) _originals[node.Id] = DocumentJson.CloneNode(node);
+        _startBounds = Session.SelectionRoots.Where(n => _originals.ContainsKey(n.Id)).Select(n => n.WorldBounds).DefaultIfEmpty().Aggregate(RectD.Union);
         var roots = Session.SelectionRoots;
         _snapIndex = new SnapIndex(Session.Page.AllNodes().Where(n => n.IsEffectivelyVisible && !Session.SelectedIds.Contains(n.Id) && !roots.Any(n.IsDescendantOf)).Select(n => n.WorldBounds), Session.Page.Guides);
     }
@@ -250,7 +255,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             var points = _touches.Values.Take(2).ToArray(); var center = (points[0] + points[1]) / 2; var ratio = points[0].DistanceTo(points[1]) / _pinchDistance;
             editor.Viewport.ZoomAt(_pinchZoom, Vec2.Zero); editor.Viewport.Pan = _pinchPan; editor.Viewport.ZoomAt(_pinchZoom * ratio, _pinchCenter); editor.Viewport.Pan += center - _pinchCenter; editor.Notify(EditorChangeKind.Viewport); return;
         }
-        var shift = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift);
+        var shift = Keyboard.Shift || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift);
         switch (_gesture)
         {
             case Gesture.ImageCrop: MoveImageCrop(world); break;
@@ -271,7 +276,14 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 if (editor.SnapEnabled && !e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control))
                 {
                     var moving = _startBounds with { X = _startBounds.X + delta.X, Y = _startBounds.Y + delta.Y };
-                    var snap = _snapIndex.Snap(moving, 5 / editor.Viewport.Zoom); delta += snap.Correction; _snapLines = snap.Lines;
+                    var snap = _snapIndex.Snap(moving, 5 / editor.Viewport.Zoom);
+                    if (shift)
+                    {
+                        var horizontal = Math.Abs(delta.X) >= Math.Abs(delta.Y);
+                        delta += horizontal ? new Vec2(snap.Correction.X, 0) : new Vec2(0, snap.Correction.Y);
+                        _snapLines = snap.Lines.Where(line => line.Horizontal != horizontal).ToArray();
+                    }
+                    else { delta += snap.Correction; _snapLines = snap.Lines; }
                 }
                 foreach (var node in editor.SelectionRoots)
                 {
@@ -288,12 +300,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 editor.Preview(false); break;
             case Gesture.Create:
                 if (_created is null) break;
-                var matrix = _created.Parent?.WorldMatrix.Inverse ?? Matrix2D.Identity; var a = matrix.Map(_startWorld); var b = matrix.Map(world); var d2 = b - a;
-                if (shift) { var size = Math.Max(Math.Abs(d2.X), Math.Abs(d2.Y)); b = a + new Vec2(Math.Sign(d2.X) * size, Math.Sign(d2.Y) * size); }
-                var box = RectD.FromPoints(a, b);
-                if ((Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu))) box = new(a.X - Math.Abs(b.X - a.X), a.Y - Math.Abs(b.Y - a.Y), Math.Abs(b.X - a.X) * 2, Math.Abs(b.Y - a.Y) * 2);
-                _created.X = box.X; _created.Y = box.Y; _created.Width = Math.Max(1, box.Width); _created.Height = Math.Max(1, box.Height);
-                if (_created.Kind is NodeKind.Line or NodeKind.Arrow) { _created.FlipX = b.X < a.X; _created.FlipY = b.Y < a.Y; }
+                var matrix = _created.Parent?.WorldMatrix.Inverse ?? Matrix2D.Identity;
+                DrawingGeometry.Apply(_created, matrix.Map(_startWorld), matrix.Map(world), shift, Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu));
                 editor.Preview(); break;
             case Gesture.Marquee:
                 _marquee = RectD.FromPoints(_startWorld, world);
@@ -308,31 +316,10 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             case Gesture.PenControl:
                 if (_penNode is null || screen.DistanceTo(_startScreen) < 3) break;
                 var control = _penNode.WorldMatrix.Inverse.Map(world); var last = _penNode.Points[^1]; last.ControlOut = control; last.ControlIn = last.Position * 2 - control; editor.Preview(); break;
-            case Gesture.Vertex:
-                if (_vectorNode is null) break;
-                var vertex = _vectorNode.Points[_vertexIndex]; var position = _vectorNode.WorldMatrix.Inverse.Map(world);
-                if (_vectorNode.PathWidth > 0 && _vectorNode.PathHeight > 0) position = new(position.X * _vectorNode.PathWidth / _vectorNode.Width, position.Y * _vectorNode.PathHeight / _vectorNode.Height);
-                if (_controlHandle != 0)
-                {
-                    var opposite = _controlHandle < 0 ? vertex.ControlOut : vertex.ControlIn;
-                    if (_controlHandle < 0) vertex.ControlIn = position; else vertex.ControlOut = position;
-                    if (!(Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)) && opposite is { } other)
-                    {
-                        var vector = position - vertex.Position; var length = vector.Length;
-                        if (length > 1e-9)
-                        {
-                            var mirrored = vertex.Position - vector * (other.DistanceTo(vertex.Position) / length);
-                            if (_controlHandle < 0) vertex.ControlOut = mirrored; else vertex.ControlIn = mirrored;
-                        }
-                    }
-                }
-                else
-                {
-                    var change = position - vertex.Position; vertex.Position = position;
-                    if (vertex.ControlIn.HasValue) vertex.ControlIn += change; if (vertex.ControlOut.HasValue) vertex.ControlOut += change;
-                }
-                editor.Preview(false); break;
+            case Gesture.Vertex: case Gesture.VertexMarquee:
+                MoveVectorEdit(screen, world, shift, Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)); break;
             default:
+                if (_penNode is not null) { _pathPreviewWorld = world; RequestFrame(); break; }
                 if (editor.Tool is EditorTool.Move or EditorTool.Scale) { var hover = Hit(world, screen, e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control)); if (_hover != hover) { _hover = hover; RequestFrame(); } }
                 break;
         }
@@ -344,6 +331,16 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         var gesture = _gesture; _gesture = Gesture.None;
         _canvas.ReleasePointerCapture(e.Pointer); e.Handled = true;
         if (gesture == Gesture.Pinch) return;
+        if (gesture is Gesture.Vertex or Gesture.VertexMarquee)
+        {
+            FinishPointGesture(gesture == Gesture.VertexMarquee); return;
+        }
+        if (gesture == Gesture.Guide && _guide is { } movedGuide)
+        {
+            var p = e.GetCurrentPoint(_canvas).Position;
+            if ((movedGuide.Horizontal ? p.Y : p.X) < 20 || p.X < 0 || p.Y < 0 || p.X > _canvas.ActualWidth || p.Y > _canvas.ActualHeight)
+                editor.Page.Guides.Remove(movedGuide);
+        }
         if (gesture == Gesture.ImageCrop && CropTarget(out var cropped, out _)) ComponentService.SetAppearanceOverride(cropped, true, false);
         if (gesture == Gesture.Marquee && _marquee is { } box)
         {
@@ -353,7 +350,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (gesture == Gesture.Create && _created is not null)
         {
             if (_created.Width < 3 && _created.Height < 3) { _created.Width = _created.Kind == NodeKind.Text ? 180 : 100; _created.Height = _created.Kind == NodeKind.Text ? 32 : 100; }
-            var node = _created; _created = null; editor.CommitInteraction(); editor.Tool = EditorTool.Move;
+            var node = _created; _created = null; editor.CommitInteraction(); if (!KeepDrawingTool) editor.Tool = EditorTool.Move;
             if (node.Kind == NodeKind.Text) BeginTextEdit(node);
         }
         else if (gesture == Gesture.Pencil) FinishPath(false);
@@ -372,8 +369,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     public void CancelGesture()
     {
-        _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _vectorNode = null;
-        Session?.CancelInteraction(); RequestFrame();
+        _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _pathPreviewWorld = null; _vectorNode = null; _pointSelection.Clear(); _pointMarquee = null;
+        Session?.CancelInteraction(); _canvas.ReleasePointerCaptures(); RequestFrame();
     }
     private static DesignNode NewNode(EditorTool tool, Vec2 point)
     {
@@ -390,32 +387,42 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (Session is not { } editor) return;
         if (_penNode is null)
         {
-            editor.BeginInteraction(pencil ? "Draw freehand path" : "Draw vector path"); _penNode = new() { Kind = NodeKind.Path, Name = pencil ? "Pencil" : "Vector", X = world.X, Y = world.Y, Width = 1, Height = 1, Fills = [], Strokes = [new() { Color = "#333333", Width = 2 }] }; editor.AddNode(_penNode); editor.Select(_penNode);
+            editor.BeginInteraction(pencil ? "Draw freehand path" : "Draw vector path");
+            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
+            var origin = parent?.WorldMatrix.Inverse.Map(world) ?? world;
+            _penNode = new() { Kind = NodeKind.Path, Name = pencil ? "Pencil" : "Vector", X = origin.X, Y = origin.Y, Width = 1, Height = 1, Fills = [], Strokes = [new() { Color = "#333333", Width = 2 }], AbsolutePosition = parent is not null && parent.Layout.Direction != LayoutDirection.None };
+            editor.AddNode(_penNode, parent); editor.Select(_penNode);
         }
         var local = _penNode.WorldMatrix.Inverse.Map(world);
         if (!pencil && _penNode.Points.Count >= 3 && _penNode.Points[0].Position.DistanceTo(local) * editor.Viewport.Zoom < 8) { FinishPath(true); return; }
+        if (!pencil && Keyboard.Shift && _penNode.Points.Count > 0)
+            local = _penNode.Points[^1].Position + DrawingGeometry.ConstrainAngle(local - _penNode.Points[^1].Position);
         _penNode.Points.Add(new() { Position = local }); _gesture = pencil ? Gesture.Pencil : Gesture.PenControl; editor.Preview();
     }
-    public void FinishPath(bool closed)
+    public void FinishPath(bool closed) => CompletePath(closed, true);
+    private void CompletePath(bool closed, bool returnToMove)
     {
         if (Session is not { } editor || _penNode is null) return;
-        var node = _penNode; _penNode = null; _gesture = Gesture.None;
+        var node = _penNode; _penNode = null; _pathPreviewWorld = null; _gesture = Gesture.None;
         if (node.Points.Count < 2) { editor.CancelInteraction(); return; }
         node.Closed = closed;
+        if (node.Name == "Pencil" && !closed) PathEditing.Simplify(node, FreehandTolerance / editor.Viewport.Zoom);
         using var path = SKPath.ParseSvgPathData(VectorPath.Build(node)); var bounds = path?.TightBounds ?? default;
         var offset = new Vec2(bounds.Left, bounds.Top);
         foreach (var point in node.Points) { point.Position -= offset; if (point.ControlIn.HasValue) point.ControlIn -= offset; if (point.ControlOut.HasValue) point.ControlOut -= offset; }
         node.X += offset.X; node.Y += offset.Y; node.Width = node.PathWidth = Math.Max(1, bounds.Width); node.Height = node.PathHeight = Math.Max(1, bounds.Height);
-        editor.CommitInteraction(); editor.Tool = EditorTool.Move;
+        editor.CommitInteraction(); if (returnToMove && !KeepDrawingTool) editor.Tool = EditorTool.Move;
     }
     public void BeginTextEdit(DesignNode node)
     {
         if (Session is not { } editor || node.IsEffectivelyLocked) return;
-        FinishTextEdit(true); if (editor.IsInteracting) editor.CommitInteraction(); editor.Select(node); editor.BeginInteraction("Edit text"); _textNode = node;
+        EndVectorEdit(); FinishTextEdit(true); if (editor.IsInteracting) editor.CommitInteraction(); editor.Select(node); editor.BeginInteraction("Edit text"); _textNode = node;
         var bounds = node.WorldBounds; var topLeft = editor.Viewport.WorldToScreen(new(bounds.X, bounds.Y));
         var box = Studio.Input(node.Text, "Edit canvas text"); box.AcceptsReturn = true; box.TextWrapping = TextWrapping.Wrap; box.FontSize = Math.Max(8, node.FontSize * editor.Viewport.Zoom); box.Width = Math.Max(80, bounds.Width * editor.Viewport.Zoom + 12); box.Height = Math.Max(40, bounds.Height * editor.Viewport.Zoom + 12); box.Background = Studio.Brush("#FFFFFF"); box.BorderBrush = Studio.Brush(Studio.Accent); box.Padding = new(4); _textEditor = box;
         Canvas.SetLeft(box, topLeft.X - 4); Canvas.SetTop(box, topLeft.Y - 4); _overlay.Children.Add(box);
-        box.TextChanged += (_, _) => { if (_textNode is null) return; _textNode.Text = box.Text; ComponentService.SetOverride(_textNode, text: box.Text); };
+        // TextChanged is asynchronous; immediate Save/Enter can otherwise commit the
+        // previous value. Synchronize model data without touching the visual tree here.
+        box.TextChanging += (_, _) => { if (!ReferenceEquals(_textEditor, box) || _textNode is null) return; _textNode.Text = box.Text; ComponentService.SetOverride(_textNode, text: box.Text); };
         box.LostFocus += (_, _) => { if (!_finishingText) FinishTextEdit(true); };
         box.KeyDown += (_, e) => { if (e.Key == VirtualKey.Escape) { FinishTextEdit(false); e.Handled = true; } else if (e.Key == VirtualKey.Enter && Keyboard.Control) { FinishTextEdit(true); e.Handled = true; } };
         box.Focus(FocusState.Programmatic); box.SelectAll();
@@ -423,12 +430,27 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     public void FinishTextEdit(bool commit)
     {
         if (_textEditor is null || _finishingText) return;
-        _finishingText = true; var box = _textEditor; _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
-        if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); _finishingText = false; RequestFrame();
+        _finishingText = true; var box = _textEditor;
+        var returnFocus = box.FocusState != FocusState.Unfocused;
+        if (commit && _textNode is { } node)
+        {
+            // Read the editor synchronously before teardown as a final commit barrier.
+            node.Text = box.Text; ComponentService.SetOverride(node, text: box.Text);
+        }
+        _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
+        try { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }
+        finally
+        {
+            _finishingText = false;
+            // Completing/canceling a focused editor must not leave keyboard input on
+            // its removed text box. A normal LostFocus to an inspector keeps that focus.
+            if (returnFocus && !_disposed) FocusCanvas();
+            RequestFrame();
+        }
     }
     public new void Dispose()
     {
-        if (_disposed) return; ExitPresentation(); _disposed = true; if (_session is not null) _session.Changed -= SessionChanged; Renderer.Dispose();
+        if (_disposed) return; FinishTextEdit(false); CancelGesture(); ExitPresentation(); _disposed = true; if (_session is not null) _session.Changed -= SessionChanged; Renderer.Dispose();
     }
 }
 

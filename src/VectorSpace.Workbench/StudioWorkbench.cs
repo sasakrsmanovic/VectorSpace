@@ -51,6 +51,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         reveal.Visibility = Visibility.Collapsed; canvasArea.Children.Add(reveal);
         Content = _root;
         Session.Changed += OnSessionChanged;
+        Surface.VectorSelectionChanged += RefreshInspector;
         Surface.CommentRequested += (anchor, thread) => RunAsync(() => EditCommentAsync(anchor, thread));
         Surface.CanvasContextRequested += ShowCanvasMenu;
         Surface.StatusChanged += message => ShowStatus(message);
@@ -160,7 +161,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
             if (_createComponentButton is not null) _createComponentButton.IsEnabled = Session.SelectionRoots.Count == 1;
         }
         else if (e.Kind == EditorChangeKind.Viewport) _zoom.Content = Numbers.Format(Session.Viewport.Zoom * 100) + "%⌄";
-        else if (e.Kind == EditorChangeKind.Tool) RefreshTools();
+        else if (e.Kind == EditorChangeKind.Tool) { RefreshTools(); RefreshInspector(); }
     }
     private void RefreshAll()
     {

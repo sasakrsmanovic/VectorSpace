@@ -219,7 +219,8 @@ public sealed partial class EditorSession
         }).ToList();
         return DocumentJson.Save(new DesignDocument { Id = Document.Id, Name = "Clipboard", Pages = [new() { Nodes = nodes }], VariableCollections = Document.VariableCollections, Variables = Document.Variables, VariableModes = Document.VariableModes });
     }
-    public void Paste(string json)
+    public void Paste(string json) => Paste(json, false);
+    public void Paste(string json, bool inPlace)
     {
         DesignDocument? clipboard = null;
         List<DesignNode> nodes;
@@ -229,7 +230,7 @@ public sealed partial class EditorSession
         Edit("Paste layers", () =>
         {
             if (clipboard is not null) ImportClipboardVariables(clipboard, nodes);
-            _selected.Clear(); foreach (var n in nodes) { n.X += 24; n.Y += 24; AddNode(n); _selected.Add(n.Id); }
+            _selected.Clear(); foreach (var n in nodes) { if (!inPlace) { n.X += 24; n.Y += 24; } AddNode(n); _selected.Add(n.Id); }
         });
     }
     private void ImportClipboardVariables(DesignDocument clipboard, List<DesignNode> nodes)

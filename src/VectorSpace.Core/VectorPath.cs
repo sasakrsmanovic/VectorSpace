@@ -46,6 +46,6 @@ public static class VectorPath
         if (a.ControlOut.HasValue || b.ControlIn.HasValue) builder.Append('C').Append(P(a.ControlOut ?? a.Position)).Append(' ').Append(P(b.ControlIn ?? b.Position)).Append(' ').Append(P(b.Position));
         else builder.Append('L').Append(P(b.Position));
     }
-    private static string N(double n) => Numbers.Format(n);
+    private static string N(double n) => n.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
     private static string P(Vec2 p) => N(p.X) + " " + N(p.Y);
 }

@@ -12,6 +12,7 @@ public sealed partial class StudioWorkbench
         _inspector.Children.Clear();
         if (_prototype) { BuildPrototypeInspector(); return; }
         var node = Session.Primary;
+        BuildEditingInspector(node);
         if (node is null)
         {
             var page = AddSection("Page"); page.Body.Children.Add(Studio.Columns((new ColorField(Session.Page.Background, c => Run(() => Session.Edit("Canvas background", () => Session.Page.Background = c))), -1), (Studio.Text("100%", 11, Studio.Muted), 42)));
@@ -40,8 +41,8 @@ public sealed partial class StudioWorkbench
         foreach (var name in new[] { "left", "center", "right", "top", "middle", "bottom" }) align.Children.Add(new IconButton(name, "Align " + name, () => Run(() => Session.Align(name))) { Width = 30, Height = 26 });
         position.Body.Children.Add(align);
         position.Body.Children.Add(Studio.Columns((Number("X", node.X, v => Change("Change X", n => n.X = v)), -1), (Number("Y", node.Y, v => Change("Change Y", n => n.Y = v)), -1)));
-        var flip = new IconButton("flip", "Flip horizontally", () => Change("Flip horizontal", n => n.FlipX = !n.FlipX));
-        var flipY = new IconButton("flip", "Flip vertically", () => Change("Flip vertical", n => n.FlipY = !n.FlipY)) { RenderTransform = new RotateTransform { Angle = 90 }, RenderTransformOrigin = new(.5, .5) };
+        var flip = new IconButton("flip", "Flip horizontally", () => Run(() => Session.FlipSelection(true)));
+        var flipY = new IconButton("flip", "Flip vertically", () => Run(() => Session.FlipSelection(false))) { RenderTransform = new RotateTransform { Angle = 90 }, RenderTransformOrigin = new(.5, .5) };
         position.Body.Children.Add(Studio.Columns((Number("°", node.Rotation, v => Change("Rotate", n => n.Rotation = v)), -1), (flip, 30), (flipY, 30)));
         var size = AddSection("Layout", "plus", AddAutoLayout);
         var chain = new IconButton("link", "Lock aspect ratio", () => _aspectLocked = !_aspectLocked) { IsSelected = _aspectLocked, Width = 24 };
@@ -133,7 +134,9 @@ public sealed partial class StudioWorkbench
         {
             var w = width ?? node.Width; var h = height ?? node.Height;
             if (_aspectLocked) { if (width.HasValue) h = node.Height * w / Math.Max(1, node.Width); else w = node.Width * h / Math.Max(1, node.Height); }
-            node.Layout.HugWidth = node.Layout.HugHeight = false; LayoutEngine.Resize(node, w, h);
+            if (width.HasValue || _aspectLocked) { node.Layout.HugWidth = false; node.FillWidth = false; }
+            if (height.HasValue || _aspectLocked) { node.Layout.HugHeight = false; node.FillHeight = false; }
+            LayoutEngine.Resize(node, w, h);
         });
     }
     private void BuildTypography(DesignNode node)

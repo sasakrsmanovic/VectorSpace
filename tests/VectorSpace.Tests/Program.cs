@@ -6,6 +6,7 @@ using VectorSpace.Editing;
 using VectorSpace.Layout;
 using VectorSpace.Skia;
 
+if (args.Contains("--benchmark-editing")) return EditingBenchmarks.Run();
 if (args.Contains("--benchmark-appearance")) return AppearanceBenchmarks.Run();
 if (args.Contains("--benchmark")) return PerformanceBenchmarks.Run();
 
@@ -79,6 +80,8 @@ PrototypeTests.Register(Test);
 VariableJsonTests.Register(Test);
 AppearanceTests.Register(Test);
 ImageAdmissionTests.Register(Test);
+ToolEditingTests.Register(Test);
+DrawingTargetTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }
