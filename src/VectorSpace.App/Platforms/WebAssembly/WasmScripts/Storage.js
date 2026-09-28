@@ -36,6 +36,24 @@
       };
       input.click();
     }),
+    openImage: () => new Promise((resolve, reject) => {
+      const input = document.createElement("input"); input.type = "file";
+      input.accept = ".png,.jpg,.jpeg,.webp"; input.style.display = "none"; document.body.append(input);
+      input.oncancel = () => { input.remove(); resolve(""); };
+      input.onchange = async () => {
+        try {
+          const file = input.files?.[0]; if (!file) { resolve(""); return; }
+          if (file.size > 8 * 1024 * 1024) throw new Error("Images are limited to 8 MiB.");
+          const data = await new Promise((ok, fail) => {
+            const reader = new FileReader(); reader.onload = () => ok(reader.result);
+            reader.onerror = () => fail(reader.error); reader.onabort = () => fail(new Error("Image read canceled."));
+            reader.readAsDataURL(file);
+          });
+          resolve(JSON.stringify({ name: file.name, data }));
+        } catch (error) { reject(error); } finally { input.remove(); }
+      };
+      input.click();
+    }),
     download: async (name, base64, contentType) => {
       const binary = atob(base64); const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

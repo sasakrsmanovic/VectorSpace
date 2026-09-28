@@ -24,29 +24,23 @@ public static partial class SvgFormat
         if (!node.Visible || node.Kind == NodeKind.Slice) return null;
         var group = new XElement(Ns + "g", new XAttribute("id", "layer-" + node.Id), new XAttribute("data-name", node.Name), new XAttribute("transform", Transform(world ? node.WorldMatrix : node.LocalMatrix)), new XAttribute("opacity", F(node.Opacity)));
         if (node.Blend != BlendKind.Normal) group.SetAttributeValue("style", "mix-blend-mode:" + node.Blend.ToString().ToLowerInvariant());
-        var shadow = node.Shadows.FirstOrDefault(s => s.Visible);
-        if (shadow is not null)
+        if (node.Shadows.Any(s => s.Visible))
         {
-            var filterId = "shadow-" + node.Id;
-            defs.Add(new XElement(Ns + "filter", new XAttribute("id", filterId), new XAttribute("x", "-100%"), new XAttribute("y", "-100%"), new XAttribute("width", "300%"), new XAttribute("height", "300%"), new XElement(Ns + "feDropShadow", new XAttribute("dx", F(shadow.X)), new XAttribute("dy", F(shadow.Y)), new XAttribute("stdDeviation", F(shadow.Blur / 2)), new XAttribute("flood-color", shadow.Color), new XAttribute("flood-opacity", F(shadow.Opacity)))));
-            group.SetAttributeValue("filter", "url(#" + filterId + ")");
+            var filterId = "effects-" + node.Id; defs.Add(ExportEffects(node, filterId)); group.SetAttributeValue("filter", "url(#" + filterId + ")");
         }
         for (var i = 0; i < node.Fills.Count; i++)
         {
             var fill = node.Fills[i]; if (!fill.Visible) continue; var color = fill.Color;
-            if (fill.Kind != FillKind.Solid)
+            if (fill.Kind == FillKind.Image) { group.Add(ExportImage(fill, node, defs, $"paint-{node.Id}-{i}")); continue; }
+            if (fill.Kind is FillKind.LinearGradient or FillKind.RadialGradient)
             {
-                var id = $"paint-{node.Id}-{i}";
-                var gradient = new XElement(Ns + (fill.Kind == FillKind.LinearGradient ? "linearGradient" : "radialGradient"), new XAttribute("id", id));
-                if (fill.Kind == FillKind.LinearGradient) { gradient.SetAttributeValue("x1", F(fill.Start.X)); gradient.SetAttributeValue("y1", F(fill.Start.Y)); gradient.SetAttributeValue("x2", F(fill.End.X)); gradient.SetAttributeValue("y2", F(fill.End.Y)); }
-                foreach (var stop in fill.Stops.OrderBy(s => s.Offset)) gradient.Add(new XElement(Ns + "stop", new XAttribute("offset", F(stop.Offset)), new XAttribute("stop-color", stop.Color)));
-                defs.Add(gradient); color = "url(#" + id + ")";
+                var id = $"paint-{node.Id}-{i}"; defs.Add(ExportGradient(fill, node, id)); color = "url(#" + id + ")";
             }
-            var shape = Shape(node); shape.SetAttributeValue("fill", color); shape.SetAttributeValue("fill-opacity", F(fill.Opacity)); shape.SetAttributeValue("stroke", "none"); group.Add(shape);
+            var shape = Shape(node); shape.SetAttributeValue("fill", CssColor(color).Color); shape.SetAttributeValue("fill-opacity", F(fill.Opacity * CssColor(color).Alpha)); if (fill.Blend != BlendKind.Normal) shape.SetAttributeValue("style", "mix-blend-mode:" + fill.Blend.ToString().ToLowerInvariant()); shape.SetAttributeValue("stroke", "none"); group.Add(shape);
         }
         foreach (var stroke in node.Strokes.Where(s => s.Visible))
         {
-            var shape = Shape(node); shape.SetAttributeValue("fill", "none"); shape.SetAttributeValue("stroke", stroke.Color); shape.SetAttributeValue("stroke-width", F(stroke.Width)); shape.SetAttributeValue("stroke-opacity", F(stroke.Opacity)); shape.SetAttributeValue("stroke-linejoin", "round"); shape.SetAttributeValue("stroke-linecap", "round");
+            var shape = Shape(node); shape.SetAttributeValue("fill", "none"); shape.SetAttributeValue("stroke", CssColor(stroke.Color).Color); shape.SetAttributeValue("stroke-width", F(stroke.Width)); shape.SetAttributeValue("stroke-opacity", F(stroke.Opacity * CssColor(stroke.Color).Alpha)); shape.SetAttributeValue("stroke-linejoin", "round"); shape.SetAttributeValue("stroke-linecap", "round");
             if (stroke.Dashes.Count > 0) shape.SetAttributeValue("stroke-dasharray", string.Join(" ", stroke.Dashes.Select(F))); group.Add(shape);
         }
         var children = new XElement(Ns + "g");
@@ -82,6 +76,7 @@ public static partial class SvgFormat
         var warnings = new HashSet<string>(); var viewBox = Values(root.Attribute("viewBox")?.Value);
         var width = Number(root, "width", viewBox.Length == 4 ? viewBox[2] : 800); var height = Number(root, "height", viewBox.Length == 4 ? viewBox[3] : 600);
         var frame = new DesignNode { Kind = NodeKind.Frame, Name = name, Width = Math.Max(1, width), Height = Math.Max(1, height), Fills = [], ClipContent = true };
+        var definitions = root.Descendants().Where(e => e.Attribute("id") is not null).GroupBy(e => e.Attribute("id")!.Value).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var count = 0;
         foreach (var child in root.Elements())
         {
@@ -89,8 +84,8 @@ public static partial class SvgFormat
         }
         if (viewBox.Length == 4 && viewBox[2] > 0 && viewBox[3] > 0)
         {
-            var transform = Matrix2D.Translation(-viewBox[0], -viewBox[1]) * Matrix2D.Scale(width / viewBox[2], height / viewBox[3]);
-            foreach (var n in frame.Children) NodeGeometry.SetLocalMatrix(n, n.LocalMatrix * transform);
+            var transform = SvgViewBoxTransform(viewBox, width, height, root.Attribute("preserveAspectRatio")?.Value);
+            foreach (var n in frame.Children) ApplySvgTransform(n, n.LocalMatrix * transform, warnings);
         }
         var document = new DesignDocument { Name = name, Pages = [new() { Nodes = [frame] }] }; document.RebuildParents(); DocumentJson.Validate(document); return new(document, warnings.ToArray());
         DesignNode? Read(XElement element, int depth)
@@ -98,10 +93,17 @@ public static partial class SvgFormat
             if (++count > DocumentJson.MaxNodes || depth > 60) throw new InvalidDataException("SVG node or nesting limit exceeded.");
             var kind = element.Name.LocalName;
             if (kind is "defs" or "title" or "desc" or "metadata") return null;
-            if (kind is "script" or "foreignObject" or "image" or "use" or "style" or "filter" or "clipPath" or "mask") { warnings.Add($"{kind} elements were not imported."); return null; }
+            if (kind is "script" or "foreignObject" or "use" or "style" or "filter" or "clipPath" or "mask") { warnings.Add($"{kind} elements were not imported."); return null; }
             var node = new DesignNode { Name = element.Attribute("data-name")?.Value ?? element.Attribute("id")?.Value ?? kind, X = Number(element, "x"), Y = Number(element, "y"), Width = Number(element, "width", width), Height = Number(element, "height", height), Fills = [] };
             switch (kind)
             {
+                case "image":
+                    var data = element.Attribute("href")?.Value ?? element.Attribute(XName.Get("href", "http://www.w3.org/1999/xlink"))?.Value;
+                    if (data is null || !data.StartsWith("data:image/", StringComparison.Ordinal)) { warnings.Add("External image elements were not imported."); return null; }
+                    EmbeddedImage.Validate(data);
+                    var aspect = element.Attribute("preserveAspectRatio")?.Value ?? "xMidYMid meet";
+                    if (!aspect.StartsWith("xMidYMid", StringComparison.Ordinal)) warnings.Add("Non-centered SVG image alignment is imported as centered meet/slice.");
+                    node.Kind = NodeKind.Rectangle; node.Fills.Add(new() { Kind = FillKind.Image, ImageData = data, ImageMode = aspect.Contains("slice", StringComparison.Ordinal) ? ImageScaleMode.Fill : ImageScaleMode.Fit }); break;
                 case "g": case "svg": node.Kind = NodeKind.Group; node.X = node.Y = 0; break;
                 case "rect": node.Kind = NodeKind.Rectangle; node.CornerRadius = Number(element, "rx"); break;
                 case "circle": var radius = Number(element, "r"); node.Kind = NodeKind.Ellipse; node.Width = node.Height = radius * 2; node.X = Number(element, "cx") - radius; node.Y = Number(element, "cy") - radius; break;
@@ -112,17 +114,19 @@ public static partial class SvgFormat
                 case "text": node.Kind = NodeKind.Text; node.Text = element.Value; node.FontSize = Number(element, "font-size", 16); node.FontFamily = element.Attribute("font-family")?.Value ?? "Inter"; node.FontWeight = (int)Number(element, "font-weight", 400); node.Y -= node.FontSize; node.Width = Math.Max(1, node.Text.Length * node.FontSize * .6); node.Height = node.FontSize * 1.3; break;
                 default: warnings.Add($"{kind} elements were not imported."); return null;
             }
-            string? Attribute(string key) => element.Attribute(key)?.Value ?? Style(element, key) ?? element.Ancestors().Select(a => a.Attribute(key)?.Value ?? Style(a, key)).FirstOrDefault(v => v is not null);
+            string? Attribute(string key) => Style(element, key) ?? element.Attribute(key)?.Value ?? element.Ancestors().Select(a => Style(a, key) ?? a.Attribute(key)?.Value).FirstOrDefault(v => v is not null);
             var fill = Attribute("fill") ?? "#000000";
-            if (kind is not "g" and not "svg" && fill != "none")
+            if (kind is not "g" and not "svg" and not "image" && fill != "none")
             {
-                if (fill.StartsWith("url", StringComparison.OrdinalIgnoreCase)) { warnings.Add("Referenced paint servers currently import as a solid fill."); fill = "#A78BFA"; }
-                node.Fills.Add(new() { Color = fill, Opacity = Numbers.Parse(Attribute("fill-opacity") ?? "1", 1) });
+                var paint = fill.StartsWith("url", StringComparison.OrdinalIgnoreCase) ? ReadGradient(fill, definitions, node, viewBox.Length == 4 ? viewBox[2] : width, viewBox.Length == 4 ? viewBox[3] : height, warnings) : new FillStyle { Color = ImportCssColor(fill) };
+                if (paint is not null) { paint.Opacity = Math.Clamp(Numbers.Parse(Attribute("fill-opacity") ?? "1", 1), 0, 1); node.Fills.Add(paint); }
             }
-            var stroke = Attribute("stroke"); if (stroke is not null && stroke != "none") node.Strokes.Add(new() { Color = stroke, Width = Numbers.Parse(Attribute("stroke-width") ?? "1", 1), Opacity = Numbers.Parse(Attribute("stroke-opacity") ?? "1", 1) });
-            node.Opacity = Number(element, "opacity", 1); node.Visible = Attribute("display") != "none" && Attribute("visibility") != "hidden";
-            if (element.Attribute("transform") is { } attribute) NodeGeometry.SetLocalMatrix(node, node.LocalMatrix * ParseTransform(attribute.Value));
+            var stroke = Attribute("stroke"); if (stroke is not null && stroke != "none") node.Strokes.Add(new() { Color = ImportCssColor(stroke), Width = Numbers.Parse(Attribute("stroke-width") ?? "1", 1), Opacity = Numbers.Parse(Attribute("stroke-opacity") ?? "1", 1) });
+            node.Opacity = Numbers.Parse(Style(element, "opacity") ?? element.Attribute("opacity")?.Value ?? "1", 1);
+            if (Attribute("filter") is not null) warnings.Add("SVG filter graphs are exported but are not imported as editable layer effects.");
+            if (Attribute("clip-path") is not null || Attribute("mask") is not null) warnings.Add("Referenced SVG clips and masks are not imported."); node.Visible = Attribute("display") != "none" && Attribute("visibility") != "hidden";
             if (kind is "g" or "svg") foreach (var child in element.Elements()) { var c = Read(child, depth + 1); if (c is not null) node.Add(c); }
+            if (element.Attribute("transform") is { } attribute) ApplySvgTransform(node, node.LocalMatrix * ParseTransform(attribute.Value), warnings);
             return node;
         }
     }

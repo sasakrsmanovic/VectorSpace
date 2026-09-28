@@ -19,8 +19,9 @@ public sealed class NumericField : UserControl
     {
         _input = Studio.Input(); _input.Background = Studio.Brush("#00FFFFFF"); _input.Padding = new(1, 4, 5, 4);
         AutomationProperties.SetName(_input, label); ToolTipService.SetToolTip(_input, label);
-        var prefix = new Border { Width = 28, Background = Studio.Brush("#00FFFFFF"), Child = Studio.Text(label, 10, Studio.Muted), Padding = new(8, 0, 0, 0) };
-        _root = new Border { Background = Studio.Brush(Studio.Field), CornerRadius = new(5), Child = Studio.Columns((prefix, 28), (_input, -1)), Height = 30 };
+        var labelWidth = Math.Clamp(label.Length * 6 + 12, 28, 68);
+        var prefix = new Border { Width = labelWidth, Background = Studio.Brush("#00FFFFFF"), Child = Studio.Text(label, 10, Studio.Muted), Padding = new(8, 0, 0, 0) };
+        _root = new Border { Background = Studio.Brush(Studio.Field), CornerRadius = new(5), Child = Studio.Columns((prefix, labelWidth), (_input, -1)), Height = 30 };
         ((Grid)_root.Child).ColumnSpacing = 0; Content = _root; Value = value;
         if (commit is not null) ValueCommitted += commit;
         _input.LostFocus += (_, _) => Commit();

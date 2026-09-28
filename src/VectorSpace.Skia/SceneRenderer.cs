@@ -28,7 +28,7 @@ public sealed partial class SceneRenderer : IDisposable
     public void SetTypeface(SKTypeface typeface) { _textLines.Clear(); _customTypeface?.Dispose(); _customTypeface = typeface; }
     public void ClearCache()
     {
-        foreach (var p in _paths.Values) p.Path.Dispose(); _paths.Clear(); _recency.Clear(); _textLines.Clear();
+        ClearAppearance(); foreach (var p in _paths.Values) p.Path.Dispose(); _paths.Clear(); _recency.Clear(); _textLines.Clear();
     }
     public static SKColor Color(string? hex, double opacity = 1)
     {
@@ -41,6 +41,8 @@ public sealed partial class SceneRenderer : IDisposable
     {
         var active = activeIds.ToHashSet(StringComparer.Ordinal);
         foreach (var id in _paths.Keys.Where(id => !active.Contains(id)).ToArray()) RemoveCached(id);
+        foreach (var key in _gradients.Keys.Where(k => !active.Contains(k.NodeId)).ToArray()) { _gradients[key].Shader.Dispose(); _gradients.Remove(key); }
+        foreach (var id in _effects.Keys.Where(id => !active.Contains(id)).ToArray()) { _effects[id].Filter?.Dispose(); _effects.Remove(id); }
     }
     private void RemoveCached(string id)
     {
@@ -90,7 +92,7 @@ public sealed partial class SceneRenderer : IDisposable
         if (rootScroll is null && viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path))
         {
             var padding = node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max();
-            foreach (var shadow in node.Shadows.Where(s => s.Visible)) padding = Math.Max(padding, Math.Max(Math.Abs(shadow.X), Math.Abs(shadow.Y)) + shadow.Blur * 3);
+            padding += EffectPadding(node);
             if (!world.Map(node.LocalBounds.Inflate(padding + 1)).Intersects(view)) { CulledNodes++; return; }
         }
         RenderedNodes++;
@@ -99,9 +101,15 @@ public sealed partial class SceneRenderer : IDisposable
         if (layer)
         {
             using var paint = new SKPaint { Color = SKColors.White.WithAlpha((byte)Math.Clamp(node.Opacity * 255, 0, 255)), BlendMode = Blend(node.Blend) };
-            var shadow = node.Shadows.FirstOrDefault(s => s.Visible);
-            using var filter = shadow is null ? null : SKImageFilter.CreateDropShadow((float)shadow.X, (float)shadow.Y, (float)Math.Clamp(shadow.Blur / 2, 0, 256), (float)Math.Clamp(shadow.Blur / 2, 0, 256), Color(shadow.Color, shadow.Opacity));
-            paint.ImageFilter = filter; canvas.SaveLayer(paint);
+            paint.ImageFilter = EffectFilter(node);
+            if (node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path)
+            {
+                // Bound the offscreen to a conservative simple-leaf footprint. An unbounded
+                // save layer turns each tiny filtered shape into a viewport-sized raster pass.
+                var outset = EffectPadding(node) + node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max() + 1;
+                canvas.SaveLayer(Rect(node.LocalBounds.Inflate(outset)), paint);
+            }
+            else canvas.SaveLayer(paint);
         }
         if (Outlines && node.Kind != NodeKind.Text)
         {
@@ -110,12 +118,7 @@ public sealed partial class SceneRenderer : IDisposable
         }
         else
         {
-            foreach (var fill in node.Fills.Where(f => f.Visible))
-            {
-                using var paint = new SKPaint { IsAntialias = true, Color = Color(fill.Color, fill.Opacity), Style = SKPaintStyle.Fill };
-                using var shader = Shader(fill, node.Width, node.Height); paint.Shader = shader;
-                if (node.Kind == NodeKind.Text) DrawText(canvas, node, paint); else canvas.DrawPath(Geometry(node), paint);
-            }
+            for (var i = 0; i < node.Fills.Count; i++) if (node.Fills[i] is { Visible: true, Opacity: > 0 } fill) DrawFill(canvas, node, fill, i);
             foreach (var stroke in node.Strokes.Where(s => s.Visible && s.Width > 0))
             {
                 using var paint = new SKPaint { IsAntialias = true, Color = Color(stroke.Color, stroke.Opacity), Style = SKPaintStyle.Stroke, StrokeWidth = (float)stroke.Width, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
@@ -128,15 +131,10 @@ public sealed partial class SceneRenderer : IDisposable
             using var clip = new SKPath(); clip.AddRoundRect(new SKRect(0, 0, (float)node.Width, (float)node.Height), (float)node.CornerRadius, (float)node.CornerRadius); canvas.ClipPath(clip, SKClipOperation.Intersect, true);
         }
         if (rootScroll is { } scroll) canvas.Translate((float)-scroll.X, (float)-scroll.Y);
-        foreach (var child in node.Children) DrawNode(canvas, child, world, viewport);
+        // An ancestor filter can sample offscreen descendant pixels. Do not cull its inputs.
+        var childViewport = node.Shadows.Any(s => s.Visible) ? null : viewport;
+        foreach (var child in node.Children) DrawNode(canvas, child, world, childViewport);
         if (layer) canvas.Restore(); canvas.Restore();
-    }
-    private static SKShader? Shader(FillStyle fill, double width, double height)
-    {
-        if (fill.Kind == FillKind.Solid || fill.Stops.Count < 2) return null;
-        var stops = fill.Stops.OrderBy(s => s.Offset).ToArray(); var colors = stops.Select(s => Color(s.Color, fill.Opacity)).ToArray(); var positions = stops.Select(s => (float)Math.Clamp(s.Offset, 0, 1)).ToArray();
-        var start = new SKPoint((float)(width * fill.Start.X), (float)(height * fill.Start.Y)); var end = new SKPoint((float)(width * fill.End.X), (float)(height * fill.End.Y));
-        return fill.Kind == FillKind.LinearGradient ? SKShader.CreateLinearGradient(start, end, colors, positions, SKShaderTileMode.Clamp) : SKShader.CreateRadialGradient(start, Math.Max(1, (float)Math.Sqrt(Math.Pow(end.X - start.X, 2) + Math.Pow(end.Y - start.Y, 2))), colors, positions, SKShaderTileMode.Clamp);
     }
     private SKTypeface Typeface(DesignNode node)
     {

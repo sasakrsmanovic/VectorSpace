@@ -60,6 +60,7 @@ public readonly record struct Matrix2D(double M11, double M12, double M21, doubl
         inverse = new(M22 / d, -M12 / d, -M21 / d, M11 / d, (M21 * DY - M22 * DX) / d, (M12 * DX - M11 * DY) / d);
         return true;
     }
+    [System.Text.Json.Serialization.JsonIgnore]
     public Matrix2D Inverse => TryInvert(out var m) ? m : throw new InvalidOperationException("The transform is singular.");
     public static Matrix2D operator *(Matrix2D a, Matrix2D b) => new(
         a.M11 * b.M11 + a.M12 * b.M21, a.M11 * b.M12 + a.M12 * b.M22,

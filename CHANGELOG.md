@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0-alpha.1
+
+- Add bounded PNG/JPEG/WebP importing, EXIF orientation normalization, embedded image paints, Fill/Fit/Crop/Tile, rotation and exposure/contrast/saturation controls.
+- Add direct image-crop dragging and cursor-anchored wheel zoom, a thirds grid, transactional cancellation and original editable appearance studies.
+- Add complete fill/effect instance overrides, per-fill blends and reordering, multiple independent outer shadows, alpha-preserving inner shadows, spread and layer blur.
+- Correct gradient opacity, retain shaders/filter graphs, deduplicate decoded images with LRU byte budgets, and constrain flood-like inner-filter processing to known source footprints.
+- Import local/inherited SVG gradients, stop alpha, spread and focus; bake group/viewBox scaling through descendants; export image placement/tiling/adjustments and supported filter graphs.
+- Introduce schema 4 with versions 1–3 migration; prevent recursive serialization of computed matrix inverses.
+- Add 60 engine regressions, six actual-browser appearance workflows and an appearance retention benchmark. Complete suites contain 293 engine, 6 publication-script and 25 browser cases.
+- Keep all feature, resource and interoperability limitations explicit in `docs/APPEARANCE.md` and `docs/FEATURES.md`.
+
 ## 0.3.0-alpha.1
 
 - Add the reusable UI-independent `VectorSpace.Prototyping` package and deterministic isolated playback state.

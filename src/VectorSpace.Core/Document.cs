@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace VectorSpace.Core;
 
 public enum NodeKind { Frame, Group, Rectangle, Ellipse, Line, Arrow, Polygon, Star, Path, Text, Component, Instance, Section, Slice, ComponentSet }
-public enum FillKind { Solid, LinearGradient, RadialGradient }
+public enum FillKind { Solid, LinearGradient, RadialGradient, Image }
 public enum BlendKind { Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference }
 public enum LayoutDirection { None, Horizontal, Vertical, Grid }
 public enum LayoutDistribution { Packed, SpaceBetween, SpaceAround, SpaceEvenly }
@@ -16,8 +16,9 @@ public sealed class GradientStop
 {
     public double Offset { get; set; }
     public string Color { get; set; } = "#FFFFFF";
+    public double Opacity { get; set; } = 1;
 }
-public sealed class FillStyle
+public sealed partial class FillStyle
 {
     public FillKind Kind { get; set; }
     public string Color { get; set; } = "#D9D9D9";
@@ -35,7 +36,7 @@ public sealed class StrokeStyle
     public bool Visible { get; set; } = true;
     public List<double> Dashes { get; set; } = [];
 }
-public sealed class ShadowStyle
+public sealed partial class ShadowStyle
 {
     public bool Visible { get; set; } = true;
     public string Color { get; set; } = "#000000";
@@ -81,6 +82,8 @@ public sealed class InstanceOverride
 {
     public string? Text { get; set; }
     public string? Fill { get; set; }
+    public List<FillStyle>? Fills { get; set; }
+    public List<ShadowStyle>? Effects { get; set; }
     public bool? Visible { get; set; }
 }
 
@@ -198,7 +201,7 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public int FormatVersion { get; set; } = 3;
+    public int FormatVersion { get; set; } = 4;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";
     public List<DesignPage> Pages { get; set; } = [new()];

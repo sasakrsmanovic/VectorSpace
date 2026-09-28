@@ -263,7 +263,7 @@ internal static class PrototypeTests
         test("prototype schema v3 round-trip preserves reactions and old links", () =>
         {
             var d = Document(); d.FormatVersion = 2; d.Find("go")!.PrototypeTargetId = "b";
-            var round = DocumentJson.Load(DocumentJson.Save(d)); Equal(round.FormatVersion, 3); Check(round.Find("go")!.Reactions.Count == 1 && round.Find("go")!.PrototypeTargetId == "b");
+            var round = DocumentJson.Load(DocumentJson.Save(d)); Equal(round.FormatVersion, 4); Check(round.Find("go")!.Reactions.Count == 1 && round.Find("go")!.PrototypeTargetId == "b");
         });
         test("prototype playground is valid and its smart interactions render", () =>
         {

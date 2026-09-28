@@ -10,3 +10,7 @@ node_modules/
 playwright-report/
 .DS_Store
 src/VectorSpace.App/Assets/Fonts/*.ttf
+
+# Python script/test caches
+__pycache__/
+*.py[cod]

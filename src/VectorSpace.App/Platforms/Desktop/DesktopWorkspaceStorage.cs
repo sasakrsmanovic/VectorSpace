@@ -27,6 +27,23 @@ internal sealed class DesktopWorkspaceStorage : IWorkspaceStorage
         if (properties.Size > DocumentJson.MaxDocumentCharacters) throw new InvalidDataException("This document exceeds the import size limit.");
         return (file.Name, await FileIO.ReadTextAsync(file));
     }
+    public async Task<(string Name, byte[] Bytes)?> OpenImageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var picker = new FileOpenPicker();
+        foreach (var extension in new[] { ".png", ".jpg", ".jpeg", ".webp" }) picker.FileTypeFilter.Add(extension);
+        var file = await picker.PickSingleFileAsync(); if (file is null) return null;
+        var properties = await file.GetBasicPropertiesAsync();
+        if (properties.Size > EmbeddedImage.MaxEncodedBytes) throw new InvalidDataException("Images are limited to 8 MiB.");
+        using var input = await file.OpenStreamForReadAsync(); using var output = new MemoryStream();
+        var buffer = new byte[65536]; int read;
+        while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            if (output.Length + read > EmbeddedImage.MaxEncodedBytes) throw new InvalidDataException("Image size changed during import.");
+            output.Write(buffer, 0, read);
+        }
+        return (file.Name, output.ToArray());
+    }
     public async Task SaveAsync(string name, byte[] bytes, string contentType, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
