@@ -3,15 +3,25 @@ import fs from 'node:fs/promises';
 
 const state = page => page.evaluate(() => globalThis.__vectorSpaceState);
 async function control(page, name) {
-  await expect.poll(() => page.evaluate(name => (globalThis.__vectorSpaceControls ?? []).some(c => c.name === name && c.enabled), name)).toBe(true);
-  return page.evaluate(name => globalThis.__vectorSpaceControls.filter(c => c.name === name && c.enabled).at(-1), name);
+  let match;
+  // Return the same diagnostics sample we observed, not a second racing evaluation.
+  await expect.poll(async () => {
+    match = await page.evaluate(name => (globalThis.__vectorSpaceControls ?? []).filter(c => c.name === name && c.enabled).at(-1), name);
+    return !!match;
+  }).toBe(true);
+  return match;
 }
 async function clickControl(page, name) { const c = await control(page, name); await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2); }
 async function screen(page, x, y) { const c = await control(page, 'Design canvas'); const s = await state(page); return [c.x + s.panX + x * s.zoom, c.y + s.panY + y * s.zoom]; }
 async function point(page, x, y) { await page.mouse.click(...await screen(page, x, y)); }
 async function drag(page, a, b) { await page.mouse.move(...await screen(page, ...a)); await page.mouse.down(); await page.mouse.move(...await screen(page, ...b), { steps: 8 }); await page.mouse.up(); }
 async function action(page, name) {
-  await page.keyboard.press('Control+k'); await clickControl(page, 'Search quick actions'); await page.keyboard.insertText(name); await clickControl(page, name);
+  await page.keyboard.press('Control+k'); await clickControl(page, 'Search quick actions');
+  await page.keyboard.press('Control+a'); await page.keyboard.insertText(name);
+  // Uno's diagnostic bounds are sampled asynchronously. Search results existed in
+  // the unfiltered list too; wait for the new filtered layout before using its bounds.
+  await page.waitForTimeout(450); await clickControl(page, name);
+  await expect.poll(() => page.evaluate(() => (globalThis.__vectorSpaceControls ?? []).some(c => c.name === 'Search quick actions'))).toBe(false);
 }
 async function open(page) {
   await page.goto('?test=1'); await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150000 });
@@ -73,7 +83,7 @@ test('point marquee and Escape restore an in-flight drag without deleting the ob
   await page.mouse.move(...await screen(page, 200, 170)); await page.mouse.down(); await page.mouse.move(...await screen(page, 260, 210), { steps: 6 });
   await page.keyboard.press('Escape'); await page.mouse.up();
   expect((await state(page)).vectorEditing).toBe(true);
-  const restored = target(await save(page, 'cancel-points')); expect(restored.points[0].position).toEqual({ x: 0, y: 0 });
+  const restored = target(await save(page, 'cancel-points')); expect(restored.points[0].position).toMatchObject({ x: 0, y: 0 });
   await page.keyboard.press('Escape'); await expect.poll(async () => (await state(page)).vectorEditing).toBe(false);
   expect((await state(page)).id).toBe('target'); expect((await state(page)).nodes).toBe(2);
 });
@@ -125,12 +135,45 @@ test('existing guides can be dragged, dropped back into the ruler and restored w
   await expect.poll(async () => (await state(page)).guides).toBe(0); await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).guides).toBe(1);
 });
 
-test('paste-in-place and keyboard resizing operate on layers outside point mode', async ({ page }) => {
-  await open(page); await page.keyboard.down('Control'); await point(page, 300, 270); await page.keyboard.up('Control');
-  await expect.poll(async () => (await state(page)).id).toBe('target'); await page.keyboard.press('Control+c'); await page.keyboard.press('Control+Shift+v');
+test('paste-in-place and keyboard resizing operate on layers outside point mode', async ({ page, context }) => {
+  await open(page); await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.keyboard.down('Control'); await point(page, 300, 270); await page.keyboard.up('Control');
+  await expect.poll(async () => (await state(page)).id).toBe('target'); await page.keyboard.press('Control+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('VectorSpace/1\n');
+  await page.keyboard.press('Control+Shift+v');
   await expect.poll(async () => (await state(page)).nodes).toBe(3); expect((await state(page)).x).toBe(200); expect((await state(page)).y).toBe(170);
   await page.keyboard.press('Control+Alt+ArrowRight'); await expect.poll(async () => (await state(page)).width).toBe(241);
   await page.keyboard.press('Control+Alt+Shift+ArrowDown'); await expect.poll(async () => (await state(page)).height).toBe(250);
   await page.keyboard.press('Shift+h'); const d = await save(page, 'flip-and-resize');
-  const clone = d.pages[0].nodes.find(n => n.id === (d.pages[0].nodes.at(-1).id)); expect(clone.width).toBe(241); expect(clone.height).toBe(250);
+  const id = (await state(page)).id; const clone = d.pages[0].nodes.find(n => n.id === id); expect(clone.width).toBe(241); expect(clone.height).toBe(250); // A horizontal reflection can also be encoded as rotation 180 + FlipY.
+  // Verify its basis and fixed center, not one particular decomposition.
+  const angle = clone.rotation * Math.PI / 180, sx = clone.flipX ? -1 : 1, sy = clone.flipY ? -1 : 1;
+  expect(Math.cos(angle) * sx).toBeCloseTo(-1, 8); expect(Math.sin(angle) * sx).toBeCloseTo(0, 8);
+  expect(-Math.sin(angle) * sy).toBeCloseTo(0, 8); expect(Math.cos(angle) * sy).toBeCloseTo(1, 8);
+  expect(clone.x).toBeCloseTo(200, 8); expect(clone.y).toBeCloseTo(170, 8);
+});
+
+test('Pencil simplifies a straight stroke and persistent tools allow a second undoable stroke', async ({ page }) => {
+  await open(page); await action(page, 'Tool: Pencil'); await clickControl(page, 'Keep drawing tool');
+  await page.mouse.move(...await screen(page, 70, 70)); await page.mouse.down();
+  await page.mouse.move(...await screen(page, 180, 70), { steps: 40 }); await page.mouse.up();
+  await expect.poll(async () => (await state(page)).points).toBe(2);
+  expect((await state(page)).tool).toBe('Pencil');
+  const doc = await save(page, 'pencil-simplification'); const stroke = doc.pages[0].nodes[0].children.find(n => n.name === 'Pencil');
+  expect(stroke.points).toHaveLength(2); expect(stroke.closed).toBe(false); expect(stroke.width).toBeCloseTo(110, 1);
+  await drag(page, [70, 110], [180, 110]); await expect.poll(async () => (await state(page)).nodes).toBe(4);
+  expect((await state(page)).tool).toBe('Pencil');
+  await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).nodes).toBe(3);
+});
+
+test('Text saves an active edit and Escape rolls back only the subsequent text transaction', async ({ page }) => {
+  await open(page); await page.keyboard.press('t'); await drag(page, [70, 70], [340, 130]);
+  await control(page, 'Edit canvas text'); await page.keyboard.press('Control+a'); await page.keyboard.insertText('Precise editing λ');
+  const first = await save(page, 'active-text-save'); const text = first.pages[0].nodes[0].children.find(n => n.kind === 'Text');
+  expect(text.text).toBe('Precise editing λ');
+  await page.keyboard.press('Enter'); await control(page, 'Edit canvas text');
+  await page.keyboard.press('Control+a'); await page.keyboard.insertText('Discard this change'); await page.keyboard.press('Escape');
+  const second = await save(page, 'canceled-text-edit');
+  expect(second.pages[0].nodes[0].children.find(n => n.id === text.id).text).toBe('Precise editing λ');
+  expect((await state(page)).nodes).toBe(3);
 });

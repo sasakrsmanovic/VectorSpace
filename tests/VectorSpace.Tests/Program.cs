@@ -81,6 +81,7 @@ VariableJsonTests.Register(Test);
 AppearanceTests.Register(Test);
 ImageAdmissionTests.Register(Test);
 ToolEditingTests.Register(Test);
+DrawingTargetTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }

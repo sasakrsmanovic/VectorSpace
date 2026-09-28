@@ -10,7 +10,11 @@ public static class DrawingGeometry
         if (!vector.IsFinite || !double.IsFinite(increment) || increment <= 0) throw new ArgumentException("Invalid angular constraint.");
         var angle = Math.Atan2(vector.Y, vector.X) * 180 / Math.PI;
         var snapped = Math.Round(angle / increment, MidpointRounding.AwayFromZero) * increment * Math.PI / 180;
-        return new(Math.Cos(snapped) * vector.Length, Math.Sin(snapped) * vector.Length);
+        var x = Math.Cos(snapped); var y = Math.Sin(snapped);
+        // Cardinal directions remain exact rather than retaining floating-point trig residue.
+        if (Math.Abs(x) < 1e-12) x = 0;
+        if (Math.Abs(y) < 1e-12) y = 0;
+        return new(x * vector.Length, y * vector.Length);
     }
     public static void Apply(DesignNode node, Vec2 start, Vec2 current, bool constrain, bool fromCenter)
     {

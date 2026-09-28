@@ -8,7 +8,7 @@
 - Improve Pen/Pencil parenting, live preview, Backspace, whole-stroke undo, simplification and tool-switch lifecycle; add persistent tools and in-drag shape adjustments.
 - Add world-pivot flips/quarter-turns, keyboard axis-preserving resizing, paste in place, spacing and editable guides; keep constrained snapping on its permitted axis.
 - Build editable SKPath geometry directly rather than serializing/parsing SVG per edit. Add a scoped geometry/allocation benchmark.
-- Add 66 engine regressions and eight actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
+- Add 75 engine regressions and ten actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
 
 
 ## 0.4.0-alpha.1

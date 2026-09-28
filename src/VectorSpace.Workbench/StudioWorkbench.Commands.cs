@@ -328,16 +328,16 @@ public sealed partial class StudioWorkbench
     {
         var root = new StackPanel { Spacing = 12, Width = 410 };
         root.Children.Add(Studio.Text("VectorSpace", 24, Studio.Ink, true)); root.Children.Add(Wrapped("An independent, local-first vector design editor built with Uno Platform and SkiaSharp. Original implementation and assets; not affiliated with Figma.", 12, Studio.Ink));
-        foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Hide panels / Cancel / Rename", "Tab / Esc / F2") })
+        foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Next sibling / Cancel / Rename", "Tab / Esc / F2"), ("Edit points / Select all anchors", "Enter / Ctrl A"), ("Smooth points / Corner points", "B / Alt B"), ("Flip horizontal / Vertical", "Shift H / Shift V"), ("Paste in place / Resize layer", "Ctrl Shift V / Ctrl Alt arrows") })
             root.Children.Add(Studio.Columns((Wrapped(name, 11, Studio.Ink), -1), (Wrapped(shortcut, 10, Studio.Muted), 165)));
         root.Children.Add(Wrapped("Local variables: create typed values and aliases, add modes, and bind layer properties from the Variables inspector. Local variants: combine components or Add variant, insert an instance from Assets, and choose its properties. All edits support undo and native document round-tripping.", 11));
-        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote design libraries, plugin execution and advanced prototyping are not implemented. SVG import reports unsupported elements instead of executing them.", 10));
+        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote libraries, plugins, rich text and full vector networks remain unavailable. Local prototype playback, image cropping and single-contour point editing are supported. SVG import reports unsupported elements instead of executing them.", 10));
         await Dialog("Keyboard shortcuts & about", Studio.Scroll(root)).ShowAsync();
     }
     private async Task ShowQuickActionsAsync()
     {
         var root = new StackPanel { Spacing = 10, Width = 410 }; var search = Studio.Input("", "Search quick actions"); search.PlaceholderText = "Search actions…"; search.Height = 38; root.Children.Add(search);
-        var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.MaxHeight = 360; root.Children.Add(scroll);
+        var results = new StackPanel { Spacing = 3 }; var scroll = Studio.Scroll(results); scroll.Height = 360; root.Children.Add(scroll);
         var dialog = Dialog("Quick actions", root); Action? selectedAction = null;
         void Filter()
         {
@@ -347,7 +347,7 @@ public sealed partial class StudioWorkbench
                 AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { selectedAction = item.Execute; dialog.Hide(); }; results.Children.Add(button);
             }
         }
-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); selectedAction?.Invoke();
+        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
     }
     private async Task ShowFramePresetsAsync()
     {

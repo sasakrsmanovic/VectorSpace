@@ -190,7 +190,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (editor.Tool is not EditorTool.Move and not EditorTool.Scale)
         {
             editor.BeginInteraction("Draw " + editor.Tool); _created = NewNode(editor.Tool, world);
-            var parent = editor.Page.AllNodes().Reverse().FirstOrDefault(n => n.IsFrame && !n.IsEffectivelyLocked && n.WorldBounds.Contains(world));
+            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
             if (_created.Kind is NodeKind.Frame or NodeKind.Section or NodeKind.Slice) parent = null;
             if (parent is not null) { var local = parent.WorldMatrix.Inverse.Map(world); _created.X = local.X; _created.Y = local.Y; }
             if (parent?.Layout.Direction != LayoutDirection.None && parent is not null) _created.AbsolutePosition = true;
@@ -388,7 +388,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (_penNode is null)
         {
             editor.BeginInteraction(pencil ? "Draw freehand path" : "Draw vector path");
-            var parent = editor.Page.AllNodes().Reverse().FirstOrDefault(n => n.IsFrame && n.Kind != NodeKind.Instance && !n.IsEffectivelyLocked && n.WorldBounds.Contains(world));
+            var parent = DrawingTargetQuery.FindFrame(editor.Page.Nodes, world);
             var origin = parent?.WorldMatrix.Inverse.Map(world) ?? world;
             _penNode = new() { Kind = NodeKind.Path, Name = pencil ? "Pencil" : "Vector", X = origin.X, Y = origin.Y, Width = 1, Height = 1, Fills = [], Strokes = [new() { Color = "#333333", Width = 2 }], AbsolutePosition = parent is not null && parent.Layout.Direction != LayoutDirection.None };
             editor.AddNode(_penNode, parent); editor.Select(_penNode);
@@ -428,8 +428,18 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     public void FinishTextEdit(bool commit)
     {
         if (_textEditor is null || _finishingText) return;
-        _finishingText = true; var box = _textEditor; _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
-        if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); _finishingText = false; RequestFrame();
+        _finishingText = true; var box = _textEditor;
+        var returnFocus = box.FocusState != FocusState.Unfocused;
+        _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
+        try { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }
+        finally
+        {
+            _finishingText = false;
+            // Completing/canceling a focused editor must not leave keyboard input on
+            // its removed text box. A normal LostFocus to an inspector keeps that focus.
+            if (returnFocus && !_disposed) FocusCanvas();
+            RequestFrame();
+        }
     }
     public new void Dispose()
     {

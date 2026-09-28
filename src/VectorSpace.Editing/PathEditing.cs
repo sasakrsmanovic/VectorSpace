@@ -11,8 +11,9 @@ public static class PathEditing
     public static bool CanEdit(DesignNode node) => node.Kind == NodeKind.Path && node.PathData is null && node.Points.Count > 0;
 
     public static Matrix2D PointToWorld(DesignNode node) =>
-        Matrix2D.Scale(node.PathWidth > 0 ? node.Width / node.PathWidth : 1,
-            node.PathHeight > 0 ? node.Height / node.PathHeight : 1) * node.WorldMatrix;
+        (node.PathWidth > 0 && node.PathHeight > 0
+            ? Matrix2D.Scale(node.Width / node.PathWidth, node.Height / node.PathHeight)
+            : Matrix2D.Identity) * node.WorldMatrix;
 
     public static CubicSegment Segment(DesignNode node, int index)
     {
