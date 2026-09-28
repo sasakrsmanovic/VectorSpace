@@ -22,7 +22,7 @@ public sealed partial class StudioWorkbench
             root.Children.Add(Studio.Columns((Wrapped(peer.Name + "\n" + page, 12, Studio.Ink), -1), (button, 110)));
         }
         if (connection.Participants.Count == 0) root.Children.Add(Wrapped("No other participants are connected. Create a guest invitation from Share."));
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
         if (follow is not null) { _following = _following == follow ? null : follow; DispatcherQueue.TryEnqueue(() => RefreshCollaboration(false)); }
     }
     private async Task ShowSharedHistoryAsync()
@@ -43,7 +43,7 @@ public sealed partial class StudioWorkbench
             row.Children.Add(Studio.Rule()); root.Children.Add(row);
         }
         if (versions.Count == 0) root.Children.Add(Wrapped("No shared edits have been committed yet."));
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
         if (chosen is not { } revision) return;
         var json = await connection.Transport.VersionAsync(revision);
         if (restore)
@@ -84,6 +84,8 @@ public sealed partial class StudioWorkbench
             json.WriteNumber("participants", c.Participants.Count); json.WriteString("following", _following);
             json.WriteStartArray("names"); foreach (var peer in c.Participants) json.WriteStringValue(peer.Name); json.WriteEndArray();
         }
+        json.WriteNumber("dialogDepth", _sharedDialogDepth); json.WriteNumber("asyncDepth", _sharedAsyncDepth);
+        json.WriteNumber("queuedRemote", _remoteDeliveries.Count); json.WriteBoolean("boundaryBlocked", SharedBoundaryBlocked);
         json.WriteBoolean("recoverySaved", _sharedRecoverySaved); json.WriteEndObject();
     }
 }

@@ -90,7 +90,7 @@ public sealed partial class StudioWorkbench
             var clear = new StudioButton("Discard saved recovery copies", () => { discard = true; dialog.Hide(); });
             root.Children.Add(clear);
         }
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
         if (download is not null)
             await _storage.SaveAsync(SafeName(download.Label) + "-recovery.vectorspace", Encoding.UTF8.GetBytes(download.Document), "application/json");
         if (discard && await ConfirmAsync("Discard recovery copies?", "This deletes the listed local recovery files. Unsynchronized current edits will still retain their latest safety copy."))

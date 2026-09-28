@@ -23,7 +23,7 @@ public sealed partial class StudioWorkbench
         var dialog = Dialog("Share file", Studio.Scroll(root), "Join file", "Cancel"); dialog.SecondaryButtonText = "Create shared file";
         var recover = new StudioButton("Local collaboration recovery", () => { }) { HorizontalAlignment = HorizontalAlignment.Left };
         var recoveryRequested = false; recover.Click += (_, _) => { recoveryRequested = true; dialog.Hide(); }; root.Children.Add(recover);
-        var result = await dialog.ShowAsync();
+        var result = await ShowDialogAsync(dialog);
         if (recoveryRequested) { await ShowSharedRecoveryAsync(); return; }
         if (result == ContentDialogResult.Primary)
         {
@@ -61,7 +61,7 @@ public sealed partial class StudioWorkbench
         Action("Save my access link", () => ShowAccessLinkAsync("Private access link", connection.Transport.Address.Link(CollaborationApplicationUrl), "Anyone with this link receives your invitation's permissions. The link is not an account login."));
         if (connection.Role == RoomRole.Owner) Action("Manage invitations", ShowInvitationsAsync);
         root.Children.Add(Wrapped("Guest permissions are checked on the server. Presence names are self-reported; use one revocable invitation per person when attribution matters.", 10));
-        var result = await dialog.ShowAsync();
+        var result = await ShowDialogAsync(dialog);
         if (selected is not null) { await selected(); return; }
         if (result == ContentDialogResult.Primary)
         {
@@ -78,7 +78,7 @@ public sealed partial class StudioWorkbench
         var role = new ComboBox { ItemsSource = new[] { RoomRole.Viewer, RoomRole.Commenter, RoomRole.Editor }, SelectedItem = RoomRole.Editor, HorizontalAlignment = HorizontalAlignment.Stretch, FontFamily = Studio.Font };
         AutomationProperties.SetName(role, "Invitation permission"); root.Children.Add(role);
         root.Children.Add(Wrapped("Can view: inspect and present. Can comment: add/reply/resolve comments. Can edit: change the design. Only your owner invitation manages access."));
-        if (await Dialog("Invite to file", root, "Create link", "Cancel").ShowAsync() != ContentDialogResult.Primary) return;
+        if (await ShowDialogAsync(Dialog("Invite to file", root, "Create link", "Cancel")) != ContentDialogResult.Primary) return;
         var invite = await connection.Transport.InviteAsync(label.Text.Trim(), (RoomRole)role.SelectedItem);
         var address = connection.Transport.Address with { Token = invite.Token };
         await ShowAccessLinkAsync("Invitation created", address.Link(CollaborationApplicationUrl), invite.Role + " access · Revoke this invitation at any time from Manage invitations.");
@@ -88,7 +88,7 @@ public sealed partial class StudioWorkbench
         var root = new StackPanel { Width = 390, Spacing = 12 };
         root.Children.Add(Wrapped(description, 12, Studio.Ink));
         var box = Studio.Input(link, "Private collaboration link"); box.IsReadOnly = true; box.TextWrapping = TextWrapping.Wrap; box.Height = 96; box.Tag = "Sensitive"; root.Children.Add(box);
-        if (await Dialog(title, root, "Copy link").ShowAsync() == ContentDialogResult.Primary)
+        if (await ShowDialogAsync(Dialog(title, root, "Copy link")) == ContentDialogResult.Primary)
         {
             var package = new DataPackage(); package.SetText(link); Clipboard.SetContent(package); ShowStatus("Access link copied");
         }
@@ -104,7 +104,7 @@ public sealed partial class StudioWorkbench
             AutomationProperties.SetName(button, "Revoke " + grant.Label);
             root.Children.Add(Studio.Columns((Wrapped(grant.Label + " · " + grant.Role, 12, Studio.Ink), -1), (button, 75)));
         }
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
         if (revoke is not null && await ConfirmAsync("Revoke invitation?", "Anyone using this invitation will lose access. Previously downloaded local copies cannot be revoked."))
         { await connection.Transport.RevokeAsync(revoke); ShowStatus("Invitation revoked"); }
     }

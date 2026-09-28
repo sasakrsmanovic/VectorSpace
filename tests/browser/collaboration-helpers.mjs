@@ -61,6 +61,10 @@ export async function join(page, grant, name) {
   await expect.poll(async () => (await shared(page)).connected).toBe(true);
   await expect.poll(async () => (await state(page)).page).toBe('Shared canvas');
   await expect.poll(async () => (await shared(page)).role).toBe(grant.role);
+  // Joining must release both the modal and command boundary before authoring.
+  await expect.poll(async () => (await shared(page)).dialogDepth).toBe(0);
+  await expect.poll(async () => (await shared(page)).asyncDepth).toBe(0);
+  await expect.poll(async () => (await shared(page)).boundaryBlocked).toBe(false);
   await control(page, 'Design canvas');
 }
 export async function document(page, name = 'shared-document.vectorspace') {

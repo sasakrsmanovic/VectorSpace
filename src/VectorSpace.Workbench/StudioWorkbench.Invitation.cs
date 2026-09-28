@@ -2,21 +2,22 @@ namespace VectorSpace.Workbench;
 
 public sealed partial class StudioWorkbench
 {
-    /// <summary>Shows an invitation for review without automatically contacting its server.
-    /// Hosts should remove the credential fragment from browser history after reading it.</summary>
+    /// <summary>Reviews an invitation without automatically contacting its server.</summary>
     public void OpenCollaborationInvitation(string link)
     {
         if (string.IsNullOrWhiteSpace(link) || link.Length > 8192) return;
         PendingInvitation = link; RunAsync(ShowShareAsync);
     }
-    private ContentDialog TrackSharedDialog(ContentDialog dialog)
+    /// <summary>The await owns the modal boundary. Presentation Opened/Closed events
+    /// are not a balanced lifetime contract and must not retain a remote-delivery lock.</summary>
+    private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
     {
-        dialog.Opened += (_, _) => _sharedDialogDepth++;
-        dialog.Closed += (_, _) =>
+        _sharedDialogDepth++;
+        try { return await dialog.ShowAsync(); }
+        finally
         {
-            _sharedDialogDepth = Math.Max(0, _sharedDialogDepth - 1);
+            _sharedDialogDepth--;
             DispatcherQueue.TryEnqueue(FlushRemoteDeliveries);
-        };
-        return dialog;
+        }
     }
 }

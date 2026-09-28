@@ -126,7 +126,7 @@ public sealed partial class StudioWorkbench
                 row.Children.Add(Studio.Rule()); rows.Children.Add(row);
             }
         }
-        Refresh(); await Dialog("Local variables", root).ShowAsync();
+        Refresh(); await ShowDialogAsync(Dialog("Local variables", root));
     }
     private static VariableValue DefaultValue(VariableType type) => type switch
     {

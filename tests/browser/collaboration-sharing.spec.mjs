@@ -33,6 +33,12 @@ test('@collaboration history restores as a new revision and revocation removes a
   await join(page, owner, 'Alice'); await join(bob, guest, 'Bob');
   await select(page, 'a'); await page.keyboard.press('ArrowRight'); await synced(page, 1);
   await page.keyboard.press('ArrowRight'); await synced(page, 2); await synced(bob, 2);
+  for (let i = 0; i < 3; i++) {
+    await click(bob, 'Share');
+    await expect.poll(async () => (await shared(bob)).dialogDepth).toBe(1);
+    await click(bob, 'Close');
+    await expect.poll(async () => (await shared(bob)).boundaryBlocked).toBe(false);
+  }
   await click(page, 'Share'); await click(page, 'Version history');
   const old = await downloadCopy(page, () => click(page, 'Download revision 1'), 'shared-history-r1.vectorspace');
   expect(node(old, 'a').x).toBe(81);

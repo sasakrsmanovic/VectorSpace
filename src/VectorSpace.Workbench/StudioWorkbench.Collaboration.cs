@@ -58,7 +58,11 @@ public sealed partial class StudioWorkbench
         await DispatchShared(() =>
         {
             if (_disposed || _collaboration is null) { done.TrySetResult(); return; }
-            if (changesModel && SharedBoundaryBlocked) _remoteDeliveries.Enqueue((action, done));
+            if (changesModel && SharedBoundaryBlocked)
+            {
+                _remoteDeliveries.Enqueue((action, done));
+                _status.Text = "Remote changes are waiting for the active edit to finish";
+            }
             else { try { action(); done.TrySetResult(); } catch (Exception e) { done.TrySetException(e); } }
         });
         if (_disposed || _collaboration is null) done.TrySetResult();

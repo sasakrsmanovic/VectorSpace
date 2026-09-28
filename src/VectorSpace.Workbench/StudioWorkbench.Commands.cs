@@ -284,19 +284,19 @@ public sealed partial class StudioWorkbench
     {
         var invalid = Path.GetInvalidFileNameChars().Concat(['/', '\\', ':']).ToHashSet(); var result = new string(name.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim(); return string.IsNullOrEmpty(result) ? "VectorSpace" : result;
     }
-    private ContentDialog Dialog(string title, UIElement content, string primary = "", string close = "Close") => TrackSharedDialog(new()
+    private ContentDialog Dialog(string title, UIElement content, string primary = "", string close = "Close") => new()
     {
         Title = title, Content = content, PrimaryButtonText = primary, CloseButtonText = close, XamlRoot = XamlRoot,
         FontFamily = Studio.Font, RequestedTheme = ElementTheme.Light, DefaultButton = string.IsNullOrEmpty(primary) ? ContentDialogButton.Close : ContentDialogButton.Primary,
         MinWidth = 320, MaxWidth = 560
-    });
+    };
     private async Task<string?> PromptAsync(string title, string value, bool multiline = false)
     {
         var input = Studio.Input(value, title); input.Width = 350; input.Height = multiline ? 110 : 34; input.AcceptsReturn = multiline; input.TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap;
         var dialog = Dialog(title, input, "Save", "Cancel"); dialog.Opened += (_, _) => { input.Focus(FocusState.Programmatic); input.SelectAll(); };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary ? input.Text.Trim() : null;
+        return await ShowDialogAsync(dialog) == ContentDialogResult.Primary ? input.Text.Trim() : null;
     }
-    private async Task<bool> ConfirmAsync(string title, string description) => await Dialog(title, Wrapped(description, 12, Studio.Ink), "Continue", "Cancel").ShowAsync() == ContentDialogResult.Primary;
+    private async Task<bool> ConfirmAsync(string title, string description) => await ShowDialogAsync(Dialog(title, Wrapped(description, 12, Studio.Ink), "Continue", "Cancel")) == ContentDialogResult.Primary;
     private async Task RenameDocumentAsync()
     {
         var text = await PromptAsync("Rename document", Session.Document.Name); if (!string.IsNullOrWhiteSpace(text)) Session.Edit("Rename document", () => Session.Document.Name = text);
@@ -317,7 +317,7 @@ public sealed partial class StudioWorkbench
         foreach (var reply in thread.Replies) { root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped(reply, 12, Studio.Ink)); }
         var input = Studio.Input("", "Reply to comment"); input.PlaceholderText = "Reply…"; input.AcceptsReturn = true; input.Height = 72; root.Children.Add(input);
         var dialog = Dialog("Comment", root, "Reply"); dialog.SecondaryButtonText = thread.Resolved ? "Reopen" : "Resolve";
-        var result = await dialog.ShowAsync();
+        var result = await ShowDialogAsync(dialog);
         if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(input.Text)) Session.Edit("Reply to comment", () => thread.Replies.Add((_collaboration is null ? "You" : _participantName) + ": " + input.Text.Trim()));
         else if (result == ContentDialogResult.Secondary) Session.Edit("Resolve comment", () => thread.Resolved = !thread.Resolved);
     }
@@ -329,7 +329,7 @@ public sealed partial class StudioWorkbench
             root.Children.Add(Studio.Columns((Wrapped(name, 11, Studio.Ink), -1), (Wrapped(shortcut, 10, Studio.Muted), 165)));
         root.Children.Add(Wrapped("Local variables: create typed values and aliases, add modes, and bind layer properties from the Variables inspector. Local variants: combine components or Add variant, insert an instance from Assets, and choose its properties. All edits support undo and native document round-tripping.", 11));
         root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, remote libraries, plugins, rich text and full vector networks remain unavailable. Multi-user editing requires a separately configured collaboration service. Local prototype playback, image cropping and single-contour point editing are supported. SVG import reports unsupported elements instead of executing them.", 10));
-        await Dialog("Keyboard shortcuts & about", Studio.Scroll(root)).ShowAsync();
+        await ShowDialogAsync(Dialog("Keyboard shortcuts & about", Studio.Scroll(root)));
     }
     private async Task ShowQuickActionsAsync()
     {
@@ -344,7 +344,7 @@ public sealed partial class StudioWorkbench
                 AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { selectedAction = item.Execute; dialog.Hide(); }; results.Children.Add(button);
             }
         }
-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
+        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await ShowDialogAsync(dialog); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
     }
     private async Task ShowFramePresetsAsync()
     {
@@ -359,6 +359,6 @@ public sealed partial class StudioWorkbench
                 Run(() => Session.Edit("Create frame", () => { Session.AddNode(frame); Session.Select(frame); })); Surface.Fit(true);
             }; root.Children.Add(button);
         }
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
     }
 }
