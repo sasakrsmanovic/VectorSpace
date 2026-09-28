@@ -9,8 +9,8 @@ export const test = base.extend({
       contexts.push(context);
       return context.newPage();
     });
-    // The Playwright Test runner owns tracing for every context it creates.
-    // Manually starting/stopping a trace here conflicts with retain-on-failure.
+    // Playwright Test owns tracing for every context. Starting/stopping it here
+    // conflicts with retain-on-failure and prevents peer scenarios from executing.
     for (const context of contexts) await context.close();
   }
 });
@@ -64,6 +64,9 @@ export async function join(page, grant, name) {
   await control(page, 'Design canvas');
 }
 export async function document(page, name = 'shared-document.vectorspace') {
+  // Leave Comment/drawing mode through the real palette before focusing canvas.
+  // Otherwise this preparatory click opens a new comment editor instead of Save.
+  await click(page, 'Move (V)'); await expect.poll(async () => (await state(page)).tool).toBe('Move');
   await page.mouse.click(700, 200); const pending = page.waitForEvent('download'); await page.keyboard.press('Control+s');
   const download = await pending; await fs.mkdir('artifacts', { recursive: true }); const path = 'artifacts/' + name; await download.saveAs(path);
   return JSON.parse(await fs.readFile(path, 'utf8'));

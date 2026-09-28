@@ -94,6 +94,6 @@ test('@collaboration concurrent comment replies survive modal boundaries and loc
   await click(bob, 'Reply', 'Button'); await synced(bob, 2); await synced(page, 2);
   const saved = await document(page, 'shared-replies.vectorspace');
   expect(saved.comments[0].replies).toEqual(['Alice: First response', 'Bob: Second response']);
-  await point(bob, 600, 420); await bob.keyboard.press('v'); await bob.keyboard.press('Control+z'); await synced(bob, 3); await synced(page, 3);
+  await click(bob, 'Move (V)'); await point(bob, 600, 420); await bob.keyboard.press('Control+z'); await synced(bob, 3); await synced(page, 3);
   expect((await document(page, 'shared-replies-undo.vectorspace')).comments[0].replies).toEqual(['Alice: First response']);
 });
