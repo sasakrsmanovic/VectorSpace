@@ -77,15 +77,30 @@ test('segment insertion, subdivision, tangent modes and point deletion are undoa
   expect((await state(page)).nodes).toBe(2);
 });
 
-test('point marquee and Escape restore an in-flight drag without deleting the object', async ({ page }) => {
+test('point and layer cancellation stop stale pointer mutations after Escape or Undo', async ({ page }) => {
   await open(page); await enterPoints(page); await drag(page, [180, 150], [460, 185]);
   await expect.poll(async () => (await state(page)).selectedPoints.length).toBe(2);
   await page.mouse.move(...await screen(page, 200, 170)); await page.mouse.down(); await page.mouse.move(...await screen(page, 260, 210), { steps: 6 });
   await page.keyboard.press('Escape'); await page.mouse.up();
   expect((await state(page)).vectorEditing).toBe(true);
   const restored = target(await save(page, 'cancel-points')); expect(restored.points[0].position).toMatchObject({ x: 0, y: 0 });
+  // Undo while capture is active must also terminate the gesture, not just restore
+  // its snapshot. Continue moving afterwards to expose stale-baseline mutations.
+  await page.mouse.move(...await screen(page, 200, 170)); await page.mouse.down();
+  await page.mouse.move(...await screen(page, 260, 210), { steps: 5 }); await page.keyboard.press('Control+z');
+  await page.mouse.move(...await screen(page, 280, 230), { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => (await state(page)).interacting).toBe(false);
+  expect((await state(page)).vectorEditing).toBe(true);
+  const undone = target(await save(page, 'undo-captured-points'));
+  expect(undone.points[0].position).toMatchObject({ x: 0, y: 0 }); expect(undone.kind).toBe('Path');
   await page.keyboard.press('Escape'); await expect.poll(async () => (await state(page)).vectorEditing).toBe(false);
   expect((await state(page)).id).toBe('target'); expect((await state(page)).nodes).toBe(2);
+  await page.mouse.move(...await screen(page, 300, 270)); await page.mouse.down();
+  await page.mouse.move(...await screen(page, 330, 300), { steps: 5 }); await page.keyboard.press('Control+z');
+  await page.mouse.move(...await screen(page, 350, 320), { steps: 5 }); await page.mouse.up();
+  const layer = target(await save(page, 'undo-captured-layer'));
+  expect(layer.x).toBe(200); expect(layer.y).toBe(170); expect(layer.kind).toBe('Path');
+  expect((await state(page)).interacting).toBe(false);
 });
 
 test('all sixteen palette tools are reachable through actual quick actions', async ({ page }) => {

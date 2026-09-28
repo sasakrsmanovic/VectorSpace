@@ -37,6 +37,14 @@ public sealed partial class DesignSurface
                 return true;
             }
         }
+        // Undo/redo must end capture as well as restoring the document. Otherwise a
+        // following PointerMoved can reapply a canceled baseline outside history.
+        // Point mode owns its cancellation so it can retain the active contour.
+        if (control && key is VirtualKey.Z or VirtualKey.Y && Session?.IsInteracting == true &&
+            _gesture is not Gesture.None and not Gesture.Vertex and not Gesture.VertexMarquee)
+        {
+            CancelGesture(); return true;
+        }
         if (_gesture == Gesture.Create && _created is { } node)
         {
             if (key == VirtualKey.Escape) { CancelGesture(); return true; }

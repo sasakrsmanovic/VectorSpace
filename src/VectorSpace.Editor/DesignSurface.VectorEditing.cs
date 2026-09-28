@@ -231,6 +231,10 @@ public sealed partial class DesignSurface
         }
         if (control)
         {
+            if (key is VirtualKey.Z or VirtualKey.Y && _gesture is Gesture.Vertex or Gesture.VertexMarquee)
+            {
+                CancelPointGesture(); return true;
+            }
             if (key == VirtualKey.A) { SelectAllPoints(); return true; }
             if (key == VirtualKey.Z) { if (shift) Session?.Redo(); else Session?.Undo(); PointSelectionChanged(); return true; }
             if (key == VirtualKey.Y) { Session?.Redo(); PointSelectionChanged(); return true; }
