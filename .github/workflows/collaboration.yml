@@ -22,3 +22,13 @@ jobs:
         run: dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
       - name: Existing editor regressions
         run: dotnet run --project tests/VectorSpace.Tests -c Release
+      - name: Compile the persistent service
+        run: dotnet build server/VectorSpace.Server -c Release
+      - name: Actual network and restart tests
+        run: python3 -m unittest discover -s tests/server -v
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: VectorSpace-collaboration-validation
+          path: artifacts/collaboration-server.log
+          if-no-files-found: ignore
