@@ -90,3 +90,15 @@ File.WriteAllBytes("preview.png", renderer.ExportPng([layer], layer.LocalBounds.
 The format is now **schema 4**, with schema-1/2/3 migration. Older applications must reject schema 4 rather than silently lose images or effects. See [validation](VALIDATION.md), [performance](PERFORMANCE.md) and the [remaining feature boundary](FEATURES.md).
 
 Behavior/API references: [Figma paint definitions](https://developers.figma.com/docs/plugins/api/Paint/), [Skia image filters](https://api.skia.org/classSkImageFilters.html), and [SVG paint servers](https://www.w3.org/TR/SVG2/pservers.html). These are terminology and implementation references, not binary compatibility or pixel-parity certification.
+
+## Admission and budget guarantees
+
+`EmbeddedImage.Inspect` exposes immutable MIME, dimensions and encoded-byte metadata, weakly memoized by payload identity. Image cache misses use the metadata to reject over-budget rasters **before invoking pixel decoding**. The codec overload accepting `maxDecodedBytes` independently validates the actual codec dimensions before bitmap allocation. Admission evicts older decoded entries first; temporary codec buffers and orientation surfaces still exist outside the resident-image budget.
+
+Content digests hash the existing UTF-16 span, avoiding an image-sized UTF-8 array when history restores equal content in a new string. The digest is process-local and is not a serialized asset identifier. Oversized URI strings are rejected before hashing and are not negatively cached. Base64 decoding consumes the original character span rather than allocating a payload substring; bounded whitespace-compatible fallback resizing remains possible.
+
+Decoded bitmaps are marked immutable before producing their `SKImage`, allowing Skia to share their pixel storage when supported. The returned image retains its pixels after codec/bitmap temporaries are disposed. This is a resource-ownership contract, not a guarantee that every native backend avoids every copy. Reference: [Skia raster images from bitmaps](https://api.skia.org/namespaceSkImages.html).
+
+Reducing image, gradient or effect cache limits evicts excess entries immediately. All capacities require at least one entry; the decoded-image byte budget can be zero. Budget increases allow retry of previously oversized images. `DecodeAttemptCount`, resident counts and successful decode/build counters distinguish admission rejection, failed decodes and resource reuse.
+
+Seventeen admission regressions cover metadata, zero/tight budgets, codec overload compatibility, pixel lifetime, equal-content lookup allocation, oversized keys, Base64 validity and dynamic native cache limits. Allocation assertions exclude construction of the input payload and native allocations. The full engine suite contains 310 tests; exact-commit CI results remain the evidence of a passing build.

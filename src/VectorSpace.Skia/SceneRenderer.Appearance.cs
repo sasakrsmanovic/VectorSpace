@@ -6,8 +6,20 @@ namespace VectorSpace.Skia;
 public sealed partial class SceneRenderer
 {
     public ImageAssetCache Images { get; } = new();
-    public int GradientCacheCapacity { get; set; } = 512;
-    public int EffectCacheCapacity { get; set; } = 256;
+    private int _gradientCacheCapacity = 512;
+    private int _effectCacheCapacity = 256;
+    public int GradientCacheCapacity
+    {
+        get => _gradientCacheCapacity;
+        set { ArgumentOutOfRangeException.ThrowIfLessThan(value, 1); _gradientCacheCapacity = value; TrimGradients(); }
+    }
+    public int EffectCacheCapacity
+    {
+        get => _effectCacheCapacity;
+        set { ArgumentOutOfRangeException.ThrowIfLessThan(value, 1); _effectCacheCapacity = value; TrimEffects(); }
+    }
+    public int CachedGradientCount => _gradients.Count;
+    public int CachedEffectCount => _effects.Count;
     public long GradientBuilds { get; private set; }
     public long EffectBuilds { get; private set; }
     private readonly record struct StopKey(double Offset, string Color, double Opacity);
@@ -18,6 +30,20 @@ public sealed partial class SceneRenderer
     private sealed record EffectEntry(RectD? Bounds, EffectKey[] Keys, SKImageFilter? Filter);
     private readonly Dictionary<string, EffectEntry> _effects = new(StringComparer.Ordinal);
 
+    private void TrimGradients()
+    {
+        while (_gradients.Count > _gradientCacheCapacity)
+        {
+            var first = _gradients.First(); first.Value.Shader.Dispose(); _gradients.Remove(first.Key);
+        }
+    }
+    private void TrimEffects()
+    {
+        while (_effects.Count > _effectCacheCapacity)
+        {
+            var first = _effects.First(); first.Value.Filter?.Dispose(); _effects.Remove(first.Key);
+        }
+    }
     private void ClearAppearance()
     {
         foreach (var entry in _gradients.Values) entry.Shader.Dispose(); _gradients.Clear();

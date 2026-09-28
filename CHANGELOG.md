@@ -8,7 +8,8 @@
 - Correct gradient opacity, retain shaders/filter graphs, deduplicate decoded images with LRU byte budgets, and constrain flood-like inner-filter processing to known source footprints.
 - Import local/inherited SVG gradients, stop alpha, spread and focus; bake group/viewBox scaling through descendants; export image placement/tiling/adjustments and supported filter graphs.
 - Introduce schema 4 with versions 1–3 migration; prevent recursive serialization of computed matrix inverses.
-- Add 60 engine regressions, six actual-browser appearance workflows and an appearance retention benchmark. Complete suites contain 293 engine, 6 publication-script and 25 browser cases.
+- Enforce decoded-image admission before pixel allocation; avoid image-sized content-key and Base64 substring allocations, retain immutable pixels, and evict reduced native-cache budgets immediately.
+- Add 77 engine regressions, six actual-browser appearance workflows and an appearance retention benchmark. Complete suites contain 310 engine, 6 publication-script and 25 browser cases.
 - Keep all feature, resource and interoperability limitations explicit in `docs/APPEARANCE.md` and `docs/FEATURES.md`.
 
 ## 0.3.0-alpha.1

@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
+using System.Runtime.InteropServices;
 using SkiaSharp;
 using VectorSpace.Documents;
 
@@ -39,6 +39,7 @@ public sealed class ImageAssetCache : IDisposable
     }
     public long DecodedBytes { get; private set; }
     public long DecodeCount { get; private set; }
+    public long DecodeAttemptCount { get; private set; }
     public long HitCount { get; private set; }
     public int Count => _entries.Count;
     public string? LastError { get; private set; }
@@ -46,7 +47,14 @@ public sealed class ImageAssetCache : IDisposable
     public SKImage? Get(string dataUri)
     {
         ArgumentNullException.ThrowIfNull(dataUri);
-        var key = _keys.GetValue(dataUri, static value => new(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))))).Digest;
+        if (dataUri.Length > EmbeddedImage.MaxDataUriCharacters)
+        {
+            LastError = "An embedded image exceeds 8 MiB.";
+            return null; // Do not hash or retain arbitrarily large rejected strings.
+        }
+        // This digest is an internal, process-local content key, not a persisted interchange hash.
+        // Hashing the existing UTF-16 storage avoids an image-sized UTF-8 allocation after cloning.
+        var key = _keys.GetValue(dataUri, static value => new(Convert.ToHexString(SHA256.HashData(MemoryMarshal.AsBytes(value.AsSpan()))))).Digest;
         if (_entries.TryGetValue(key, out var known))
         {
             _lru.Remove(known.Recency); _lru.AddLast(known.Recency); HitCount++; LastError = known.Error; return known.Image;
@@ -54,11 +62,15 @@ public sealed class ImageAssetCache : IDisposable
         SKImage? image = null; long bytes = 0;
         try
         {
-            EmbeddedImage.Validate(dataUri);
+            bytes = EmbeddedImage.Inspect(dataUri).DecodedBytes;
+            if (bytes > ByteBudget) throw new InvalidDataException("Image exceeds the configured decoded-image cache budget.");
+            // Evict before allocating new pixels, not after briefly retaining both full budgets.
+            while ((_entries.Count >= Capacity || DecodedBytes > ByteBudget - bytes) && _lru.First is { } oldest)
+                Remove(oldest.Value);
             var encoded = EmbeddedImage.Decode(dataUri).Bytes;
-            image = RasterImageCodec.Decode(encoded); DecodeCount++;
+            DecodeAttemptCount++;
+            image = RasterImageCodec.Decode(encoded, ByteBudget); DecodeCount++;
             bytes = (long)image.Width * image.Height * 4;
-            if (bytes > Math.Max(0, ByteBudget)) throw new InvalidDataException("Image exceeds the configured decoded-image cache budget.");
             LastError = null;
         }
         catch (Exception e) when (e is InvalidDataException or ArgumentException)

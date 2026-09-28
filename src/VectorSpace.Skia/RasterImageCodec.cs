@@ -17,8 +17,12 @@ public static class RasterImageCodec
         return new("data:image/png;base64," + Convert.ToBase64String(png.ToArray()), image.Width, image.Height);
     }
 
-    public static SKImage Decode(ReadOnlySpan<byte> bytes)
+    public static SKImage Decode(ReadOnlySpan<byte> bytes) => Decode(bytes, long.MaxValue);
+
+    /// <summary>Enforces a caller pixel budget before allocating the codec destination bitmap.</summary>
+    public static SKImage Decode(ReadOnlySpan<byte> bytes, long maxDecodedBytes)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDecodedBytes);
         if (bytes.Length is 0 or > EmbeddedImage.MaxEncodedBytes) throw new InvalidDataException("Images are limited to 8 MiB encoded data.");
         using var data = SKData.CreateCopy(bytes);
         using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Unsupported or damaged raster image.");
@@ -28,11 +32,16 @@ public static class RasterImageCodec
         if (source.Width is <= 0 or > EmbeddedImage.MaxDimension || source.Height is <= 0 or > EmbeddedImage.MaxDimension ||
             (long)source.Width * source.Height > EmbeddedImage.MaxPixels)
             throw new InvalidDataException("Images are limited to 8192 pixels per edge and 16 megapixels.");
+        if ((long)source.Width * source.Height * 4 > maxDecodedBytes)
+            throw new InvalidDataException("Image exceeds the configured decoded-image cache budget.");
         if (codec.FrameCount > 1) throw new InvalidDataException("Animated images are not supported; export a still frame first.");
         var info = new SKImageInfo(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var bitmap = new SKBitmap(info);
         if (bitmap.GetPixels() == IntPtr.Zero || codec.GetPixels(info, bitmap.GetPixels()) != SKCodecResult.Success)
             throw new InvalidDataException("Image pixel decoding failed.");
+        // The pixels will never be mutated again. Skia may share immutable pixel storage
+        // with the returned image instead of making another full-sized raster copy.
+        bitmap.SetImmutable();
         if (codec.EncodedOrigin == SKEncodedOrigin.TopLeft) return SKImage.FromBitmap(bitmap);
         var transpose = codec.EncodedOrigin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
         using var surface = SKSurface.Create(new SKImageInfo(transpose ? info.Height : info.Width, transpose ? info.Width : info.Height, SKColorType.Rgba8888, SKAlphaType.Premul))
