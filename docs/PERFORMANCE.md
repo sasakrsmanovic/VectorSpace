@@ -52,3 +52,24 @@ Image cache budgets apply to decoded RGBA storage and entry count, not all proce
 ### Image admission and cloned payloads
 
 The 0.4 finalization adds dimension-based admission before pixel decoding, a separately enforced codec pixel budget, direct-span content hashing and Base64 decoding, and immediate capacity reductions for gradient/filter caches. Seventeen regressions cover these contracts. A cloned 256x256 noisy PNG lookup must reuse the same decoded image and allocate under 16 KiB of managed memory; constructing the input and native memory are excluded. This checks bounded transient managed allocation, not constant-time hashing: a new string identity still requires reading its content once. See [appearance admission guarantees](APPEARANCE.md#admission-and-budget-guarantees).
+
+## Collaborative projection and presence
+
+The production projection uses a read-only `JsonDocument` and one reusable per-call UTF-8 writer rather than constructing a second mutable JSON tree. Span-based dictionary lookup reuses existing cell addresses; unchanged canonical property strings retain their original instances. A test-only copy of the prior projection independently verifies output across 59 equivalence/reuse cases, including Unicode, hierarchy reordering and seeded edits.
+
+```bash
+dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release -- --benchmark
+```
+
+A local Linux x64/.NET 10.0.12 run used 1,000 native layers, one scalar edit and five interleaved warmed samples per implementation:
+
+| Projection/diff measurement | Prior mutable JSON | Retained reader |
+|---|---:|---:|
+| Median elapsed | 99.524 ms | 48.3378 ms |
+| Managed bytes allocated | 28,405,816 | 4,552,184 |
+
+The full native document was 1,732,800 UTF-8 bytes; its exact one-cell edit batch was 209 bytes. The delta reconstructed the exact native document. [Raw local record](benchmarks/collaboration-projection.json); CI retains independent measurements rather than enforcing machine-dependent timing thresholds.
+
+This measures projection/diff only: no network latency, journal flush, UI dispatch, render, native allocation or embedded-image workload is included. Projection still visits the entire document. A twofold observed projection speed ratio is not an application-wide speedup.
+
+Presence does not enter undo history or trigger document projection. Client samples and room wakeups are coalesced; cursor painting uses a separate retained overlay. Unchanged follow-viewports do not cause another editor viewport notification, and remote-only revisions do not rewrite an unchanged local recovery journal. Full canonicalization, snapshots, retained revision/receipt state and recovery documents still consume workload-dependent memory. See [collaboration bounds](COLLABORATION.md).

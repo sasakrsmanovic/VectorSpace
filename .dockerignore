@@ -1,0 +1,11 @@
+.git
+**/bin
+**/obj
+node_modules
+artifacts
+.env
+.env.*
+**/*.room.json
+**/*.room.journal
+**/shared-recovery
+src/VectorSpace.App/Assets/Fonts

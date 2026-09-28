@@ -7,7 +7,12 @@ async function control(page, name, type) {
   return page.evaluate(({ name, type }) => globalThis.__vectorSpaceControls.filter(c => c.name === name && (!type || c.type === type) && c.enabled).at(-1), { name, type });
 }
 async function click(page, name, type) { const c = await control(page, name, type); await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2); }
-async function choose(page, name, value) { await click(page, name, 'ComboBox'); await click(page, value, 'ComboBoxItem'); }
+async function choose(page, name, value) {
+  await click(page, name, 'ComboBox'); await click(page, value, 'ComboBoxItem');
+  // Changing action kind rebuilds the inspector. A preceding diagnostics sample
+  // still has clickable bounds for the detached destination control.
+  await expect.poll(() => page.evaluate(({ name }) => globalThis.__vectorSpaceControls?.filter(c => c.name === name && c.type === 'ComboBox').at(-1)?.value, { name })).toBe(value);
+}
 function fixture() {
   const reaction = (...actions) => ({ actions });
   const hot = (id, x, y, actions) => ({ id, name: id, kind: 'Rectangle', x, y, width: 100, height: 50, fills: [{ color: '#0D99FF' }], reactions: [reaction(...actions)] });

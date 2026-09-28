@@ -1,0 +1,22 @@
+# Deployment template only. Applying this provisions a paid persistent service.
+# Review the hosting account, plan and secret handling before applying it.
+services:
+  - type: web
+    name: vectorspace-collaboration
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: VECTORSPACE_CREATE_KEY
+        generateValue: true
+      - key: VECTORSPACE_DATA
+        value: /data/vectorspace
+      - key: VECTORSPACE_ALLOWED_ORIGINS
+        value: https://wieslawsoltes.github.io
+    disk:
+      name: vectorspace-rooms
+      mountPath: /data/vectorspace
+      sizeGB: 1

@@ -49,6 +49,9 @@ public partial class App : Application
             catch (Exception ex) { Console.WriteLine("Optional Inter font unavailable: " + ex.Message); }
 #if __WASM__
             BrowserDiagnostics.Attach(session, _workbench);
+            _workbench.CollaborationApplicationUrl = BrowserSharedFiles.ApplicationUrl();
+            var invitation = BrowserSharedFiles.TakeInvitation();
+            if (!string.IsNullOrWhiteSpace(invitation)) _workbench.OpenCollaborationInvitation(invitation);
 #endif
         }
         catch (Exception ex)

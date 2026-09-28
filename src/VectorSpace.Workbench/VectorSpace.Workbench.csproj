@@ -6,5 +6,5 @@
   <UnoFeatures>SkiaRenderer;</UnoFeatures><IsPackable>true</IsPackable>
   <Description>Reusable VectorSpace workbench, layers, inspector, tool palette, prototype and document workflows.</Description>
  </PropertyGroup>
- <ItemGroup><ProjectReference Include="../VectorSpace.Editor/VectorSpace.Editor.csproj" /></ItemGroup>
+ <ItemGroup><ProjectReference Include="../VectorSpace.Editor/VectorSpace.Editor.csproj" /><ProjectReference Include="../VectorSpace.Collaboration/VectorSpace.Collaboration.csproj" /></ItemGroup>
 </Project>

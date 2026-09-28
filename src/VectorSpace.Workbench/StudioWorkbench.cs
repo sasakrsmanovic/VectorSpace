@@ -50,6 +50,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
         var reveal = new IconButton("sidebar", "Show or hide editor panels (Tab)", TogglePanels) { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new(12), RestBackground = "#FFFFFF", Background = Studio.Brush("#FFFFFF") };
         reveal.Visibility = Visibility.Collapsed; canvasArea.Children.Add(reveal);
         Content = _root;
+        InitializeCollaboration(canvasArea);
         Session.Changed += OnSessionChanged;
         Surface.VectorSelectionChanged += RefreshInspector;
         Surface.CommentRequested += (anchor, thread) => RunAsync(() => EditCommentAsync(anchor, thread));
@@ -107,11 +108,10 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private UIElement BuildRightPanel()
     {
         var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = new(1, GridUnitType.Star) });
-        var avatar = new Border { Width = 28, Height = 28, CornerRadius = new(14), Background = Studio.Brush("#F5D7A6"), Child = Studio.Text("Y", 11, "#775719", true), Padding = new(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        ToolTipService.SetToolTip(avatar, "You · Local editing");
+        var avatar = _participants;
         var present = new IconButton("play", "Present prototype", () => Run(Surface.Present));
         var share = new StudioButton("Share", () => RunAsync(ShowShareAsync)) { IsPrimary = true, Height = 32, Padding = new(17, 6), FontWeight = new() { Weight = 600 } };
-        var top = Studio.Columns((avatar, 28), (new Grid(), -1), (present, 30), (share, 70)); top.Margin = new(16, 12, 12, 12); root.Children.Add(top);
+        var top = Studio.Columns((avatar, -1), (present, 30), (share, 70)); top.Margin = new(16, 12, 12, 12); root.Children.Add(top);
         var design = new StudioButton("Design", () => { _prototype = false; RefreshInspector(); }) { FontWeight = new() { Weight = 600 }, Padding = new(5, 6) };
         var prototype = new StudioButton("Prototype", () => { _prototype = true; RefreshInspector(); }) { Padding = new(8, 6) };
         _zoom.Padding = new(5, 6); _zoom.FontSize = 11; _zoom.Click += (_, _) => ShowZoomMenu(_zoom);
@@ -275,7 +275,7 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     {
         if (_disposed || Session.IsInteracting) { if (!_disposed) _autosaveTimer.Start(); return; }
         await _autosaveLock.WaitAsync();
-        try { var json = DocumentJson.Save(Session.Document); await _storage.WriteAutosaveAsync(json); _status.Text = "All changes saved locally"; }
+        try { var json = DocumentJson.Save(Session.Document); await _storage.WriteAutosaveAsync(json); _status.Text = _collaboration?.Status ?? "All changes saved locally"; }
         catch (Exception ex) { _status.Text = "Local save failed"; ShowStatus("Autosave failed: " + ex.Message + ". Download a document copy.", true); }
         finally { _autosaveLock.Release(); }
     }
@@ -286,8 +286,10 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     }
     private async void RunAsync(Func<Task> action)
     {
+        _sharedAsyncDepth++;
         try { Surface.FinishTextEdit(true); Surface.FinishPath(false); await action(); }
         catch (Exception ex) { ShowStatus(ex.Message, true); }
+        finally { _sharedAsyncDepth--; DispatcherQueue.TryEnqueue(FlushRemoteDeliveries); }
     }
     private static TextBlock Wrapped(string text, double size = 11, string color = Studio.Muted)
     {
@@ -296,6 +298,6 @@ public sealed partial class StudioWorkbench : UserControl, IDisposable
     private static string Glyph(NodeKind kind) => kind == NodeKind.Path ? "pen" : kind == NodeKind.ComponentSet ? "component" : kind.ToString().ToLowerInvariant();
     public new void Dispose()
     {
-        if (_disposed) return; _disposed = true; Session.Changed -= OnSessionChanged; _autosaveTimer.Stop(); _toastTimer.Stop(); Surface.Dispose();
+        if (_disposed) return; _disposed = true; DisposeCollaboration(); Session.Changed -= OnSessionChanged; _autosaveTimer.Stop(); _toastTimer.Stop(); Surface.Dispose();
     }
 }

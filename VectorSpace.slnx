@@ -1,15 +1,23 @@
 <Solution>
- <Folder Name="/Libraries/">
-  <Project Path="src/VectorSpace.Core/VectorSpace.Core.csproj" />
-  <Project Path="src/VectorSpace.Layout/VectorSpace.Layout.csproj" />
-  <Project Path="src/VectorSpace.Documents/VectorSpace.Documents.csproj" />
-  <Project Path="src/VectorSpace.Editing/VectorSpace.Editing.csproj" />
-  <Project Path="src/VectorSpace.Prototyping/VectorSpace.Prototyping.csproj" />
+  <Folder Name="/Libraries/">
+    <Project Path="src/VectorSpace.Core/VectorSpace.Core.csproj" />
+    <Project Path="src/VectorSpace.Layout/VectorSpace.Layout.csproj" />
+    <Project Path="src/VectorSpace.Documents/VectorSpace.Documents.csproj" />
+    <Project Path="src/VectorSpace.Editing/VectorSpace.Editing.csproj" />
+    <Project Path="src/VectorSpace.Prototyping/VectorSpace.Prototyping.csproj" />
+    <Project Path="src/VectorSpace.Collaboration/VectorSpace.Collaboration.csproj" />
     <Project Path="src/VectorSpace.Skia/VectorSpace.Skia.csproj" />
-  <Project Path="src/VectorSpace.Controls/VectorSpace.Controls.csproj" />
-  <Project Path="src/VectorSpace.Editor/VectorSpace.Editor.csproj" />
-  <Project Path="src/VectorSpace.Workbench/VectorSpace.Workbench.csproj" />
- </Folder>
- <Project Path="src/VectorSpace.App/VectorSpace.App.csproj" />
- <Folder Name="/Tests/"><Project Path="tests/VectorSpace.Tests/VectorSpace.Tests.csproj" /></Folder>
+    <Project Path="src/VectorSpace.Controls/VectorSpace.Controls.csproj" />
+    <Project Path="src/VectorSpace.Editor/VectorSpace.Editor.csproj" />
+    <Project Path="src/VectorSpace.Workbench/VectorSpace.Workbench.csproj" />
+  </Folder>
+  <Project Path="src/VectorSpace.App/VectorSpace.App.csproj" />
+  <Folder Name="/Server/">
+    <Project Path="server/VectorSpace.Server/VectorSpace.Server.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/VectorSpace.Tests/VectorSpace.Tests.csproj" />
+    <Project Path="tests/VectorSpace.Collaboration.Tests/VectorSpace.Collaboration.Tests.csproj" />
+    <Project Path="tests/VectorSpace.Collaboration.EditorTests/VectorSpace.Collaboration.EditorTests.csproj" />
+  </Folder>
 </Solution>

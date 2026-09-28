@@ -13,6 +13,10 @@ public sealed partial class StudioWorkbench
     private IEnumerable<QuickAction> Actions()
     {
         foreach (var action in EditingActions()) yield return action;
+        yield return new("Share file", "", () => RunAsync(ShowShareAsync));
+        yield return new("People in this file", "", () => RunAsync(ShowParticipantsAsync));
+        yield return new("Version history", "", () => RunAsync(ShowSharedHistoryAsync));
+        yield return new("Local collaboration recovery", "", () => RunAsync(ShowSharedRecoveryAsync));
         yield return new("New document", "", () => RunAsync(NewDocumentAsync));
         yield return new("Open document or import SVG", "Ctrl O", () => RunAsync(OpenAsync));
         yield return new("Save document", "Ctrl S", () => RunAsync(SaveAsync));
@@ -290,9 +294,9 @@ public sealed partial class StudioWorkbench
     {
         var input = Studio.Input(value, title); input.Width = 350; input.Height = multiline ? 110 : 34; input.AcceptsReturn = multiline; input.TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap;
         var dialog = Dialog(title, input, "Save", "Cancel"); dialog.Opened += (_, _) => { input.Focus(FocusState.Programmatic); input.SelectAll(); };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary ? input.Text.Trim() : null;
+        return await ShowDialogAsync(dialog) == ContentDialogResult.Primary ? input.Text.Trim() : null;
     }
-    private async Task<bool> ConfirmAsync(string title, string description) => await Dialog(title, Wrapped(description, 12, Studio.Ink), "Continue", "Cancel").ShowAsync() == ContentDialogResult.Primary;
+    private async Task<bool> ConfirmAsync(string title, string description) => await ShowDialogAsync(Dialog(title, Wrapped(description, 12, Studio.Ink), "Continue", "Cancel")) == ContentDialogResult.Primary;
     private async Task RenameDocumentAsync()
     {
         var text = await PromptAsync("Rename document", Session.Document.Name); if (!string.IsNullOrWhiteSpace(text)) Session.Edit("Rename document", () => Session.Document.Name = text);
@@ -306,23 +310,16 @@ public sealed partial class StudioWorkbench
         if (thread is null)
         {
             var text = await PromptAsync("Leave a comment", "", true);
-            if (!string.IsNullOrWhiteSpace(text)) Session.Edit("Add comment", () => Session.Document.Comments.Add(new() { PageId = Session.Page.Id, Anchor = anchor, Text = text })); return;
+            if (!string.IsNullOrWhiteSpace(text)) Session.Edit("Add comment", () => Session.Document.Comments.Add(new() { PageId = Session.Page.Id, Anchor = anchor, Text = text, Author = _collaboration is null ? "You" : _participantName })); return;
         }
         var root = new StackPanel { Spacing = 12, Width = 360 };
         root.Children.Add(Studio.Text(thread.Author + " · " + thread.CreatedAt.ToLocalTime().ToString("g"), 11, Studio.Muted)); root.Children.Add(Wrapped(thread.Text, 13, Studio.Ink));
-        foreach (var reply in thread.Replies) { root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("You: " + reply, 12, Studio.Ink)); }
+        foreach (var reply in thread.Replies) { root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped(reply, 12, Studio.Ink)); }
         var input = Studio.Input("", "Reply to comment"); input.PlaceholderText = "Reply…"; input.AcceptsReturn = true; input.Height = 72; root.Children.Add(input);
         var dialog = Dialog("Comment", root, "Reply"); dialog.SecondaryButtonText = thread.Resolved ? "Reopen" : "Resolve";
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(input.Text)) Session.Edit("Reply to comment", () => thread.Replies.Add(input.Text.Trim()));
+        var result = await ShowDialogAsync(dialog);
+        if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(input.Text)) Session.Edit("Reply to comment", () => thread.Replies.Add((_collaboration is null ? "You" : _participantName) + ": " + input.Text.Trim()));
         else if (result == ContentDialogResult.Secondary) Session.Edit("Resolve comment", () => thread.Resolved = !thread.Resolved);
-    }
-    private async Task ShowShareAsync()
-    {
-        var root = new StackPanel { Spacing = 14, Width = 360 };
-        root.Children.Add(Wrapped("Your work stays on this device. VectorSpace stores a recovery copy in your browser or desktop profile; there is no collaboration server or public document link.", 12, Studio.Ink));
-        root.Children.Add(Wrapped("Share an editable .vectorspace file with another person, or export SVG/PNG from the inspector. They can open the file in their own copy of VectorSpace."));
-        var dialog = Dialog("Share a local copy", root, "Download document"); if (await dialog.ShowAsync() == ContentDialogResult.Primary) await SaveAsync();
     }
     private async Task ShowHelpAsync()
     {
@@ -331,8 +328,8 @@ public sealed partial class StudioWorkbench
         foreach (var (name, shortcut) in new[] { ("Move / Frame / Rectangle / Ellipse", "V / F / R / O"), ("Pen / Pencil / Text / Comment", "P / Shift P / T / C"), ("Pan / Zoom", "Space-drag / Ctrl-wheel"), ("Select multiple / Deep-select", "Shift-click / Ctrl-click"), ("Constrain / Duplicate while dragging", "Shift / Alt"), ("Undo / Redo", "Ctrl Z / Ctrl Shift Z"), ("Group / Ungroup", "Ctrl G / Ctrl Shift G"), ("Nudge / Large nudge", "Arrows / Shift-arrows"), ("Fit all / Fit selection", "Shift 1 / Shift 2"), ("Save / Open / Quick actions", "Ctrl S / Ctrl O / Ctrl K"), ("Finish path / Close path", "Enter / Click first point"), ("Next sibling / Cancel / Rename", "Tab / Esc / F2"), ("Edit points / Select all anchors", "Enter / Ctrl A"), ("Smooth points / Corner points", "B / Alt B"), ("Flip horizontal / Vertical", "Shift H / Shift V"), ("Paste in place / Resize layer", "Ctrl Shift V / Ctrl Alt arrows") })
             root.Children.Add(Studio.Columns((Wrapped(name, 11, Studio.Ink), -1), (Wrapped(shortcut, 10, Studio.Muted), 165)));
         root.Children.Add(Wrapped("Local variables: create typed values and aliases, add modes, and bind layer properties from the Variables inspector. Local variants: combine components or Add variant, insert an instance from Assets, and choose its properties. All edits support undo and native document round-tripping.", 11));
-        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, multiplayer, remote libraries, plugins, rich text and full vector networks remain unavailable. Local prototype playback, image cropping and single-contour point editing are supported. SVG import reports unsupported elements instead of executing them.", 10));
-        await Dialog("Keyboard shortcuts & about", Studio.Scroll(root)).ShowAsync();
+        root.Children.Add(Studio.Rule()); root.Children.Add(Wrapped("This alpha does not provide complete Figma compatibility: .fig files, remote libraries, plugins, rich text and full vector networks remain unavailable. Multi-user editing requires a separately configured collaboration service. Local prototype playback, image cropping and single-contour point editing are supported. SVG import reports unsupported elements instead of executing them.", 10));
+        await ShowDialogAsync(Dialog("Keyboard shortcuts & about", Studio.Scroll(root)));
     }
     private async Task ShowQuickActionsAsync()
     {
@@ -347,7 +344,7 @@ public sealed partial class StudioWorkbench
                 AutomationProperties.SetName(button, item.Name); button.Click += (_, _) => { selectedAction = item.Execute; dialog.Hide(); }; results.Children.Add(button);
             }
         }
-        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await dialog.ShowAsync(); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
+        search.TextChanged += (_, _) => Filter(); dialog.Opened += (_, _) => search.Focus(FocusState.Programmatic); Filter(); await ShowDialogAsync(dialog); if (selectedAction is not null) { Surface.FocusCanvas(); selectedAction(); }
     }
     private async Task ShowFramePresetsAsync()
     {
@@ -362,6 +359,6 @@ public sealed partial class StudioWorkbench
                 Run(() => Session.Edit("Create frame", () => { Session.AddNode(frame); Session.Select(frame); })); Surface.Fit(true);
             }; root.Children.Add(button);
         }
-        await dialog.ShowAsync();
+        await ShowDialogAsync(dialog);
     }
 }

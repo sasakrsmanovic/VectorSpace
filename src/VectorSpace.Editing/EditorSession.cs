@@ -53,11 +53,11 @@ public sealed partial class EditorSession
     public bool OutlinesVisible { get; set; }
     public bool IsDirty { get; private set; }
     public bool IsInteracting => _before is not null;
-    public bool CanUndo => _undo.Count > 0;
-    public bool CanRedo => _redo.Count > 0;
-    public string UndoLabel => _undo.LastOrDefault()?.Label ?? "";
-    public string RedoLabel => _redo.TryPeek(out var item) ? item.Label : "";
-    public IReadOnlyList<string> History => _undo.Select(e => e.Label).ToArray();
+    public bool CanUndo => SharedHistory?.CanUndo ?? (_undo.Count > 0);
+    public bool CanRedo => SharedHistory?.CanRedo ?? (_redo.Count > 0);
+    public string UndoLabel => SharedHistory?.UndoLabel ?? _undo.LastOrDefault()?.Label ?? "";
+    public string RedoLabel => SharedHistory?.RedoLabel ?? (_redo.TryPeek(out var item) ? item.Label : "");
+    public IReadOnlyList<string> History => SharedHistory?.History ?? _undo.Select(e => e.Label).ToArray();
     public IReadOnlySet<string> SelectedIds => _selected;
     public IReadOnlyList<DesignNode> Selection => _selectionCache ??= Array.AsReadOnly(Page.AllNodes().Where(n => _selected.Contains(n.Id)).ToArray());
     public IReadOnlyList<DesignNode> SelectionRoots => _rootsCache ??= Array.AsReadOnly(Selection.Where(n => !Ancestors(n).Any(a => _selected.Contains(a.Id))).ToArray());
@@ -69,6 +69,7 @@ public sealed partial class EditorSession
     }
     public void Load(DesignDocument document)
     {
+        if (SharedHistory is not null) throw new InvalidOperationException("Leave the shared file before opening another document.");
         DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply();
         _before = null; _selected.Clear(); _undo.Clear(); _redo.Clear(); _savedJson = DocumentJson.Save(document); IsDirty = false; Notify(EditorChangeKind.Document, "Open document");
     }
@@ -112,6 +113,7 @@ public sealed partial class EditorSession
     }
     public void BeginInteraction(string label)
     {
+        if (SharedHistory?.CanEdit(label) == false) throw new InvalidOperationException("This shared file is read-only for this action, or its synchronization queue is full.");
         if (_before is not null) throw new InvalidOperationException("An edit transaction is already active.");
         _before = Capture(); _interactionLabel = label;
     }
@@ -125,13 +127,18 @@ public sealed partial class EditorSession
         foreach (var page in Document.Pages) LayoutEngine.Arrange(page.Nodes);
         // Keep the rollback snapshot until serialization/validation has succeeded.
         DocumentJson.Validate(Document);
-        var after = Capture(); var before = _before; _before = null;
+        var after = Capture(); var before = _before;
         if (before.Json != after.Json)
         {
-            _undo.Add(new(_interactionLabel, before, after)); _redo.Clear();
-            while (_undo.Count > 150 || (_undo.Count > 1 && _undo.Sum(x => (long)x.Before.Json.Length + x.After.Json.Length) > 32 * 1024 * 1024)) _undo.RemoveAt(0);
+            if (SharedHistory is { } shared) shared.Commit(_interactionLabel, before.Json, after.Json);
+            else
+            {
+                _undo.Add(new(_interactionLabel, before, after)); _redo.Clear();
+                while (_undo.Count > 150 || (_undo.Count > 1 && _undo.Sum(x => (long)x.Before.Json.Length + x.After.Json.Length) > 32 * 1024 * 1024)) _undo.RemoveAt(0);
+            }
             IsDirty = after.Json != _savedJson;
         }
+        _before = null;
         Notify(EditorChangeKind.Document, _interactionLabel);
     }
     public void CancelInteraction()
@@ -147,11 +154,14 @@ public sealed partial class EditorSession
     public void Undo()
     {
         if (IsInteracting) { CancelInteraction(); return; }
+        if (SharedHistory is { } shared) { shared.Undo(); return; }
         if (_undo.Count == 0) return; var entry = _undo[^1]; _undo.RemoveAt(_undo.Count - 1); _redo.Push(entry); Restore(entry.Before); Notify(EditorChangeKind.Document, "Undo " + entry.Label);
     }
     public void Redo()
     {
-        if (IsInteracting || !_redo.TryPop(out var entry)) return; _undo.Add(entry); Restore(entry.After); Notify(EditorChangeKind.Document, "Redo " + entry.Label);
+        if (IsInteracting) return;
+        if (SharedHistory is { } shared) { shared.Redo(); return; }
+        if (!_redo.TryPop(out var entry)) return; _undo.Add(entry); Restore(entry.After); Notify(EditorChangeKind.Document, "Redo " + entry.Label);
     }
     public void MarkSaved(string? json = null)
     {

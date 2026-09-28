@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0-alpha.1 — Collaborative editing
+
+- Added the tenth reusable library, `VectorSpace.Collaboration`, and a persistent ASP.NET room service with guarded property/hierarchy transactions, idempotent retries, normalized layout/variables/components, and conditional own undo/redo.
+- Added real Share/create/join/invite/revoke flows, server-enforced viewer/commenter/editor/owner capabilities, synchronized comments, retained remote cursors and selections, participant following, and revision download/restore.
+- Added separate token-free browser/desktop recovery journals for unacknowledged or rejected work. Remote model updates respect pointer, inline-text and modal transaction boundaries; revoked mid-gesture edits roll back without escaping the input event loop.
+- Replaced mutable-JSON projection with a read-only DOM and retained unchanged cell keys/values. A test-only reference oracle verifies equivalence; benchmarks report projection cost and exact delta wire size without an application-wide speed claim.
+- Added actual multi-window browser and HTTP/restart acceptance, projection equivalence checks, server/container packaging and collaboration-aware build/release gates. Corrected duplicate tracing, asynchronous clipboard and stale inspector diagnostics in browser tests.
+- Added collaboration/hosting documentation and refreshed architecture/security guidance. Pages remains a static client; cross-device collaboration requires a separately operated HTTPS backend with persistent disk. Native document schema remains 4.
+
 ## 0.5.0-alpha.1
 
 - Add reusable cubic subdivision, tangent operations, point selection/drag/marquee/nudges, exact segment insertion, contour reversal/closure and transactional primitive conversion.

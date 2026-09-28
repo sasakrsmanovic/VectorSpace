@@ -9,6 +9,7 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -20,29 +21,53 @@ jobs:
       - name: Verify version and install toolchain
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          SOURCE_VERSION=$(python3 -c 'import xml.etree.ElementTree as E; print(E.parse("Directory.Build.props").findtext(".//Version"))')
+          test "$VERSION" = "$SOURCE_VERSION" || { echo 'Release tag must match the source version.' >&2; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           dotnet workload install wasm-tools --skip-manifest-update
           python3 scripts/fetch-assets.py
-      - run: dotnet run --project tests/VectorSpace.Tests -c Release
-      - name: Publish browser and pack reusable libraries
+      - name: Validate engines, shared editor and persistent service
         run: |
-          dotnet publish src/VectorSpace.App -f net10.0-browserwasm -c Release -o artifacts/publish -p:Version="$VERSION" -p:WasmShellWebAppBasePath=/VectorSpace/
+          python3 -m unittest discover -s tests/scripts -v
+          dotnet run --project tests/VectorSpace.Tests -c Release
+          dotnet run --project tests/VectorSpace.Collaboration.Tests -c Release
+          dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release
+          dotnet build server/VectorSpace.Server -c Release
+          python3 -m unittest discover -s tests/server -v
+      - name: Publish browser, server and reusable libraries
+        run: |
+          dotnet publish src/VectorSpace.App -f net10.0-browserwasm -c Release -o artifacts/publish -p:WasmShellWebAppBasePath=/VectorSpace/
           python3 scripts/collect-site.py artifacts/publish artifacts/site
+          dotnet publish server/VectorSpace.Server -c Release -o artifacts/collaboration-server
           for project in src/*/*.csproj; do
             case "$project" in */VectorSpace.App/*) continue;; esac
-            dotnet pack "$project" -c Release -o artifacts/packages -p:Version="$VERSION"
+            dotnet pack "$project" -c Release -o artifacts/packages
           done
-      - name: Browser acceptance tests
+      - name: Actual browser and multi-user acceptance
         run: |
           npm ci
           npx playwright install --with-deps chromium
           python3 scripts/serve-site.py --directory artifacts/site --port 4173 > artifacts/server.log 2>&1 &
-          npm run test:browser
+          python3 scripts/run-collaboration-browser-tests.py
+      - name: Preserve release validation
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: VectorSpace-release-validation
+          path: |
+            artifacts/playwright-report
+            artifacts/test-results
+            artifacts/screenshots
+            artifacts/browser-results.xml
+            artifacts/collaboration-server.log
+            artifacts/collaboration-browser-server.log
+          if-no-files-found: ignore
       - name: Create release archives and checksums
         run: |
           mkdir -p artifacts/release
           (cd artifacts/site && zip -qr ../release/VectorSpace-browser-$VERSION.zip .)
           (cd artifacts/packages && zip -qr ../release/VectorSpace-packages-$VERSION.zip .)
+          (cd artifacts/collaboration-server && zip -qr ../release/VectorSpace-server-$VERSION.zip .)
           git archive --format=zip --output=artifacts/release/VectorSpace-source-$VERSION.zip HEAD
           (cd artifacts/release && sha256sum *.zip > SHA256SUMS.txt)
       - name: Publish GitHub release
