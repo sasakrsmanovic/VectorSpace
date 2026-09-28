@@ -420,7 +420,9 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         var bounds = node.WorldBounds; var topLeft = editor.Viewport.WorldToScreen(new(bounds.X, bounds.Y));
         var box = Studio.Input(node.Text, "Edit canvas text"); box.AcceptsReturn = true; box.TextWrapping = TextWrapping.Wrap; box.FontSize = Math.Max(8, node.FontSize * editor.Viewport.Zoom); box.Width = Math.Max(80, bounds.Width * editor.Viewport.Zoom + 12); box.Height = Math.Max(40, bounds.Height * editor.Viewport.Zoom + 12); box.Background = Studio.Brush("#FFFFFF"); box.BorderBrush = Studio.Brush(Studio.Accent); box.Padding = new(4); _textEditor = box;
         Canvas.SetLeft(box, topLeft.X - 4); Canvas.SetTop(box, topLeft.Y - 4); _overlay.Children.Add(box);
-        box.TextChanged += (_, _) => { if (_textNode is null) return; _textNode.Text = box.Text; ComponentService.SetOverride(_textNode, text: box.Text); };
+        // TextChanged is asynchronous; immediate Save/Enter can otherwise commit the
+        // previous value. Synchronize model data without touching the visual tree here.
+        box.TextChanging += (_, _) => { if (!ReferenceEquals(_textEditor, box) || _textNode is null) return; _textNode.Text = box.Text; ComponentService.SetOverride(_textNode, text: box.Text); };
         box.LostFocus += (_, _) => { if (!_finishingText) FinishTextEdit(true); };
         box.KeyDown += (_, e) => { if (e.Key == VirtualKey.Escape) { FinishTextEdit(false); e.Handled = true; } else if (e.Key == VirtualKey.Enter && Keyboard.Control) { FinishTextEdit(true); e.Handled = true; } };
         box.Focus(FocusState.Programmatic); box.SelectAll();
@@ -430,6 +432,11 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (_textEditor is null || _finishingText) return;
         _finishingText = true; var box = _textEditor;
         var returnFocus = box.FocusState != FocusState.Unfocused;
+        if (commit && _textNode is { } node)
+        {
+            // Read the editor synchronously before teardown as a final commit barrier.
+            node.Text = box.Text; ComponentService.SetOverride(node, text: box.Text);
+        }
         _textEditor = null; _textNode = null; _overlay.Children.Remove(box);
         try { if (commit) Session?.CommitInteraction(); else Session?.CancelInteraction(); }
         finally
