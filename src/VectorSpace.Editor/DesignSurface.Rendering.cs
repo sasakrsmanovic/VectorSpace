@@ -52,6 +52,21 @@ public sealed partial class DesignSurface
             }
             DrawSelection(canvas);
             if (_vectorNode is not null) DrawVertices(canvas, _vectorNode);
+            if (_penNode is not null)
+            {
+                DrawVertices(canvas, _penNode);
+                if (_pathPreviewWorld is { } preview && _penNode.Points.Count > 0 && _gesture == Gesture.None)
+                {
+                    var matrix = PathEditing.PointToWorld(_penNode); var last = _penNode.Points[^1];
+                    var a = viewport.WorldToScreen(matrix.Map(last.Position));
+                    var b = viewport.WorldToScreen(preview);
+                    if (Keyboard.Shift) b = a + DrawingGeometry.ConstrainAngle(b - a);
+                    using var path = new SKPath(); path.MoveTo(P(a));
+                    if (last.ControlOut is { } control) path.CubicTo(P(viewport.WorldToScreen(matrix.Map(control))), P(b), P(b)); else path.LineTo(P(b));
+                    using var pen = new SKPaint { Color = new SKColor(13, 153, 255), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+                    canvas.DrawPath(path, pen);
+                }
+            }
             var comments = editor.Document.Comments.Where(c => c.PageId == editor.Page.Id && !c.Resolved).ToArray();
             for (var i = 0; i < comments.Length; i++)
             {
@@ -90,6 +105,7 @@ public sealed partial class DesignSurface
     private void DrawSelection(SKCanvas canvas)
     {
         if (Session is not { } editor || editor.SelectionRoots.Count == 0 || _textEditor is not null) return;
+        if (IsVectorEditing) return;
         var points = GetHandles(); if (points.Length < 8) return;
         using var blue = new SKPaint { IsAntialias = true, Color = new(13, 153, 255), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
         using var fill = new SKPaint { IsAntialias = true, Color = SKColors.White };
@@ -129,16 +145,28 @@ public sealed partial class DesignSurface
         if (Session is null) return;
         using var stroke = new SKPaint { IsAntialias = true, Color = new(13, 153, 255), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
         using var fill = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        Vec2 Screen(Vec2 p)
+        var transform = PathEditing.PointToWorld(node);
+        Vec2 Screen(Vec2 p) => Session.Viewport.WorldToScreen(transform.Map(p));
+        for (var i = 0; i < node.Points.Count; i++)
         {
-            if (node.PathWidth > 0 && node.PathHeight > 0) p = new(p.X * node.Width / node.PathWidth, p.Y * node.Height / node.PathHeight);
-            return Session.Viewport.WorldToScreen(node.WorldMatrix.Map(p));
-        }
-        foreach (var point in node.Points)
-        {
-            var p = Screen(point.Position);
-            foreach (var control in new[] { point.ControlIn, point.ControlOut }.Where(c => c.HasValue)) { var cp = Screen(control!.Value); canvas.DrawLine(P(p), P(cp), stroke); canvas.DrawCircle(P(cp), 3, fill); canvas.DrawCircle(P(cp), 3, stroke); }
+            var point = node.Points[i]; var p = Screen(point.Position);
+            if (_pointSelection.Contains(i) || node == _penNode && i == node.Points.Count - 1)
+            {
+                if (point.ControlIn is { } incoming) Handle(incoming);
+                if (point.ControlOut is { } outgoing) Handle(outgoing);
+            }
+            if (p.X < -8 || p.Y < -8 || p.X > ActualWidth + 8 || p.Y > ActualHeight + 8) continue;
+            fill.Color = _pointSelection.Contains(i) ? stroke.Color : SKColors.White;
             canvas.DrawCircle(P(p), 4, fill); canvas.DrawCircle(P(p), 4, stroke);
+            void Handle(Vec2 control)
+            {
+                var cp = Screen(control); fill.Color = SKColors.White;
+                canvas.DrawLine(P(p), P(cp), stroke); canvas.DrawCircle(P(cp), 3, fill); canvas.DrawCircle(P(cp), 3, stroke);
+            }
+        }
+        if (_pointMarquee is { } marquee)
+        {
+            fill.Color = new SKColor(13, 153, 255, 22); canvas.DrawRect(SceneRenderer.Rect(marquee), fill); canvas.DrawRect(SceneRenderer.Rect(marquee), stroke);
         }
     }
     private void DrawRulers(SKCanvas canvas, Size size)

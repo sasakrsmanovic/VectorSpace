@@ -10,6 +10,9 @@ public sealed partial class DesignSurface
     private int[] _movingPoints = [], _pointMarqueeBaseline = [];
     private Matrix2D _pointTransform;
     private RectD? _pointMarquee;
+    private int _pointClickSelection = -1;
+    private bool _pointDragStarted;
+    private int[] _pointMarqueeOriginal = [];
     private string? _vectorPageId;
     public bool IsVectorEditing => _vectorNode is not null;
     public IReadOnlyCollection<int> SelectedPointIndices => _pointSelection.ToArray();
@@ -115,12 +118,15 @@ public sealed partial class DesignSurface
     {
         ValidateVectorTarget();
         if (_vectorNode is not { } node || Session is not { } editor || editor.Tool != EditorTool.Move) return false;
+        _pointClickSelection = -1; _pointDragStarted = false;
         var index = HitPoint(screen, out _controlHandle);
         if (index >= 0)
         {
             if (_controlHandle == 0)
             {
                 if (shift && _pointSelection.Remove(index)) { PointSelectionChanged(); return true; }
+                // Preserve a multi-selection for dragging, but collapse a plain click on release.
+                if (!shift && _pointSelection.Count > 1 && _pointSelection.Contains(index)) _pointClickSelection = index;
                 if (!shift && !_pointSelection.Contains(index)) _pointSelection.Clear();
                 _pointSelection.Add(index);
             }
@@ -149,7 +155,8 @@ public sealed partial class DesignSurface
             }
             else
             {
-                _pointMarqueeBaseline = shift ? _pointSelection.ToArray() : [];
+                _pointMarqueeOriginal = _pointSelection.ToArray();
+                _pointMarqueeBaseline = shift ? _pointMarqueeOriginal : [];
                 _pointMarquee = new(screen.X, screen.Y, 0, 0); _gesture = Gesture.VertexMarquee;
                 if (!shift) _pointSelection.Clear(); PointSelectionChanged(); return true;
             }
@@ -170,7 +177,9 @@ public sealed partial class DesignSurface
             RequestFrame(); return;
         }
         if (_gesture != Gesture.Vertex || _pointBaseline.Length != node.Points.Count) return;
-       
+        if (!_pointDragStarted && screen.DistanceTo(_startScreen) < 3) return;
+        _pointDragStarted = true; _pointClickSelection = -1;
+
         var inverse = _pointTransform.Inverse;
         var delta = world - _startWorld;
         if (shift && _controlHandle == 0) delta = Math.Abs(delta.X) >= Math.Abs(delta.Y) ? new(delta.X, 0) : new(0, delta.Y);
@@ -195,8 +204,22 @@ public sealed partial class DesignSurface
     }
     private void CancelPointGesture()
     {
-        _gesture = Gesture.None; _pointMarquee = null;
+        if (_gesture == Gesture.VertexMarquee)
+        { _pointSelection.Clear(); _pointSelection.UnionWith(_pointMarqueeOriginal); }
+        _gesture = Gesture.None; _pointMarquee = null; _pointClickSelection = -1; _pointDragStarted = false;
         Session?.CancelInteraction(); _canvas.ReleasePointerCaptures(); ValidateVectorTarget(); PointSelectionChanged();
+    }
+    private void FinishPointGesture(bool marquee)
+    {
+        if (!marquee)
+        {
+            Session?.CommitInteraction();
+            if (_pointClickSelection >= 0 && !_pointDragStarted)
+            { _pointSelection.Clear(); _pointSelection.Add(_pointClickSelection); }
+        }
+        _pointClickSelection = -1; _pointDragStarted = false;
+        _pointBaseline = []; _movingPoints = []; _pointMarquee = null; _pointMarqueeOriginal = [];
+        ValidateVectorTarget(); PointSelectionChanged();
     }
     public bool HandlePointKey(VirtualKey key, bool control, bool shift, bool alt)
     {

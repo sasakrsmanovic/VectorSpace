@@ -56,13 +56,30 @@ public sealed partial class SceneRenderer : IDisposable
         {
             GeometryCacheHits++; _recency.Remove(cache.Recency); _recency.AddLast(cache.Recency); return cache.Path;
         }
-        var path = SKPath.ParseSvgPathData(VectorPath.Build(node)) ?? new SKPath();
-        if (node.Kind == NodeKind.Path && node.PathWidth > 0 && node.PathHeight > 0) path.Transform(SKMatrix.CreateScale((float)(node.Width / node.PathWidth), (float)(node.Height / node.PathHeight)));
+        var path = node.Kind == NodeKind.Path && node.PathData is null && node.Points.Count > 0 ? BuildEditableGeometry(node) : SKPath.ParseSvgPathData(VectorPath.Build(node)) ?? new SKPath();
+        if ((node.Kind == NodeKind.Path || node.PathData is not null) && node.PathWidth > 0 && node.PathHeight > 0) path.Transform(SKMatrix.CreateScale((float)(node.Width / node.PathWidth), (float)(node.Height / node.PathHeight)));
         RemoveCached(node.Id);
         while (_paths.Count >= Math.Max(1, GeometryCacheCapacity) && _recency.First is { } oldest) RemoveCached(oldest.Value);
         var points = node.Kind == NodeKind.Path ? node.Points.Select(p => new PointKey(p.Position, p.ControlIn, p.ControlOut)).ToArray() : [];
         var recency = _recency.AddLast(node.Id); _paths[node.Id] = new(key, points, path, recency); GeometryBuilds++;
         return path;
+    }
+    private static SKPath BuildEditableGeometry(DesignNode node)
+    {
+        var path = new SKPath(); var points = node.Points;
+        path.MoveTo((float)points[0].Position.X, (float)points[0].Position.Y);
+        for (var i = 1; i < points.Count; i++) Segment(points[i - 1], points[i]);
+        if (node.Closed) { Segment(points[^1], points[0]); path.Close(); }
+        return path;
+        void Segment(PathPoint a, PathPoint b)
+        {
+            if (a.ControlOut.HasValue || b.ControlIn.HasValue)
+            {
+                var first = a.ControlOut ?? a.Position; var second = b.ControlIn ?? b.Position;
+                path.CubicTo((float)first.X, (float)first.Y, (float)second.X, (float)second.Y, (float)b.Position.X, (float)b.Position.Y);
+            }
+            else path.LineTo((float)b.Position.X, (float)b.Position.Y);
+        }
     }
     private static bool PointsEqual(PointKey[] cached, DesignNode node)
     {
@@ -89,7 +106,7 @@ public sealed partial class SceneRenderer : IDisposable
         var world = node.LocalMatrix * parent;
         // Unclipped containers, text overflow and user-edited paths are conservative: never
         // reject them using only their nominal frame. Descendants are still culled individually.
-        if (rootScroll is null && viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path))
+        if (rootScroll is null && viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path and not NodeKind.Arrow))
         {
             var padding = node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max();
             padding += EffectPadding(node);
@@ -102,7 +119,7 @@ public sealed partial class SceneRenderer : IDisposable
         {
             using var paint = new SKPaint { Color = SKColors.White.WithAlpha((byte)Math.Clamp(node.Opacity * 255, 0, 255)), BlendMode = Blend(node.Blend) };
             paint.ImageFilter = EffectFilter(node);
-            if (node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path)
+            if (node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path and not NodeKind.Arrow)
             {
                 // Bound the offscreen to a conservative simple-leaf footprint. An unbounded
                 // save layer turns each tiny filtered shape into a viewport-sized raster pass.

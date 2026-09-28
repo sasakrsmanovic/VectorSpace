@@ -12,6 +12,7 @@ public sealed partial class StudioWorkbench
     private sealed record QuickAction(string Name, string Shortcut, Action Execute);
     private IEnumerable<QuickAction> Actions()
     {
+        foreach (var action in EditingActions()) yield return action;
         yield return new("New document", "", () => RunAsync(NewDocumentAsync));
         yield return new("Open document or import SVG", "Ctrl O", () => RunAsync(OpenAsync));
         yield return new("Save document", "Ctrl S", () => RunAsync(SaveAsync));
@@ -80,6 +81,21 @@ public sealed partial class StudioWorkbench
     private void ShowCanvasMenu(Point position)
     {
         var menu = new MenuFlyout(); var selected = Session.Selection.Count > 0;
+        if (Surface.IsVectorEditing)
+        {
+            AddMenu(menu, "Select all points", Surface.SelectAllPoints);
+            AddMenu(menu, "Smooth points", () => Run(() => Surface.SetPointTangents(TangentMode.Smooth)));
+            AddMenu(menu, "Corner points", () => Run(() => Surface.SetPointTangents(TangentMode.Corner)));
+            AddMenu(menu, "Split selected segments", () => Run(Surface.SplitSelectedSegments));
+            AddMenu(menu, "Delete selected anchors", () => Run(Surface.DeleteSelectedPoints));
+            AddMenu(menu, "Done editing", Surface.EndVectorEdit);
+            menu.ShowAt(Surface, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position }); return;
+        }
+        AddMenu(menu, "Edit vector points", () => Run(Surface.BeginVectorEdit), Session.Primary is { } vector && EditablePathConversion.Supports(vector));
+        AddMenu(menu, "Flip horizontal", () => Run(() => Session.FlipSelection(true)), selected);
+        AddMenu(menu, "Flip vertical", () => Run(() => Session.FlipSelection(false)), selected);
+        AddMenu(menu, "Paste in place", () => RunAsync(() => PasteAsync(true)));
+        menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "Copy                           Ctrl C", () => RunAsync(() => CopyAsync(false)), selected);
         AddMenu(menu, "Cut                              Ctrl X", () => RunAsync(() => CopyAsync(true)), selected);
         AddMenu(menu, "Paste                          Ctrl V", () => RunAsync(PasteAsync));
@@ -114,25 +130,34 @@ public sealed partial class StudioWorkbench
         if (Surface.IsImageCropping && e.Key is VirtualKey.Escape or VirtualKey.Enter) { Surface.EndImageCrop(e.Key == VirtualKey.Escape); e.Handled = true; return; }
         if (control && e.Key == VirtualKey.S) { RunAsync(SaveAsync); e.Handled = true; return; }
         if (Keyboard.IsTextInput(e.OriginalSource as DependencyObject)) return;
+        try
+        {
+            if (Surface.HandleToolKey(e.Key, control, shift, alt) || Surface.HandlePointKey(e.Key, control, shift, alt)) { e.Handled = true; return; }
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException) { ShowStatus(error.Message); e.Handled = true; return; }
         Action? action = null;
         if (control)
         {
             action = e.Key switch
             {
+                VirtualKey.Left when alt => () => Session.ResizeSelectionBy(shift ? -10 : -1, 0),
+                VirtualKey.Right when alt => () => Session.ResizeSelectionBy(shift ? 10 : 1, 0),
+                VirtualKey.Up when alt => () => Session.ResizeSelectionBy(0, shift ? -10 : -1),
+                VirtualKey.Down when alt => () => Session.ResizeSelectionBy(0, shift ? 10 : 1),
                 VirtualKey.Z => shift ? Session.Redo : Session.Undo,
                 VirtualKey.Y => Session.Redo,
                 VirtualKey.A => Session.SelectAll,
                 VirtualKey.D => () => Session.DuplicateSelection(),
                 VirtualKey.C => () => RunAsync(() => CopyAsync(false)),
                 VirtualKey.X => () => RunAsync(() => CopyAsync(true)),
-                VirtualKey.V => () => RunAsync(PasteAsync),
+                VirtualKey.V => () => RunAsync(() => PasteAsync(shift)),
                 VirtualKey.O when shift => () => { Session.OutlinesVisible = !Session.OutlinesVisible; Surface.Invalidate(); },
                 VirtualKey.O => () => RunAsync(OpenAsync),
                 VirtualKey.G when alt => () => Session.GroupSelection(true),
                 VirtualKey.G when shift => Session.UngroupSelection,
                 VirtualKey.G => () => Session.GroupSelection(),
-                VirtualKey.K when shift => () => RunAsync(() => PlaceImageAsync()),
                 VirtualKey.K when alt => () => ComponentService.MakeComponent(Session),
+                VirtualKey.K when shift => () => RunAsync(() => PlaceImageAsync()),
                 VirtualKey.K => () => RunAsync(ShowQuickActionsAsync),
                 _ => null
             };
@@ -150,6 +175,7 @@ public sealed partial class StudioWorkbench
                 VirtualKey.Right => () => Session.MoveSelection(step, 0),
                 VirtualKey.Up => () => Session.MoveSelection(0, -step),
                 VirtualKey.Down => () => Session.MoveSelection(0, step),
+                VirtualKey.V when shift => () => Session.FlipSelection(false),
                 VirtualKey.V => () => Session.Tool = EditorTool.Move,
                 VirtualKey.K => () => Session.Tool = EditorTool.Scale,
                 VirtualKey.F => () => Session.Tool = EditorTool.Frame,
@@ -159,6 +185,7 @@ public sealed partial class StudioWorkbench
                 VirtualKey.L => () => Session.Tool = shift ? EditorTool.Arrow : EditorTool.Line,
                 VirtualKey.P => () => Session.Tool = shift ? EditorTool.Pencil : EditorTool.Pen,
                 VirtualKey.T => () => Session.Tool = EditorTool.Text,
+                VirtualKey.H when shift => () => Session.FlipSelection(true),
                 VirtualKey.H => () => Session.Tool = EditorTool.Hand,
                 VirtualKey.C => () => Session.Tool = EditorTool.Comment,
                 VirtualKey.S => () => Session.Tool = shift ? EditorTool.Section : EditorTool.Slice,
@@ -171,7 +198,7 @@ public sealed partial class StudioWorkbench
                 VirtualKey.Tab => () => Session.SelectSibling(shift),
                 VirtualKey.Escape => () => { Surface.CancelGesture(); Session.Select((DesignNode?)null); Session.Tool = EditorTool.Move; },
                 VirtualKey.Enter when shift => Session.SelectParent,
-                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else Session.SelectChild(); },
+                VirtualKey.Enter => () => { if (Surface.HasActivePath) Surface.FinishPath(false); else if (Session.Primary?.Kind == NodeKind.Text) Surface.BeginTextEdit(Session.Primary); else if (Session.Primary is { } vector && EditablePathConversion.Supports(vector)) Surface.BeginVectorEdit(); else Session.SelectChild(); },
                 VirtualKey.Space => () => Surface.IsSpaceDown = true,
                 _ => null
             };
@@ -194,14 +221,15 @@ public sealed partial class StudioWorkbench
         if (cut) Session.DeleteSelection();
         await Task.CompletedTask;
     }
-    private async Task PasteAsync()
+    private Task PasteAsync() => PasteAsync(false);
+    private async Task PasteAsync(bool inPlace)
     {
         string? text = null;
         try { var content = Clipboard.GetContent(); if (content.Contains(StandardDataFormats.Text)) text = await content.GetTextAsync(); }
         catch { text = _clipboard; }
         text ??= _clipboard;
         if (string.IsNullOrWhiteSpace(text)) { ShowStatus("The clipboard is empty or clipboard access is unavailable."); return; }
-        if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..]);
+        if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..], inPlace);
         else if (text.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase) || text.TrimStart().StartsWith("<?xml", StringComparison.OrdinalIgnoreCase)) ImportSvg(text, "Pasted SVG");
         else
         {
@@ -235,6 +263,7 @@ public sealed partial class StudioWorkbench
     }
     private async Task SaveAsync()
     {
+        Surface.CommitPendingEdits();
         var json = DocumentJson.Save(Session.Document); await _storage.SaveAsync(SafeName(Session.Document.Name) + ".vectorspace", Encoding.UTF8.GetBytes(json), "application/json"); Session.MarkSaved(json); ShowStatus("Downloaded editable document");
     }
     private async Task ExportAsync(bool svg)
