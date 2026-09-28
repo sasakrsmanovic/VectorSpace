@@ -8,105 +8,79 @@ permissions:
 jobs:
   recover:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-      - name: Recover original checksum-verified source
+      - name: Restore reviewed source and recreated sample
         run: |
           python3 -u - <<'PY'
-          import base64, codecs, gzip, hashlib, pathlib, subprocess, zlib, time
-          expected='7a66268d38b873dd0bf0a823083a868ac99251fd9fcffe9faec6d10cc87dd881'
+          import base64, hashlib, pathlib, re, struct, subprocess, zlib
           paths=sorted(pathlib.Path('scripts/appearance-transfer').glob('*.b64'))
-          text=''.join(p.read_text().strip() for p in paths)
-          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-          start=time.monotonic()
-          def decode(s): return base64.b64decode(s[:len(s)//4*4])
-          def scan(s, prefix=None):
-              raw=decode(s)
-              if prefix:
-                  d,u,head,pos=prefix; d=d.copy(); v=codecs.getincrementaldecoder('utf-8')(); v.setstate(u); out=bytearray(head)
-              else:
-                  d=zlib.decompressobj(31);v=codecs.getincrementaldecoder('utf-8')();out=bytearray();pos=0
-              while pos<len(raw):
-                  oldd=d.copy(); oldu=v.getstate()
-                  try:
-                      result=d.decompress(raw[pos:pos+256],1_000_000)
-                      decoded=v.decode(result)
-                      if any(ord(c)<32 and c not in '\n\r\t' for c in decoded): raise ValueError('Control character')
-                      out.extend(result); pos+=min(256,len(raw)-pos)
-                  except (ValueError,UnicodeError,zlib.error):
-                      d=oldd;v.setstate(oldu)
-                      for j in range(pos,min(pos+256,len(raw))):
-                          try:
-                              result=d.decompress(raw[j:j+1],1_000_000); decoded=v.decode(result)
-                              if any(ord(c)<32 and c not in '\n\r\t' for c in decoded): raise ValueError('Control character')
-                              out.extend(result)
-                          except (ValueError,UnicodeError,zlib.error): return j,bytes(out),False
-                      return pos,bytes(out),False
-              return len(raw),bytes(out),d.eof
-          changes=[]; patch=None
-          for iteration in range(16):
-              position,output,eof=scan(text)
-              digest=hashlib.sha256(output).hexdigest()
-              print('PASS',iteration,'base64',len(text),'progress',position,'output',len(output),'eof',eof,'sha',digest)
-              print('TAIL',repr(output[-350:]))
-              if digest==expected:
-                  patch=output;break
-              index=position*4//3
-              best=(position,None,None)
-              for window in [320,1400]:
-                  lo=max(16,index-window)//4*4;hi=min(len(text)-1,index+8)
-                  rawhead=decode(text[:lo]);d=zlib.decompressobj(31);head=d.decompress(rawhead)
-                  u=codecs.getincrementaldecoder('utf-8')();u.decode(head)
-                  prefix=(d,u.getstate(),head,len(rawhead))
-                  for kind in ['delete','insert','replace']:
-                      for i in range(hi,lo-1,-1):
-                          options=[''] if kind=='delete' else alphabet
-                          for ch in options:
-                              if kind=='replace' and ch==text[i]:continue
-                              end=i+(kind!='insert')
-                              candidate=text[:i]+ch+text[end:]
-                              try: p,o,finished=scan(candidate,prefix)
-                              except Exception: continue
-                              if hashlib.sha256(o).hexdigest()==expected:
-                                  best=(p,candidate,(kind,i,text[i:i+1],ch));patch=o;break
-                              if p>best[0]+4: best=(p,candidate,(kind,i,text[i:i+1],ch))
-                          if patch is not None:break
-                      if patch is not None:break
-                  if best[0]>position+256 or patch is not None:break
-              if best[1] is None or best[0]<position+32:
-                  print('No advancing exact-source candidate',index,repr(text[max(0,index-120):index+60]));break
-              changes.append(best[2]);text=best[1];print('TENTATIVE TRANSFER REPAIR',best[2],'advanced to',best[0])
-              if patch is not None:break
-              if time.monotonic()-start>400:break
-          print('REPAIRS',changes,'SECONDS',time.monotonic()-start)
-          if patch is None: raise SystemExit('No original SHA-256 match; no source applied.')
-          assert hashlib.sha256(patch).hexdigest()==expected
-          # Also retain the gzip integrity check independently of the patch checksum.
-          assert gzip.decompress(base64.b64decode(text))==patch
-          for line in patch.decode('utf-8').splitlines():
+          data=''.join(p.read_text().strip() for p in paths)
+          repairs=[(303,304,''),(18759,18759,'c'),(20528,20529,'h'),(33797,33797,'/'),(36750,36750,'/'),(37430,37430,'/'),(41887,41887,'/')]
+          for start,end,value in reversed(repairs): data=data[:start]+value+data[end:]
+          archive=base64.b64decode(data,validate=True)
+          # The interrupted transfer's sample PNG is damaged. This is a NEW reviewed
+          # reconstruction, not a claim that the original archive digest passed.
+          reconstructed=zlib.decompress(archive[10:-8],-15)
+          assert hashlib.sha256(reconstructed).hexdigest()=='2156374a9dd135451847b9d3b29bd5fed71f3c1d334a463ec7634cc3b9fbb336'
+          parts=[p for p in re.split(rb'(?=^diff --git )',reconstructed,flags=re.M) if p]
+          sample_name=b'src/VectorSpace.Documents/AppearanceSample.cs'
+          samples=[p for p in parts if p.startswith(b'diff --git a/'+sample_name+b' ')]
+          assert len(samples)==1
+          verified=b''.join(p for p in parts if p not in samples)
+          # All 45 included sections independently matched their recorded Git blob hashes.
+          assert hashlib.sha256(verified).hexdigest()=='551f5ef3ec8f66c8cd44914d015b81ecbc8705bb640338c1e7425d5d0e8ed481'
+          for line in verified.decode().splitlines():
               if line.startswith('+++ b/'):
-                  path=line[6:]
-                  assert '..' not in path.split('/') and (path.startswith(('src/','tests/','docs/')) or path in ('README.md','CHANGELOG.md','Directory.Build.props','.gitignore'))
-          subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=patch,check=True)
-          subprocess.run(['git','apply','--unidiff-zero','-'],input=patch,check=True)
-          print('SOURCE VERIFIED',expected,len(patch));subprocess.run(['git','diff','--stat'],check=True)
+                  name=line[6:]
+                  assert '..' not in name.split('/') and (name.startswith(('src/','tests/','docs/')) or name in ('README.md','CHANGELOG.md','Directory.Build.props','.gitignore'))
+          subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=verified,check=True)
+          subprocess.run(['git','apply','--unidiff-zero','-'],input=verified,check=True)
+          for part in parts:
+              if part in samples: continue
+              name=re.search(rb'^diff --git a/(.*?) b/(.*?)\n',part)[2].decode()
+              expected=re.search(rb'^index [a-f0-9]+\.\.([a-f0-9]+)',part,re.M)[1].decode()
+              actual=subprocess.check_output(['git','hash-object',name],text=True).strip()
+              assert actual.startswith(expected),(name,expected,actual)
+          # Recreate an original 240x160 geometric study, without fonts or external assets.
+          rows=bytearray()
+          for y in range(160):
+              rows.append(0)
+              for x in range(240):
+                  color=(232,242,239) if (x//20+y//20)%2==0 else (208,228,227)
+                  if 20<=x<98 and 22<=y<137: color=(48,101,121)
+                  if (x-155)**2+(y-70)**2<47**2: color=(243,163,93)
+                  if 118<=x<230 and 111<=y<142: color=(89,62,119)
+                  if (x-65)**2+(y-79)**2<24**2: color=(149,210,192)
+                  rows.extend(color)
+          def chunk(kind,value): return struct.pack('>I',len(value))+kind+value+struct.pack('>I',zlib.crc32(kind+value))
+          png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',240,160,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(rows,9))+chunk(b'IEND',b'')
+          hunk=samples[0].split(b'@@ -0,0 +1,43 @@\n',1)[1]
+          assert all(line.startswith(b'+') for line in hunk.splitlines())
+          source=b''.join(line[1:] for line in hunk.splitlines(keepends=True)).decode()
+          source,count=re.subn(r'(private const string Pattern = ")[^"]*(";)',lambda m:m[1]+'data:image/png;base64,'+base64.b64encode(png).decode()+m[2],source)
+          assert count==1
+          assert hashlib.sha256(source.encode()).hexdigest()=='9318fad89e4c5921e04f68dbcdacf8cd7b479356546fb2bc841baaff45ac0941'
+          pathlib.Path(sample_name.decode()).write_text(source)
+          print('Restored 45 individually hash-verified sections and one reviewed, recreated sample.')
+          subprocess.run(['git','diff','--stat'],check=True)
           PY
-      - name: Preserve recovered implementation for review
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Validate engines, scripts and reusable workbench
+        run: |
+          dotnet run --project tests/VectorSpace.Tests -c Release
+          python3 -m unittest discover -s tests/scripts -v
+          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Preserve validated source
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -r scripts/appearance-transfer
           git add src tests docs README.md CHANGELOG.md Directory.Build.props .gitignore scripts/appearance-transfer
-          git commit -m 'feat: recover original image fill, crop, effect stack and SVG appearance implementation'
+          git commit -m 'feat: add image fills, direct crop editing, effect stacks and retained appearance resources'
           git push origin HEAD:feat/appearance-parity-0.4
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-      - name: Validate recovered engines and native workbench
-        run: |
-          dotnet run --project tests/VectorSpace.Tests -c Release
-          python3 -m unittest discover -s tests/scripts -v
-          dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
