@@ -103,7 +103,7 @@ public sealed partial class StudioWorkbench
         if (Session.SelectionRoots.Count >= 2)
         {
             var paths = AddSection("Combine shapes"); var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-            foreach (var op in Enum.GetValues<BooleanOperation>()) row.Children.Add(new IconButton(op.ToString().ToLowerInvariant(), op.ToString(), () => Run(() => BooleanOperations.Apply(Session, Surface.Renderer, op)))); paths.Body.Children.Add(row);
+            foreach (var op in Enum.GetValues<BooleanOperation>()) row.Children.Add(new IconButton(op.ToString().ToLowerInvariant(), op.ToString(), () => Run(() => LiveBooleanOperations.Create(Session, Surface.Renderer, (BooleanKind)op)))); paths.Body.Children.Add(row);
             paths.Body.Children.Add(Studio.Columns((new StudioButton("Distribute H", () => Run(() => Session.Distribute(true))), -1), (new StudioButton("Distribute V", () => Run(() => Session.Distribute(false))), -1)));
         }
         if (node.Kind is NodeKind.Instance or NodeKind.Component)

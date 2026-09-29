@@ -12,16 +12,17 @@ public sealed record SvgImportResult(DesignDocument Document, IReadOnlyList<stri
 public static partial class SvgFormat
 {
     private static readonly XNamespace Ns = "http://www.w3.org/2000/svg";
-    public static string Export(IEnumerable<DesignNode> roots, RectD bounds)
+    public static string Export(IEnumerable<DesignNode> roots, RectD bounds, Func<DesignNode, int, string>? strokeOutline = null)
     {
         var defs = new XElement(Ns + "defs");
         var svg = new XElement(Ns + "svg", new XAttribute("width", F(bounds.Width)), new XAttribute("height", F(bounds.Height)), new XAttribute("viewBox", $"{F(bounds.X)} {F(bounds.Y)} {F(bounds.Width)} {F(bounds.Height)}"), defs);
-        foreach (var node in roots) svg.Add(ExportNode(node, defs, true));
+        foreach (var node in roots) svg.Add(ExportNode(node, defs, true, strokeOutline));
         return new XDocument(new XDeclaration("1.0", "utf-8", null), svg).ToString();
     }
-    private static XElement? ExportNode(DesignNode node, XElement defs, bool world = false)
+    private static XElement? ExportNode(DesignNode node, XElement defs, bool world = false, Func<DesignNode, int, string>? strokeOutline = null)
     {
         if (!node.Visible || node.Kind == NodeKind.Slice) return null;
+        if (node.IsBoolean) throw new InvalidOperationException("Live Boolean SVG export requires SceneSvg.Export from VectorSpace.Skia.");
         var group = new XElement(Ns + "g", new XAttribute("id", "layer-" + node.Id), new XAttribute("data-name", node.Name), new XAttribute("transform", Transform(world ? node.WorldMatrix : node.LocalMatrix)), new XAttribute("opacity", F(node.Opacity)));
         if (node.Blend != BlendKind.Normal) group.SetAttributeValue("style", "mix-blend-mode:" + node.Blend.ToString().ToLowerInvariant());
         if (node.Shadows.Any(s => s.Visible))
@@ -30,7 +31,7 @@ public static partial class SvgFormat
         }
         for (var i = 0; i < node.Fills.Count; i++)
         {
-            var fill = node.Fills[i]; if (!fill.Visible) continue; var color = fill.Color;
+            var fill = node.Fills[i]; if (!fill.Visible || node.Kind == NodeKind.Ellipse && node.Arc?.Open == true) continue; var color = fill.Color;
             if (fill.Kind == FillKind.Image) { group.Add(ExportImage(fill, node, defs, $"paint-{node.Id}-{i}")); continue; }
             if (fill.Kind is FillKind.LinearGradient or FillKind.RadialGradient)
             {
@@ -38,17 +39,28 @@ public static partial class SvgFormat
             }
             var shape = Shape(node); shape.SetAttributeValue("fill", CssColor(color).Color); shape.SetAttributeValue("fill-opacity", F(fill.Opacity * CssColor(color).Alpha)); if (fill.Blend != BlendKind.Normal) shape.SetAttributeValue("style", "mix-blend-mode:" + fill.Blend.ToString().ToLowerInvariant()); shape.SetAttributeValue("stroke", "none"); group.Add(shape);
         }
-        foreach (var stroke in node.Strokes.Where(s => s.Visible))
+        for (var i = 0; i < node.Strokes.Count; i++)
         {
-            var shape = Shape(node); shape.SetAttributeValue("fill", "none"); shape.SetAttributeValue("stroke", CssColor(stroke.Color).Color); shape.SetAttributeValue("stroke-width", F(stroke.Width)); shape.SetAttributeValue("stroke-opacity", F(stroke.Opacity * CssColor(stroke.Color).Alpha)); shape.SetAttributeValue("stroke-linejoin", "round"); shape.SetAttributeValue("stroke-linecap", "round");
+            var stroke = node.Strokes[i]; if (!stroke.Visible || stroke.Width <= 0) continue;
+            var color = CssColor(stroke.Color);
+            if (stroke.Alignment != StrokeAlignment.Center && node.Kind != NodeKind.Text)
+            {
+                if (strokeOutline is null) throw new InvalidOperationException("Aligned stroke SVG export requires SceneSvg.Export from VectorSpace.Skia.");
+                group.Add(new XElement(Ns + "path", new XAttribute("d", strokeOutline(node, i)), new XAttribute("fill", color.Color), new XAttribute("fill-opacity", F(stroke.Opacity * color.Alpha))));
+                continue;
+            }
+            var shape = Shape(node); shape.SetAttributeValue("fill", "none"); shape.SetAttributeValue("stroke", color.Color);
+            shape.SetAttributeValue("stroke-width", F(stroke.Width)); shape.SetAttributeValue("stroke-opacity", F(stroke.Opacity * color.Alpha));
+            shape.SetAttributeValue("stroke-linejoin", stroke.Join.ToString().ToLowerInvariant()); shape.SetAttributeValue("stroke-linecap", stroke.Cap.ToString().ToLowerInvariant());
+            shape.SetAttributeValue("stroke-miterlimit", F(stroke.MiterLimit)); shape.SetAttributeValue("stroke-dashoffset", F(stroke.DashOffset));
             if (stroke.Dashes.Count > 0) shape.SetAttributeValue("stroke-dasharray", string.Join(" ", stroke.Dashes.Select(F))); group.Add(shape);
         }
         var children = new XElement(Ns + "g");
         if (node.ClipContent)
         {
-            var id = "clip-" + node.Id; defs.Add(new XElement(Ns + "clipPath", new XAttribute("id", id), new XElement(Ns + "rect", new XAttribute("width", F(node.Width)), new XAttribute("height", F(node.Height)), new XAttribute("rx", F(node.CornerRadius))))); children.SetAttributeValue("clip-path", "url(#" + id + ")");
+            var id = "clip-" + node.Id; defs.Add(new XElement(Ns + "clipPath", new XAttribute("id", id), new XElement(Ns + "path", new XAttribute("d", ShapePathSvg.Corners(node))))); children.SetAttributeValue("clip-path", "url(#" + id + ")");
         }
-        foreach (var child in node.Children) children.Add(ExportNode(child, defs));
+        foreach (var child in node.Children) children.Add(ExportNode(child, defs, false, strokeOutline));
         if (children.HasElements) group.Add(children); return group;
     }
     private static XElement Shape(DesignNode node)
@@ -62,7 +74,7 @@ public static partial class SvgFormat
             for (var i = 0; i < lines.Length; i++) element.Add(new XElement(Ns + "tspan", new XAttribute("x", F(x)), new XAttribute("y", F(node.FontSize + i * node.FontSize * node.LineHeight)), lines[i]));
             return element;
         }
-        var shape = new XElement(Ns + "path", new XAttribute("d", VectorPath.Build(node)));
+        var shape = new XElement(Ns + "path", new XAttribute("d", VectorPath.Build(node)), new XAttribute("fill-rule", node.FillRule == PathFillRule.EvenOdd ? "evenodd" : "nonzero"));
         if ((node.Kind == NodeKind.Path || node.PathData is not null) && node.PathWidth > 0 && node.PathHeight > 0) shape.SetAttributeValue("transform", $"scale({F(node.Width / node.PathWidth)} {F(node.Height / node.PathHeight)})");
         return shape;
     }
@@ -122,6 +134,15 @@ public static partial class SvgFormat
                 if (paint is not null) { paint.Opacity = Math.Clamp(Numbers.Parse(Attribute("fill-opacity") ?? "1", 1), 0, 1); node.Fills.Add(paint); }
             }
             var stroke = Attribute("stroke"); if (stroke is not null && stroke != "none") node.Strokes.Add(new() { Color = ImportCssColor(stroke), Width = Numbers.Parse(Attribute("stroke-width") ?? "1", 1), Opacity = Numbers.Parse(Attribute("stroke-opacity") ?? "1", 1) });
+            if (node.Strokes.LastOrDefault() is { } importedStroke)
+            {
+                importedStroke.Cap = Attribute("stroke-linecap") switch { "round" => StrokeCap.Round, "square" => StrokeCap.Square, _ => StrokeCap.Butt };
+                importedStroke.Join = Attribute("stroke-linejoin") switch { "round" => StrokeJoin.Round, "bevel" => StrokeJoin.Bevel, _ => StrokeJoin.Miter };
+                importedStroke.MiterLimit = Math.Clamp(Numbers.Parse(Attribute("stroke-miterlimit") ?? "4", 4), 1, 128);
+                importedStroke.DashOffset = Numbers.Parse(Attribute("stroke-dashoffset") ?? "0", 0);
+                importedStroke.Dashes = Values(Attribute("stroke-dasharray")).ToList();
+            }
+            node.FillRule = Attribute("fill-rule") == "evenodd" ? PathFillRule.EvenOdd : PathFillRule.NonZero;
             node.Opacity = Numbers.Parse(Style(element, "opacity") ?? element.Attribute("opacity")?.Value ?? "1", 1);
             if (Attribute("filter") is not null) warnings.Add("SVG filter graphs are exported but are not imported as editable layer effects.");
             if (Attribute("clip-path") is not null || Attribute("mask") is not null) warnings.Add("Referenced SVG clips and masks are not imported."); node.Visible = Attribute("display") != "none" && Attribute("visibility") != "hidden";

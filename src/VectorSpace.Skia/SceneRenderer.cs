@@ -7,9 +7,9 @@ namespace VectorSpace.Skia;
 /// <summary>Retained geometry cache with explicit native-resource ownership. No Uno dependency.</summary>
 public sealed partial class SceneRenderer : IDisposable
 {
-    private readonly record struct GeometryKey(NodeKind Kind, double Width, double Height, double Radius, int Sides, double Ratio, string? Data, double PathWidth, double PathHeight, bool Closed);
+    private readonly record struct GeometryKey(NodeKind Kind, double Width, double Height, double Radius, int Sides, double Ratio, string? Data, double PathWidth, double PathHeight, bool Closed, CornerRadii? Corners, EllipseArc? Arc, PathFillRule FillRule);
     private readonly record struct PointKey(Vec2 Position, Vec2? In, Vec2? Out);
-    private sealed record CachedPath(GeometryKey Key, PointKey[] Points, SKPath Path, LinkedListNode<string> Recency);
+    private sealed record CachedPath(GeometryKey Key, PointKey[] Points, SKPath Path, LinkedListNode<string> Recency, PathCommand[]? Commands);
     private readonly LinkedList<string> _recency = new();
     private readonly record struct TextKey(string Text, string Family, int Weight, double Size, double Width, double Spacing);
     private sealed record TextLine(string Text, float Width);
@@ -28,7 +28,7 @@ public sealed partial class SceneRenderer : IDisposable
     public void SetTypeface(SKTypeface typeface) { _textLines.Clear(); _customTypeface?.Dispose(); _customTypeface = typeface; }
     public void ClearCache()
     {
-        ClearAppearance(); foreach (var p in _paths.Values) p.Path.Dispose(); _paths.Clear(); _recency.Clear(); _textLines.Clear();
+        ClearAppearance(); ClearStrokeCache(); ClearBooleanCache(); foreach (var p in _paths.Values) p.Path.Dispose(); _paths.Clear(); _recency.Clear(); _textLines.Clear();
     }
     public static SKColor Color(string? hex, double opacity = 1)
     {
@@ -40,6 +40,7 @@ public sealed partial class SceneRenderer : IDisposable
     public void TrimCache(IEnumerable<string> activeIds)
     {
         var active = activeIds.ToHashSet(StringComparer.Ordinal);
+        TrimStrokeCache(active); TrimBooleanCache(active);
         foreach (var id in _paths.Keys.Where(id => !active.Contains(id)).ToArray()) RemoveCached(id);
         foreach (var key in _gradients.Keys.Where(k => !active.Contains(k.NodeId)).ToArray()) { _gradients[key].Shader.Dispose(); _gradients.Remove(key); }
         foreach (var id in _effects.Keys.Where(id => !active.Contains(id)).ToArray()) { _effects[id].Filter?.Dispose(); _effects.Remove(id); }
@@ -51,35 +52,25 @@ public sealed partial class SceneRenderer : IDisposable
     }
     public SKPath Geometry(DesignNode node)
     {
-        var key = new GeometryKey(node.Kind, node.Width, node.Height, node.CornerRadius, node.Sides, node.StarRatio, node.PathData, node.PathWidth, node.PathHeight, node.Closed);
-        if (_paths.TryGetValue(node.Id, out var cache) && cache.Key == key && PointsEqual(cache.Points, node))
+        if (node.IsBoolean) return BooleanGeometry(node);
+        var key = new GeometryKey(node.Kind, node.Width, node.Height, node.CornerRadius, node.Sides, node.StarRatio, node.PathData, node.PathWidth, node.PathHeight, node.Closed, node.Corners, node.Arc, node.FillRule);
+        if (_paths.TryGetValue(node.Id, out var cache) && cache.Key == key && PointsEqual(cache.Points, node) && CommandsEqual(cache.Commands, node.Commands))
         {
             GeometryCacheHits++; _recency.Remove(cache.Recency); _recency.AddLast(cache.Recency); return cache.Path;
         }
-        var path = node.Kind == NodeKind.Path && node.PathData is null && node.Points.Count > 0 ? BuildEditableGeometry(node) : SKPath.ParseSvgPathData(VectorPath.Build(node)) ?? new SKPath();
+        var path = NativeShapeGeometry.Build(node);
+        path.FillType = node.FillRule == PathFillRule.EvenOdd ? SKPathFillType.EvenOdd : SKPathFillType.Winding;
         if ((node.Kind == NodeKind.Path || node.PathData is not null) && node.PathWidth > 0 && node.PathHeight > 0) path.Transform(SKMatrix.CreateScale((float)(node.Width / node.PathWidth), (float)(node.Height / node.PathHeight)));
         RemoveCached(node.Id);
         while (_paths.Count >= Math.Max(1, GeometryCacheCapacity) && _recency.First is { } oldest) RemoveCached(oldest.Value);
         var points = node.Kind == NodeKind.Path ? node.Points.Select(p => new PointKey(p.Position, p.ControlIn, p.ControlOut)).ToArray() : [];
-        var recency = _recency.AddLast(node.Id); _paths[node.Id] = new(key, points, path, recency); GeometryBuilds++;
+        var recency = _recency.AddLast(node.Id); _paths[node.Id] = new(key, points, path, recency, node.Commands?.ToArray()); GeometryBuilds++;
         return path;
     }
-    private static SKPath BuildEditableGeometry(DesignNode node)
+    private static bool CommandsEqual(PathCommand[]? cached, List<PathCommand>? commands)
     {
-        var path = new SKPath(); var points = node.Points;
-        path.MoveTo((float)points[0].Position.X, (float)points[0].Position.Y);
-        for (var i = 1; i < points.Count; i++) Segment(points[i - 1], points[i]);
-        if (node.Closed) { Segment(points[^1], points[0]); path.Close(); }
-        return path;
-        void Segment(PathPoint a, PathPoint b)
-        {
-            if (a.ControlOut.HasValue || b.ControlIn.HasValue)
-            {
-                var first = a.ControlOut ?? a.Position; var second = b.ControlIn ?? b.Position;
-                path.CubicTo((float)first.X, (float)first.Y, (float)second.X, (float)second.Y, (float)b.Position.X, (float)b.Position.Y);
-            }
-            else path.LineTo((float)b.Position.X, (float)b.Position.Y);
-        }
+        if (cached is null || commands is null) return cached is null && commands is null;
+        return cached.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(commands));
     }
     private static bool PointsEqual(PointKey[] cached, DesignNode node)
     {
@@ -106,9 +97,9 @@ public sealed partial class SceneRenderer : IDisposable
         var world = node.LocalMatrix * parent;
         // Unclipped containers, text overflow and user-edited paths are conservative: never
         // reject them using only their nominal frame. Descendants are still culled individually.
-        if (rootScroll is null && viewport is { } view && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path and not NodeKind.Arrow))
+        if (rootScroll is null && viewport is { } view && (!node.IsBoolean && (node.ClipContent || node.Children.Count == 0 && node.Kind is not NodeKind.Text and not NodeKind.Path and not NodeKind.Arrow)))
         {
-            var padding = node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max();
+            var padding = ShapeGeometry.StrokeOutset(node);
             padding += EffectPadding(node);
             if (!world.Map(node.LocalBounds.Inflate(padding + 1)).Intersects(view)) { CulledNodes++; return; }
         }
@@ -123,7 +114,7 @@ public sealed partial class SceneRenderer : IDisposable
             {
                 // Bound the offscreen to a conservative simple-leaf footprint. An unbounded
                 // save layer turns each tiny filtered shape into a viewport-sized raster pass.
-                var outset = EffectPadding(node) + node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max() + 1;
+                var outset = EffectPadding(node) + ShapeGeometry.StrokeOutset(node) + 1;
                 canvas.SaveLayer(Rect(node.LocalBounds.Inflate(outset)), paint);
             }
             else canvas.SaveLayer(paint);
@@ -136,21 +127,28 @@ public sealed partial class SceneRenderer : IDisposable
         else
         {
             for (var i = 0; i < node.Fills.Count; i++) if (node.Fills[i] is { Visible: true, Opacity: > 0 } fill) DrawFill(canvas, node, fill, i);
-            foreach (var stroke in node.Strokes.Where(s => s.Visible && s.Width > 0))
+            for (var i = 0; i < node.Strokes.Count; i++)
             {
-                using var paint = new SKPaint { IsAntialias = true, Color = Color(stroke.Color, stroke.Opacity), Style = SKPaintStyle.Stroke, StrokeWidth = (float)stroke.Width, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
-                using var dash = stroke.Dashes.Count >= 2 && stroke.Dashes.All(d => d > 0) ? SKPathEffect.CreateDash(stroke.Dashes.Select(d => (float)d).ToArray(), 0) : null; paint.PathEffect = dash;
-                if (node.Kind == NodeKind.Text) DrawText(canvas, node, paint); else canvas.DrawPath(Geometry(node), paint);
+                var stroke = node.Strokes[i]; if (!stroke.Visible || stroke.Width <= 0 || stroke.Opacity <= 0) continue;
+                if (node.Kind == NodeKind.Text)
+                {
+                    using var paint = StrokePaint(stroke); DrawText(canvas, node, paint);
+                }
+                else
+                {
+                    using var paint = new SKPaint { IsAntialias = true, Color = Color(stroke.Color, stroke.Opacity) };
+                    canvas.DrawPath(StrokeGeometry(node, i), paint);
+                }
             }
         }
         if (node.ClipContent || rootScroll.HasValue)
         {
-            using var clip = new SKPath(); clip.AddRoundRect(new SKRect(0, 0, (float)node.Width, (float)node.Height), (float)node.CornerRadius, (float)node.CornerRadius); canvas.ClipPath(clip, SKClipOperation.Intersect, true);
+            using var clip = new SKPath(); NativeShapeGeometry.AddCornerBox(clip, node); canvas.ClipPath(clip, SKClipOperation.Intersect, true);
         }
         if (rootScroll is { } scroll) canvas.Translate((float)-scroll.X, (float)-scroll.Y);
         // An ancestor filter can sample offscreen descendant pixels. Do not cull its inputs.
         var childViewport = node.Shadows.Any(s => s.Visible) ? null : viewport;
-        foreach (var child in node.Children) DrawNode(canvas, child, world, childViewport);
+        if (!node.IsBoolean) foreach (var child in node.Children) DrawNode(canvas, child, world, childViewport);
         if (layer) canvas.Restore(); canvas.Restore();
     }
     private SKTypeface Typeface(DesignNode node)
@@ -199,31 +197,24 @@ public sealed partial class SceneRenderer : IDisposable
     {
         foreach (var node in roots.Reverse())
         {
-            if (!node.IsEffectivelyVisible || node.IsEffectivelyLocked || node.Kind == NodeKind.Slice) continue;
-            var local = node.WorldMatrix.Inverse.Map(point); var inside = node.LocalBounds.Contains(local);
-            if (node.Children.Count == 0 && node.Kind is not NodeKind.Path && !node.LocalBounds.Inflate(tolerance + node.Strokes.Where(s => s.Visible).Select(s => s.Width).DefaultIfEmpty(0).Max()).Contains(local)) continue;
-            var insideClip = inside;
-            if (node.ClipContent && node.CornerRadius > 0)
-            {
-                using var clip = new SKPath(); clip.AddRoundRect(Rect(node.LocalBounds), (float)node.CornerRadius, (float)node.CornerRadius);
-                insideClip = clip.Contains((float)local.X, (float)local.Y);
-            }
-            if (!node.ClipContent || insideClip)
+            if (!node.IsEffectivelyVisible || node.Opacity <= 0 || node.IsEffectivelyLocked || node.Kind == NodeKind.Slice) continue;
+            if (!node.WorldMatrix.TryInvert(out var inverse)) continue;
+            var local = inverse.Map(point); var inside = node.LocalBounds.Contains(local);
+            var scale = Math.Max(Math.Sqrt(inverse.M11 * inverse.M11 + inverse.M12 * inverse.M12), Math.Sqrt(inverse.M21 * inverse.M21 + inverse.M22 * inverse.M22));
+            var localTolerance = Math.Max(0, tolerance) * scale;
+            if (node.Children.Count == 0 && node.Kind is not NodeKind.Path and not NodeKind.Arrow && !node.LocalBounds.Inflate(localTolerance + ShapeGeometry.StrokeOutset(node)).Contains(local)) continue;
+            var insideClip = ShapeGeometry.ContainsCornerBox(node, local);
+            if ((!node.IsBoolean || deep) && (!node.ClipContent || insideClip))
             {
                 var child = HitTest(node.Children, point, deep, tolerance);
-                if (child is not null) return deep || node.Kind == NodeKind.Frame || node.Kind == NodeKind.Section ? child : node;
+                if (child is not null) return deep || node.Kind is NodeKind.Frame or NodeKind.Section ? child : node;
             }
             if (node.Kind == NodeKind.Text && inside) return node;
-            if (node.Kind == NodeKind.Group && node.Children.Count > 0) continue;
-            if (node.Kind == NodeKind.Frame && inside && node.Fills.Count > 0) return node;
+            if (node.Kind == NodeKind.Group && !node.IsBoolean && node.Children.Count > 0) continue;
             var path = Geometry(node);
-            if (node.Fills.Any(f => f.Visible) && path.Contains((float)local.X, (float)local.Y)) return node;
-            if (node.Strokes.Any(s => s.Visible && s.Width > 0))
-            {
-                using var stroke = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = (float)Math.Max(tolerance * 2, node.Strokes.Where(s => s.Visible && s.Width > 0).Max(s => s.Width)), StrokeCap = SKStrokeCap.Round };
-                using var outline = new SKPath(); stroke.GetFillPath(path, outline);
-                if (outline.Contains((float)local.X, (float)local.Y)) return node;
-            }
+            if (node.Arc?.Open != true && node.Fills.Any(f => f.Visible && f.Opacity > 0) && path.Contains((float)local.X, (float)local.Y)) return node;
+            for (var i = 0; i < node.Strokes.Count; i++)
+                if (node.Strokes[i] is { Visible: true, Width: > 0, Opacity: > 0 } && StrokeContains(node, i, local, localTolerance)) return node;
         }
         return null;
     }

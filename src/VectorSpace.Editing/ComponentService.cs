@@ -17,7 +17,7 @@ public static partial class ComponentService
         if (editor.SelectionRoots.Count != 1 || editor.Primary is not { } node || node.IsEffectivelyLocked) return;
         editor.Edit("Create component", () =>
         {
-            if (node.IsContainer && node.Kind != NodeKind.Instance)
+            if (node.IsContainer && !node.IsBoolean && node.Kind != NodeKind.Instance)
             {
                 node.Kind = NodeKind.Component; node.ComponentId = null; return;
             }
@@ -134,7 +134,7 @@ public static partial class ComponentService
             foreach (var n in copy.DescendantsAndSelf()) PrototypeValidation.Remap(n, ids);
             instance.Children = copy.Children; foreach (var child in instance.Children) child.Parent = instance;
             instance.Fills = copy.Fills; instance.Strokes = copy.Strokes; instance.Shadows = copy.Shadows;
-            instance.CornerRadius = copy.CornerRadius; instance.Layout = copy.Layout; instance.ClipContent = copy.ClipContent;
+            instance.Corners = copy.Corners; instance.CornerRadius = copy.CornerRadius; instance.Layout = copy.Layout; instance.ClipContent = copy.ClipContent;
             instance.Text = copy.Text; instance.FontFamily = copy.FontFamily; instance.FontSize = copy.FontSize;
             instance.FontWeight = copy.FontWeight; instance.TextAlign = copy.TextAlign; instance.LineHeight = copy.LineHeight; instance.LetterSpacing = copy.LetterSpacing;
             instance.VariantProperties = copy.VariantProperties;

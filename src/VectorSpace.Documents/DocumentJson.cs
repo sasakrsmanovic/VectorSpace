@@ -77,6 +77,7 @@ public static class DocumentJson
             if (l.GridColumns is < 1 or > 128 || l.Columns is null || l.Rows is null || l.Columns.Count > 128 || l.Rows.Count > 10000 || n.ColumnSpan is < 1 or > 128 || n.RowSpan is < 1 or > 128 || n.GridColumn is < -1 or > 127 || n.GridRow is < -1 or > 10000) throw new InvalidDataException("Invalid grid placement.");
             foreach (var track in l.Columns.Concat(l.Rows))
                 if (track is null || !double.IsFinite(track.Value) || !double.IsFinite(track.Min) || !double.IsFinite(track.Max) || track.Value < 0 || track.Min < 0 || track.Max < track.Min || track.Max > 1e7) throw new InvalidDataException("Invalid grid track.");
+            ShapeValidation.Validate(n);
             AppearanceValidation.Validate(n, ref imageCharacters);
             n.Opacity = Numbers.Clamp(n.Opacity, 0, 1); n.FontSize = Numbers.Clamp(n.FontSize, 1, 4096);
             n.CornerRadius = Numbers.Clamp(n.CornerRadius, 0, 1e6); n.Sides = Math.Clamp(n.Sides, 3, 128);

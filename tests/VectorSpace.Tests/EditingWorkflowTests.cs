@@ -130,7 +130,7 @@ internal static class EditingWorkflowTests
         });
         test("schema four migrates to five without changing old appearance", () => {
             var d = new DesignDocument { FormatVersion = 4, Pages = [new() { Nodes = [Source()] }] };
-            var copy = DocumentJson.Load(DocumentJson.Save(d)); Check(copy.FormatVersion == 5 && copy.Pages[0].Nodes[0].FontSize == 37);
+            var copy = DocumentJson.Load(DocumentJson.Save(d)); Check(copy.FormatVersion == 6 && copy.Pages[0].Nodes[0].FontSize == 37);
         });
         test("stable send-to-back retains relative selected and untouched order", () => {
             var nodes = Enumerable.Range(0, 5).Select(i => new DesignNode { Id = "n" + i }).ToArray(); var e = Editor(nodes); e.Select(["n1", "n3"]); e.Reorder(-1, true);

@@ -15,7 +15,7 @@ public static class StyleCloner
         GradientRadius = f.GradientRadius, GradientFocal = f.GradientFocal
     };
     public static List<StrokeStyle> Strokes(IEnumerable<StrokeStyle> values) => values.Select(s => new StrokeStyle
-    { Color = s.Color, Width = s.Width, Opacity = s.Opacity, Visible = s.Visible, Dashes = [.. s.Dashes] }).ToList();
+    { Color = s.Color, Width = s.Width, Opacity = s.Opacity, Visible = s.Visible, Dashes = [.. s.Dashes], Alignment = s.Alignment, Cap = s.Cap, Join = s.Join, MiterLimit = s.MiterLimit, DashOffset = s.DashOffset }).ToList();
     public static List<ShadowStyle> Effects(IEnumerable<ShadowStyle> values) => values.Select(s => new ShadowStyle
     { Kind = s.Kind, Color = s.Color, X = s.X, Y = s.Y, Blur = s.Blur, Spread = s.Spread, Visible = s.Visible, Opacity = s.Opacity }).ToList();
     public static bool SameFills(IReadOnlyList<FillStyle> a, IReadOnlyList<FillStyle> b)
@@ -37,7 +37,7 @@ public static class StyleCloner
     {
         if (a.Count != b.Count) return false;
         for (var i = 0; i < a.Count; i++)
-            if (a[i].Color != b[i].Color || a[i].Width != b[i].Width || a[i].Opacity != b[i].Opacity || a[i].Visible != b[i].Visible || !a[i].Dashes.SequenceEqual(b[i].Dashes)) return false;
+            if (a[i].Alignment != b[i].Alignment || a[i].Cap != b[i].Cap || a[i].Join != b[i].Join || a[i].MiterLimit != b[i].MiterLimit || a[i].DashOffset != b[i].DashOffset || a[i].Color != b[i].Color || a[i].Width != b[i].Width || a[i].Opacity != b[i].Opacity || a[i].Visible != b[i].Visible || !a[i].Dashes.SequenceEqual(b[i].Dashes)) return false;
         return true;
     }
     public static bool SameEffects(IReadOnlyList<ShadowStyle> a, IReadOnlyList<ShadowStyle> b)

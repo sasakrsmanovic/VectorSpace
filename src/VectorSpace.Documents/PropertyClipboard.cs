@@ -61,6 +61,7 @@ public static class PropertyClipboard
     }
     internal static void ValidateStrokes(List<StrokeStyle> strokes)
     {
+        foreach (var s in strokes) if (s is not null) ShapeValidation.Stroke(s);
         if (strokes.Count > 64) throw new InvalidDataException("A layer is limited to 64 strokes.");
         foreach (var s in strokes)
             if (s is null || s.Color is null || !double.IsFinite(s.Width) || s.Width is < 0 or > 1e5 || !double.IsFinite(s.Opacity) || s.Opacity is < 0 or > 1 ||
