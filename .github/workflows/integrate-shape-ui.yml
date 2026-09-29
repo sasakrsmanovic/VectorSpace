@@ -2,7 +2,7 @@ name: Integrate shape interaction
 on:
   push:
     branches: ['feat/shape-stroke-editing-0.8']
-    paths: ['.github/workflows/integrate-shape-ui.yml', 'scripts/integrate-shape-ui.py']
+    paths: ['.github/workflows/integrate-shape-ui.yml', 'scripts/integrate-shape-ui.py', 'scripts/finalize-shape-ui.py']
 permissions:
   contents: write
 concurrency:
@@ -19,42 +19,30 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Apply reviewed source integration and precise curve validation
+      - name: Apply guarded source integration
         run: |
           python3 scripts/integrate-shape-ui.py
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tests/VectorSpace.Tests/EditingWorkflowTests.cs');s=p.read_text();old='PropertyClipboard.Prefix + "{\\"version\\":2,\\"properties\\":{}}"';assert s.count(old)==1;s=s.replace(old,'PropertyClipboard.Prefix + "{\\"version\\":99,\\"properties\\":{}}"');p.write_text(s)
-          p=Path('tests/VectorSpace.Tests/ShapeTests.Gestures.cs');s=p.read_text();old='using var before = new SKPathMeasure(original, false); using var after = new SKPathMeasure(parsed, false);';assert s.count(old)==1;s=s.replace(old,'using var before = new SKPathMeasure(original, false, 1000); using var after = new SKPathMeasure(parsed, false, 1000);');old='Near(before.Length, after.Length, .03); Check(commands.SequenceEqual(saved) && svg.Contains(\'C\'));';assert s.count(old)==1;s=s.replace(old,old+'''
-              // Default path measurement is a rendering-speed approximation and samples a
-              // long native conic differently from many short cubics. Use equal high-resolution
-              // measurement and check positions, not a relaxed error threshold.
-              for (var i = 0; i <= 1000; i++)
-              {
-                  var a = before.GetPosition(before.Length * i / 1000); var b = after.GetPosition(after.Length * i / 1000);
-                  Check(new Vec2(a.X - b.X, a.Y - b.Y).Length < .01, "Exported conic deviated at arc-length sample " + i);
-              }
-          ''');p.write_text(s)
-          p=Path('tests/VectorSpace.Tests/Program.cs');s=p.read_text();old='if (args.Contains("--benchmark-appearance"))';assert s.count(old)==1;s=s.replace(old,'if (args.Contains("--benchmark-shapes")) return ShapeBenchmarks.Run();\n'+old);p.write_text(s)
-          PY
-      - name: Shape pixels, native contours and gesture regressions
-        run: dotnet run --project tests/VectorSpace.Tests -c Release
-      - name: Compile reusable Uno workbench
-        run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
-      - name: Measure and verify stroke resource retention
+          python3 scripts/finalize-shape-ui.py
+      - name: Validate shape pixels and geometry
         run: |
           mkdir -p artifacts
+          dotnet run --project tests/VectorSpace.Tests -c Release > artifacts/shape-engine.log 2>&1 || { grep -A12 -E 'FAIL|error' artifacts/shape-engine.log; tail -5 artifacts/shape-engine.log; exit 1; }
+          tail -3 artifacts/shape-engine.log
+      - name: Compile reusable Uno workbench
+        run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Measure retained stroke resources
+        run: |
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-shapes > artifacts/shapes.json
           cat artifacts/shapes.json
-      - name: Preserve validated UI integration
+      - name: Preserve validated source
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm scripts/integrate-shape-ui.py
-          git add src tests scripts/integrate-shape-ui.py
+          rm scripts/integrate-shape-ui.py scripts/finalize-shape-ui.py
+          git add src tests scripts/integrate-shape-ui.py scripts/finalize-shape-ui.py
           git commit -m 'feat: wire shape grips, custom stroke editors and exact contour regression coverage'
           git push origin HEAD:feat/shape-stroke-editing-0.8
-      - name: Retain diagnostic patch
+      - name: Retain diagnostics
         if: always()
         run: |
           mkdir -p artifacts
@@ -65,4 +53,5 @@ jobs:
           name: shape-ui-integration-validation
           path: |
             artifacts/shape-ui-integration.patch
+            artifacts/shape-engine.log
             artifacts/shapes.json
