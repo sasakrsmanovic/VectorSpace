@@ -8,6 +8,7 @@ using VectorSpace.Skia;
 
 if (args.Contains("--benchmark-workflows")) return EditingWorkflowBenchmarks.Run();
 if (args.Contains("--benchmark-editing")) return EditingBenchmarks.Run();
+if (args.Contains("--benchmark-shapes")) return ShapeBenchmarks.Run();
 if (args.Contains("--benchmark-appearance")) return AppearanceBenchmarks.Run();
 if (args.Contains("--benchmark")) return PerformanceBenchmarks.Run();
 
@@ -85,6 +86,7 @@ ToolEditingTests.Register(Test);
 DrawingTargetTests.Register(Test);
 
 EditingWorkflowTests.Register(Test);
+ShapeTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }

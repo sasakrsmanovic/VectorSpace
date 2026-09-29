@@ -115,7 +115,7 @@ internal static class EditingWorkflowTests
         });
         test("property clipboard rejects foreign versions and does not mutate editor state", () => {
             Throws<InvalidDataException>(() => PropertyClipboard.Read("OtherApp/1\n{}"));
-            Throws<InvalidDataException>(() => PropertyClipboard.Read(PropertyClipboard.Prefix + "{\"version\":2,\"properties\":{}}"));
+            Throws<InvalidDataException>(() => PropertyClipboard.Read(PropertyClipboard.Prefix + "{\"version\":99,\"properties\":{}}"));
             Throws<InvalidDataException>(() => PropertyClipboard.Read(PropertyClipboard.Prefix + "{\"version\":1,\"properties\":null}"));
         });
         test("invalid transferred typography and strokes fail before history capture", () => {

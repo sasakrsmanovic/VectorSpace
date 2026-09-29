@@ -6,7 +6,7 @@ public sealed record StrokeOptions(int Alignment, int Cap, int Join, double Mite
 
 /// <summary>Reusable compact stroke geometry editor. Values describe behavior, not renderer objects;
 /// hosts map the selection indices to their own model and own the undo transaction.</summary>
-public sealed class StrokeOptionsControl : StackPanel
+public sealed class StrokeOptionsControl : ShapeOptionsPanel
 {
     private StrokeOptions _value;
     public event Action<StrokeOptions>? ValueCommitted;
@@ -40,7 +40,7 @@ public sealed class StrokeOptionsControl : StackPanel
 public sealed record CornerOptions(bool Independent, double TopLeft, double TopRight, double BottomRight, double BottomLeft);
 
 /// <summary>Independent-corner editor with a compact spatial 2×2 layout.</summary>
-public sealed class CornerOptionsControl : StackPanel
+public sealed class CornerOptionsControl : ShapeOptionsPanel
 {
     private CornerOptions _value;
     public event Action<CornerOptions>? ValueCommitted;
@@ -64,7 +64,7 @@ public sealed class CornerOptionsControl : StackPanel
 public sealed record ArcOptions(double Start, double Sweep, double InnerRadius, bool Open);
 
 /// <summary>Arc angles are clockwise degrees; the radius field is a percentage of the ellipse.</summary>
-public sealed class ArcOptionsControl : StackPanel
+public sealed class ArcOptionsControl : ShapeOptionsPanel
 {
     private ArcOptions _value;
     public event Action<ArcOptions>? ValueCommitted;

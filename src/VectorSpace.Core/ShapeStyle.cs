@@ -64,6 +64,7 @@ public static class ShapeGeometry
     public static bool ContainsCornerBox(DesignNode n, Vec2 p)
     {
         if (!n.LocalBounds.Contains(p)) return false;
+        if (n.Corners is null && n.CornerRadius <= 0) return true;
         var r = n.EffectiveCorners;
         var radius = p.X < n.Width / 2 ? p.Y < n.Height / 2 ? r.TopLeft : r.BottomLeft : p.Y < n.Height / 2 ? r.TopRight : r.BottomRight;
         var cx = p.X < n.Width / 2 ? radius : n.Width - radius;

@@ -39,7 +39,7 @@ public sealed partial class EditorSession
         Edit("Add auto layout", () =>
         {
             DesignNode frame;
-            if (roots.Length == 1 && roots[0].IsContainer && roots[0].Kind != NodeKind.Instance)
+            if (roots.Length == 1 && roots[0].IsContainer && !roots[0].IsBoolean && roots[0].Kind != NodeKind.Instance)
             {
                 frame = roots[0]; if (frame.Kind == NodeKind.Group) frame.Kind = NodeKind.Frame;
             }

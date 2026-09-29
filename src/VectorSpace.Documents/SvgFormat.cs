@@ -12,7 +12,8 @@ public sealed record SvgImportResult(DesignDocument Document, IReadOnlyList<stri
 public static partial class SvgFormat
 {
     private static readonly XNamespace Ns = "http://www.w3.org/2000/svg";
-    public static string Export(IEnumerable<DesignNode> roots, RectD bounds, Func<DesignNode, int, string>? strokeOutline = null)
+    public static string Export(IEnumerable<DesignNode> roots, RectD bounds) => Export(roots, bounds, null);
+    public static string Export(IEnumerable<DesignNode> roots, RectD bounds, Func<DesignNode, int, string>? strokeOutline)
     {
         var defs = new XElement(Ns + "defs");
         var svg = new XElement(Ns + "svg", new XAttribute("width", F(bounds.Width)), new XAttribute("height", F(bounds.Height)), new XAttribute("viewBox", $"{F(bounds.X)} {F(bounds.Y)} {F(bounds.Width)} {F(bounds.Height)}"), defs);
@@ -133,7 +134,7 @@ public static partial class SvgFormat
                 var paint = fill.StartsWith("url", StringComparison.OrdinalIgnoreCase) ? ReadGradient(fill, definitions, node, viewBox.Length == 4 ? viewBox[2] : width, viewBox.Length == 4 ? viewBox[3] : height, warnings) : new FillStyle { Color = ImportCssColor(fill) };
                 if (paint is not null) { paint.Opacity = Math.Clamp(Numbers.Parse(Attribute("fill-opacity") ?? "1", 1), 0, 1); node.Fills.Add(paint); }
             }
-            var stroke = Attribute("stroke"); if (stroke is not null && stroke != "none") node.Strokes.Add(new() { Color = ImportCssColor(stroke), Width = Numbers.Parse(Attribute("stroke-width") ?? "1", 1), Opacity = Numbers.Parse(Attribute("stroke-opacity") ?? "1", 1) });
+            var stroke = Attribute("stroke"); if (kind is not "g" and not "svg" && stroke is not null && stroke != "none") node.Strokes.Add(new() { Color = ImportCssColor(stroke), Width = Numbers.Parse(Attribute("stroke-width") ?? "1", 1), Opacity = Numbers.Parse(Attribute("stroke-opacity") ?? "1", 1) });
             if (node.Strokes.LastOrDefault() is { } importedStroke)
             {
                 importedStroke.Cap = Attribute("stroke-linecap") switch { "round" => StrokeCap.Round, "square" => StrokeCap.Square, _ => StrokeCap.Butt };

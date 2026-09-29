@@ -193,7 +193,9 @@ public sealed partial class SceneRenderer : IDisposable
             yield return line;
         }
     }
-    public DesignNode? HitTest(IEnumerable<DesignNode> roots, Vec2 point, bool deep = false, double tolerance = 4)
+    public DesignNode? HitTest(IEnumerable<DesignNode> roots, Vec2 point, bool deep = false, double tolerance = 4) => HitTestCore(roots, point, deep, tolerance, false, null);
+    public DesignNode? HitTestForSelection(IEnumerable<DesignNode> roots, Vec2 point, DesignNode? scope, bool deep = false, double tolerance = 4) => HitTestCore(roots, point, true, tolerance, !deep, scope);
+    private DesignNode? HitTestCore(IEnumerable<DesignNode> roots, Vec2 point, bool deep, double tolerance, bool restrictBooleans, DesignNode? scope)
     {
         foreach (var node in roots.Reverse())
         {
@@ -204,9 +206,9 @@ public sealed partial class SceneRenderer : IDisposable
             var localTolerance = Math.Max(0, tolerance) * scale;
             if (node.Children.Count == 0 && node.Kind is not NodeKind.Path and not NodeKind.Arrow && !node.LocalBounds.Inflate(localTolerance + ShapeGeometry.StrokeOutset(node)).Contains(local)) continue;
             var insideClip = ShapeGeometry.ContainsCornerBox(node, local);
-            if ((!node.IsBoolean || deep) && (!node.ClipContent || insideClip))
+            if ((!node.IsBoolean || deep && (!restrictBooleans || scope == node || scope?.IsDescendantOf(node) == true)) && (!node.ClipContent || insideClip))
             {
-                var child = HitTest(node.Children, point, deep, tolerance);
+                var child = HitTestCore(node.Children, point, deep, tolerance, restrictBooleans, scope);
                 if (child is not null) return deep || node.Kind is NodeKind.Frame or NodeKind.Section ? child : node;
             }
             if (node.Kind == NodeKind.Text && inside) return node;

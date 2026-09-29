@@ -15,7 +15,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         public Action<SKCanvas, Size>? Draw { get; set; }
         protected override void RenderOverride(SKCanvas canvas, Size area) => Draw?.Invoke(canvas, area);
     }
-    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex, VertexMarquee, ImageCrop }
+    private enum Gesture { None, Move, Resize, Rotate, Create, Marquee, Pan, PenControl, Pencil, Guide, Pinch, Vertex, VertexMarquee, ImageCrop, Shape }
     private readonly DrawingCanvas _canvas = new();
     private readonly Canvas _overlay = new();
     private EditorSession? _session;
@@ -78,7 +78,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         _canvas.PointerWheelChanged += (sender, e) => ExecuteInput(() => Wheel(sender, e));
         _canvas.DoubleTapped += (_, e) => ExecuteInput(() =>
         {
-            if (Session is null || IsPresenting || IsImageCropping || Session.SharedHistory?.CanEdit("Edit layer") == false) return;
+            if (Session is null || IsPresenting || IsImageCropping || IsShapeEditing || Session.SharedHistory?.CanEdit("Edit layer") == false) return;
             if (_penNode is not null) { FinishPath(false); e.Handled = true; return; }
             if (_vectorNode is { } vector)
             {
@@ -115,7 +115,8 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private void SessionChanged(object? sender, EditorChangedEventArgs e)
     {
         if (IsImageCropping) CropTarget(out _, out _);
-        if (e.Kind == EditorChangeKind.Tool) { _cropNodeId = null; _cropDocument = null; }
+        if (IsShapeEditing) ShapeTarget(out _);
+        if (e.Kind == EditorChangeKind.Tool) { _cropNodeId = null; _cropDocument = null; _shapeNodeId = null; _shapeDocument = null; _shapeGesture = null; }
         if (e.Kind == EditorChangeKind.Document)
         {
             // Undo/load can replace every node while a pen or pointer gesture is active.
@@ -191,6 +192,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             editor.Select(Hit(world, screen, Keyboard.Control), shift); return;
         }
+        if (PressShapeEdit(screen, world)) return;
         if (PressVectorEdit(screen, world, shift)) return;
         if (editor.Tool is EditorTool.Pen or EditorTool.Pencil) { StartPath(world, editor.Tool == EditorTool.Pencil); return; }
         if (editor.Tool is not EditorTool.Move and not EditorTool.Scale)
@@ -237,7 +239,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             var p = Session.Viewport.WorldToScreen(new(node.WorldBounds.X, node.WorldBounds.Y));
             if (screen.Y >= p.Y - 24 && screen.Y <= p.Y - 3 && screen.X >= p.X && screen.X <= p.X + Math.Max(70, node.Name.Length * 6)) return node;
         }
-        return Session.ResolveSelection(Renderer.HitTest(Session.Page.Nodes, world, true, 4 / Session.Viewport.Zoom), deep);
+        return Session.ResolveSelection(Renderer.HitTestForSelection(Session.Page.Nodes, world, Session.Primary?.Parent, deep, 4 / Session.Viewport.Zoom), deep);
     }
     private static Vec2 VectorPointPosition(DesignNode node, Vec2 point) =>
         node.PathWidth > 0 && node.PathHeight > 0
@@ -264,6 +266,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         var shift = Keyboard.Shift || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift);
         switch (_gesture)
         {
+            case Gesture.Shape: MoveShapeEdit(world, shift, Keyboard.Alt || e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu)); break;
             case Gesture.ImageCrop: MoveImageCrop(world); break;
             case Gesture.Pan: editor.Viewport.Pan = _startPan + screen - _startScreen; editor.Notify(EditorChangeKind.Viewport); break;
             case Gesture.Move:
@@ -375,7 +378,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     public void CancelGesture()
     {
-        _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _pathPreviewWorld = null; _vectorNode = null; _pointSelection.Clear(); _pointMarquee = null;
+        _shapeNodeId = null; _shapeDocument = null; _shapeGesture = null; _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _pathPreviewWorld = null; _vectorNode = null; _pointSelection.Clear(); _pointMarquee = null;
         Session?.CancelInteraction(); _canvas.ReleasePointerCaptures(); RequestFrame();
     }
     private static DesignNode NewNode(EditorTool tool, Vec2 point)

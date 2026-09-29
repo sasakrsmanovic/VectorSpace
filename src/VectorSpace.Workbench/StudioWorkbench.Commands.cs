@@ -14,6 +14,7 @@ public sealed partial class StudioWorkbench
     {
         foreach (var action in EditingActions()) yield return action;
         foreach (var action in PropertyActions()) yield return action;
+        foreach (var action in ShapeActions()) yield return action;
         yield return new("Share file", "", () => RunAsync(ShowShareAsync));
         yield return new("People in this file", "", () => RunAsync(ShowParticipantsAsync));
         yield return new("Version history", "", () => RunAsync(ShowSharedHistoryAsync));
@@ -96,6 +97,13 @@ public sealed partial class StudioWorkbench
             AddMenu(menu, "Done editing", Surface.EndVectorEdit);
             menu.ShowAt(Surface, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position }); return;
         }
+        AddMenu(menu, "Edit shape on canvas", () => Run(Surface.BeginShapeEdit), Session.Primary is { } shape && ShapeEditable(shape) && (ShapeGeometry.HasCorners(shape) || shape.Kind == NodeKind.Ellipse));
+        AddMenu(menu, "Outline stroke", () => Run(() => LiveBooleanOperations.Outline(Session, Surface.Renderer)), selected);
+        if (Session.Primary?.IsBoolean == true)
+        {
+            AddMenu(menu, "Flatten Boolean result", () => Run(() => LiveBooleanOperations.Flatten(Session, Surface.Renderer)));
+            AddMenu(menu, "Release Boolean operands", () => Run(() => LiveBooleanOperations.Release(Session)));
+        }
         AddMenu(menu, "Edit vector points", () => Run(Surface.BeginVectorEdit), Session.Primary is { } vector && EditablePathConversion.Supports(vector));
         AddMenu(menu, "Flip horizontal", () => Run(() => Session.FlipSelection(true)), selected);
         AddMenu(menu, "Flip vertical", () => Run(() => Session.FlipSelection(false)), selected);
@@ -140,7 +148,7 @@ public sealed partial class StudioWorkbench
         if (Keyboard.IsTextInput(e.OriginalSource as DependencyObject)) return;
         try
         {
-            if (Surface.HandleToolKey(e.Key, control, shift, alt) || Surface.HandlePointKey(e.Key, control, shift, alt)) { e.Handled = true; return; }
+            if (Surface.HandleToolKey(e.Key, control, shift, alt) || Surface.HandleShapeKey(e.Key, control, shift, alt) || Surface.HandlePointKey(e.Key, control, shift, alt)) { e.Handled = true; return; }
         }
         catch (Exception error) when (error is InvalidOperationException or ArgumentException) { ShowStatus(error.Message); e.Handled = true; return; }
         Action? action = null;

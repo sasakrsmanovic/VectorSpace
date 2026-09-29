@@ -20,6 +20,7 @@ public sealed partial class DesignSurface
         FinishTextEdit(true);
         if (_penNode is not null) FinishPath(false);
         if (_gesture == Gesture.ImageCrop) EndImageCrop();
+        if (_gesture == Gesture.Shape) EndShapeEdit();
         if (Session?.IsInteracting == true) Session.CommitInteraction();
         _gesture = Gesture.None; _canvas.ReleasePointerCaptures();
     }

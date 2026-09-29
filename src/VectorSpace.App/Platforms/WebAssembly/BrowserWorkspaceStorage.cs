@@ -64,7 +64,7 @@ internal static class BrowserDiagnostics
             using var stream = new MemoryStream();
             using (var json = new Utf8JsonWriter(stream))
             {
-                json.WriteStartObject(); workbench.WriteCollaborationDiagnostics(json); json.WriteBoolean("ready", true); json.WriteBoolean("saving", workbench.IsSaving); json.WriteBoolean("canvasFocused", workbench.Surface.HasCanvasKeyboardFocus); json.WriteString("tool", session.Tool.ToString());
+                json.WriteStartObject(); surface.WriteShapeDiagnostics(json); workbench.WriteCollaborationDiagnostics(json); json.WriteBoolean("ready", true); json.WriteBoolean("saving", workbench.IsSaving); json.WriteBoolean("canvasFocused", workbench.Surface.HasCanvasKeyboardFocus); json.WriteString("tool", session.Tool.ToString());
                 json.WriteNumber("nodes", session.Page.AllNodes().Count()); json.WriteNumber("roots", session.Page.Nodes.Count);
                 json.WriteNumber("pages", session.Document.Pages.Count); json.WriteNumber("selection", session.Selection.Count);
                 json.WriteNumber("history", session.History.Count); json.WriteNumber("zoom", session.Viewport.Zoom);

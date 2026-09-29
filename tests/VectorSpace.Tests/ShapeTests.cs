@@ -135,10 +135,10 @@ internal static partial class ShapeTests
             Check(n.FillRule == PathFillRule.EvenOdd && s.Cap == StrokeCap.Square && s.Join == StrokeJoin.Bevel && s.DashOffset == -2 && s.Dashes.Count == 3);
         });
         test("renderer-aware SVG export outlines aligned strokes without mutating the document", () => {
-            var n = Node(); n.Corners = new(20, 0, 12, 5); n.Strokes = [new() { Width = 7, Alignment = StrokeAlignment.Outside }]; var before = DocumentJson.Save(Editor(n).Document);
+            var n = Node(); n.Corners = new(20, 0, 12, 5); n.Strokes = [new() { Width = 7, Alignment = StrokeAlignment.Outside }]; var before = DocumentJson.SaveNodes([n]);
             using var r = new SceneRenderer(); var svg = SceneSvg.Export(r, [n], n.LocalBounds.Inflate(10)); var xml = XDocument.Parse(svg);
             Check(xml.Descendants().Count(e => e.Name.LocalName == "path") >= 2); Check(!svg.Contains("stroke-width=\"7\""));
-            Check(DocumentJson.Save(Editor(n).Document).Contains("\"outside\"", StringComparison.OrdinalIgnoreCase));
+            Check(DocumentJson.SaveNodes([n]) == before);
             Throws<InvalidOperationException>(() => SvgFormat.Export([n], n.LocalBounds));
         });
         test("shape sample validates and renders without external assets", () => {

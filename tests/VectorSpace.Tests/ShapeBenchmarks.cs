@@ -20,8 +20,8 @@ internal static class ShapeBenchmarks
         foreach (var node in nodes)
         {
             var cached = renderer.StrokeGeometry(node, 0);
-            using var rebuilt = SceneRenderer.BuildStrokeRegion(renderer.Geometry(node), node.Strokes[0]);
-            if (!NativeShapeGeometry.Capture(cached).SequenceEqual(NativeShapeGeometry.Capture(rebuilt)))
+            using var referenceRegion = SceneRenderer.BuildStrokeRegion(renderer.Geometry(node), node.Strokes[0]);
+            if (!NativeShapeGeometry.Capture(cached).SequenceEqual(NativeShapeGeometry.Capture(referenceRegion)))
                 throw new InvalidOperationException("Cached stroke geometry differs from the independently rebuilt region.");
         }
         var buildCount = renderer.StrokeBuilds;

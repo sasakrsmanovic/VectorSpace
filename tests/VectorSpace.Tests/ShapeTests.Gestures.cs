@@ -64,8 +64,15 @@ internal static partial class ShapeTests
         test("native conics have bounded accurate SVG export without quantizing the document", () => {
             var n = Node(); n.Kind = NodeKind.Ellipse; n.Arc = new(23, 267, .35); using var original = NativeShapeGeometry.Build(n);
             var commands = NativeShapeGeometry.Capture(original); var saved = commands.ToArray(); var svg = ShapePathSvg.Commands(commands);
-            using var parsed = SKPath.ParseSvgPathData(svg); using var before = new SKPathMeasure(original, false); using var after = new SKPathMeasure(parsed, false);
+            using var parsed = SKPath.ParseSvgPathData(svg); using var before = new SKPathMeasure(original, false, 1000); using var after = new SKPathMeasure(parsed, false, 1000);
             Near(before.Length, after.Length, .03); Check(commands.SequenceEqual(saved) && svg.Contains('C'));
+            // Compare equal high-resolution measurements; the default coarse estimator
+            // samples a long native conic differently from many exported cubic segments.
+            for (var i = 0; i <= 1000; i++)
+            {
+                var a = before.GetPosition(before.Length * i / 1000); var b = after.GetPosition(after.Length * i / 1000);
+                Check(new Vec2(a.X - b.X, a.Y - b.Y).Length < .01, "Exported conic deviated at arc-length sample " + i);
+            }
         });
     }
     private static void RegisterValidation(Action<string, Action> test)
