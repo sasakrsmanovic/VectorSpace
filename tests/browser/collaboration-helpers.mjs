@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
+import { waitForSkiaControl } from './skia-control-readiness.mjs';
 
 export const test = base.extend({
   peer: async ({ browser }, use, testInfo) => {
@@ -18,8 +19,7 @@ export { expect };
 export const state = page => page.evaluate(() => globalThis.__vectorSpaceState);
 export const shared = async page => (await state(page)).collaboration;
 export async function control(page, name, type) {
-  await expect.poll(() => page.evaluate(({ name, type }) => (globalThis.__vectorSpaceControls ?? []).some(c => c.name === name && (!type || c.type === type) && c.enabled), { name, type })).toBe(true);
-  return page.evaluate(({ name, type }) => globalThis.__vectorSpaceControls.filter(c => c.name === name && (!type || c.type === type) && c.enabled).at(-1), { name, type });
+  return waitForSkiaControl(page, name, type);
 }
 export async function click(page, name, type) { const c = await control(page, name, type); await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2); }
 export async function input(page, name, value, type = 'TextBox') { await click(page, name, type); await page.keyboard.press('Control+a'); await page.keyboard.insertText(value); }
@@ -53,6 +53,8 @@ export async function invite(request, owner, name = 'Bob', role = 'Editor') {
 }
 export function fragment(grant) { return '#collaboration=' + Buffer.from(JSON.stringify({ server: grant.server, room: grant.roomId, token: grant.token })).toString('base64url'); }
 export async function join(page, grant, name) {
+  // A newly created sibling page can leave this one backgrounded during startup.
+  await page.bringToFront();
   await page.goto('?test=1' + fragment(grant));
   await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150000 });
   await input(page, 'Collaboration display name', name);
