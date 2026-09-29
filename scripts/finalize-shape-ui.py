@@ -15,3 +15,5 @@ edit('tests/VectorSpace.Tests/ShapeTests.Gestures.cs',"Near(before.Length, after
 edit('tests/VectorSpace.Tests/Program.cs','if (args.Contains("--benchmark-appearance"))','if (args.Contains("--benchmark-shapes")) return ShapeBenchmarks.Run();\nif (args.Contains("--benchmark-appearance"))')
 edit('tests/VectorSpace.Tests/ShapeBenchmarks.cs','using var rebuilt = SceneRenderer.BuildStrokeRegion(renderer.Geometry(node), node.Strokes[0]);','using var referenceRegion = SceneRenderer.BuildStrokeRegion(renderer.Geometry(node), node.Strokes[0]);')
 edit('tests/VectorSpace.Tests/ShapeBenchmarks.cs','NativeShapeGeometry.Capture(rebuilt)','NativeShapeGeometry.Capture(referenceRegion)')
+for control in ['StrokeOptionsControl','CornerOptionsControl','ArcOptionsControl']:
+    edit('src/VectorSpace.Controls/ShapeOptionsControls.cs', 'class '+control+' : StackPanel', 'class '+control+' : ShapeOptionsPanel')
