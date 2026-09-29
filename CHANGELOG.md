@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.1 — Editing workflows
+
+- Add typed property copy/paste, single-group quick actions and a custom selective-transfer panel. Geometry, content, identities and hierarchy remain intact; transferred values materialize only their affected variable bindings.
+- Add persistent instance stroke, whole-layer typography, appearance and name overrides, including inspector edits and structurally matched variant swaps.
+- Add a custom before/after batch-rename panel, current-name/capture substitution, ascending/descending padded numbers, literal or linear-time regex matching and atomic stale-target preflight.
+- Replace repeated per-item layer moves with stable run movement and O(n) extreme-order partitioning; preserve selected/untouched order and reject unsupported instance-child reordering explicitly.
+- Complete Save's host operation and restore canvas keyboard focus after inline text and inspector teardown. The regression still saves immediately after typing.
+- Introduce native schema 5 with schemas 1–4 migration; upgrade persisted shared rooms once through a durable system revision without rewriting prior history or receipts.
+- Add 36 engine regressions, five static browser workflows, a real shared-property/undo case, a persisted-room migration test and an equivalent-output ordering/property-capture benchmark.
+- Document exact transfer/naming semantics, ownership, migration and performance boundaries. This does not claim complete Figma parity.
+
 ## 0.6.0-alpha.1 — Collaborative editing
 
 - Added the tenth reusable library, `VectorSpace.Collaboration`, and a persistent ASP.NET room service with guarded property/hierarchy transactions, idempotent retries, normalized layout/variables/components, and conditional own undo/redo.
@@ -18,7 +29,6 @@
 - Add world-pivot flips/quarter-turns, keyboard axis-preserving resizing, paste in place, spacing and editable guides; keep constrained snapping on its permitted axis.
 - Build editable SKPath geometry directly rather than serializing/parsing SVG per edit. Add a scoped geometry/allocation benchmark.
 - Add 75 engine regressions and ten actual-browser tool/editing workflows; exact-commit CI is the source of validation status.
-
 
 ## 0.4.0-alpha.1
 
