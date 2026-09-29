@@ -1,12 +1,12 @@
-name: Integrate shape engine
+name: Integrate shape interaction
 on:
   push:
     branches: ['feat/shape-stroke-editing-0.8']
-    paths: ['.github/workflows/integrate-shapes.yml', 'scripts/integrate-shapes.py']
+    paths: ['.github/workflows/integrate-shape-ui.yml', 'scripts/integrate-shape-ui.py']
 permissions:
   contents: write
 concurrency:
-  group: integrate-shapes
+  group: integrate-shape-ui
   cancel-in-progress: true
 jobs:
   integrate:
@@ -19,26 +19,26 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: python3 scripts/integrate-shapes.py
-      - name: Engine regression validation
+      - run: python3 scripts/integrate-shape-ui.py
+      - name: Shape pixels, native contours and gesture regressions
         run: dotnet run --project tests/VectorSpace.Tests -c Release
       - name: Compile reusable Uno workbench
         run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
-      - name: Preserve validated integration
+      - name: Preserve validated UI integration
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm scripts/integrate-shapes.py
-          git add src tests Directory.Build.props scripts/integrate-shapes.py
-          git commit -m 'feat: integrate exact primitive paths, live Booleans and cached aligned strokes'
+          rm scripts/integrate-shape-ui.py
+          git add src tests scripts/integrate-shape-ui.py
+          git commit -m 'feat: wire shape grips, custom stroke editors and exact contour regression coverage'
           git push origin HEAD:feat/shape-stroke-editing-0.8
-      - name: Record integration diagnostics
+      - name: Retain diagnostic patch
         if: always()
         run: |
           mkdir -p artifacts
-          git diff > artifacts/shape-integration.patch
+          git diff > artifacts/shape-ui-integration.patch
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: shape-integration-diagnostics
-          path: artifacts/shape-integration.patch
+          name: shape-ui-integration-diagnostics
+          path: artifacts/shape-ui-integration.patch
