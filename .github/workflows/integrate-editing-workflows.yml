@@ -2,7 +2,7 @@ name: Integrate editing workflows
 on:
   push:
     branches: ['feat/editing-workflows-0.7']
-    paths: ['.github/workflows/integrate-editing-workflows.yml', 'scripts/integrate-editing-workflows.py']
+    paths: ['.github/workflows/integrate-editing-workflows.yml', 'scripts/integrate-editing-workflows.py', 'scripts/finish-editing-workflows.py']
 permissions:
   contents: write
 concurrency:
@@ -20,7 +20,9 @@ jobs:
         with:
           global-json-file: global.json
       - name: Apply guarded existing-source edits
-        run: python3 scripts/integrate-editing-workflows.py
+        run: |
+          python3 scripts/integrate-editing-workflows.py
+          python3 scripts/finish-editing-workflows.py
       - name: Validate editor, properties, collaboration and migration
         run: |
           dotnet run --project tests/VectorSpace.Tests -c Release
@@ -36,7 +38,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm scripts/integrate-editing-workflows.py .github/workflows/integrate-editing-workflows.yml
-          git add src tests Directory.Build.props scripts/integrate-editing-workflows.py .github/workflows/integrate-editing-workflows.yml
+          rm scripts/integrate-editing-workflows.py scripts/finish-editing-workflows.py .github/workflows/integrate-editing-workflows.yml
+          git add src tests server Directory.Build.props scripts/integrate-editing-workflows.py scripts/finish-editing-workflows.py .github/workflows/integrate-editing-workflows.yml
           git commit -m 'feat: integrate property transfer, instance style overrides, batch renaming and stable layer order'
           git push origin HEAD:feat/editing-workflows-0.7
