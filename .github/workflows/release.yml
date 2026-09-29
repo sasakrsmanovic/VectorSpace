@@ -3,15 +3,108 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version for a dry run (tags publish; manual runs only build and upload artifacts)
+        required: true
+        default: '0.7.0-alpha.1'
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  APP_NAME: VectorSpace
+  APP_PROJECT: src/VectorSpace.App
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
 jobs:
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
+  version:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        name: Resolve release version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        shell: bash
+        run: |
+          VERSION="$INPUT_VERSION"
+          if [ "$REF_TYPE" = tag ]; then VERSION="${REF_NAME#v}"; fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version '$VERSION'" >&2; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    name: Desktop (${{ matrix.rid }})
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      RID: ${{ matrix.rid }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Fetch licensed assets
+        run: python3 scripts/fetch-assets.py
+      - name: Publish self-contained single-file executable
+        shell: bash
+        run: |
+          dotnet publish "$APP_PROJECT" -c Release -f net10.0-desktop -r "$RID" --self-contained true \
+            -p:VectorSpaceDesktopOnly=true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none -p:DebugSymbols=false -p:Version="$VERSION" \
+            -o "artifacts/desktop/$RID"
+      - name: Package executable
+        shell: bash
+        run: |
+          OUT="artifacts/desktop/$RID"
+          find "$OUT" -name '*.pdb' -delete
+          mkdir -p artifacts/dist
+          BASE="$APP_NAME-$VERSION-$RID"
+          if [[ "$RID" == win-* ]]; then
+            mv "$OUT/$APP_NAME.App.exe" "$OUT/$APP_NAME.exe"
+            test "$(find "$OUT" -type f | wc -l)" -eq 1
+            (cd "$OUT" && zip -q "$GITHUB_WORKSPACE/artifacts/dist/$BASE.zip" "$APP_NAME.exe")
+          else
+            mv "$OUT/$APP_NAME.App" "$OUT/$APP_NAME"
+            chmod +x "$OUT/$APP_NAME"
+            test "$(find "$OUT" -type f | wc -l)" -eq 1
+            tar -C "$OUT" -czf "artifacts/dist/$BASE.tar.gz" "$APP_NAME"
+          fi
+          ls -la artifacts/dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.rid }}
+          path: artifacts/dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -20,10 +113,10 @@ jobs:
           node-version: '22'
       - name: Verify version and install toolchain
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           SOURCE_VERSION=$(python3 -c 'import xml.etree.ElementTree as E; print(E.parse("Directory.Build.props").findtext(".//Version"))')
-          test "$VERSION" = "$SOURCE_VERSION" || { echo 'Release tag must match the source version.' >&2; exit 1; }
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            test "$VERSION" = "$SOURCE_VERSION" || { echo 'Release tag must match the source version.' >&2; exit 1; }
+          fi
           dotnet workload install wasm-tools --skip-manifest-update
           python3 scripts/fetch-assets.py
       - name: Validate engines, shared editor and persistent service
@@ -36,12 +129,12 @@ jobs:
           python3 -m unittest discover -s tests/server -v
       - name: Publish browser, server and reusable libraries
         run: |
-          dotnet publish src/VectorSpace.App -f net10.0-browserwasm -c Release -o artifacts/publish -p:WasmShellWebAppBasePath=/VectorSpace/
+          dotnet publish src/VectorSpace.App -f net10.0-browserwasm -c Release -o artifacts/publish -p:WasmShellWebAppBasePath=/VectorSpace/ -p:Version="$VERSION"
           python3 scripts/collect-site.py artifacts/publish artifacts/site
-          dotnet publish server/VectorSpace.Server -c Release -o artifacts/collaboration-server
+          dotnet publish server/VectorSpace.Server -c Release -o artifacts/collaboration-server -p:Version="$VERSION"
           for project in src/*/*.csproj; do
             case "$project" in */VectorSpace.App/*) continue;; esac
-            dotnet pack "$project" -c Release -o artifacts/packages
+            dotnet pack "$project" -c Release -o artifacts/packages -p:Version="$VERSION"
           done
       - name: Actual browser and multi-user acceptance
         run: |
@@ -62,6 +155,11 @@ jobs:
             artifacts/collaboration-server.log
             artifacts/collaboration-browser-server.log
           if-no-files-found: ignore
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          path: artifacts/release
+          merge-multiple: true
       - name: Create release archives and checksums
         run: |
           mkdir -p artifacts/release
@@ -69,11 +167,62 @@ jobs:
           (cd artifacts/packages && zip -qr ../release/VectorSpace-packages-$VERSION.zip .)
           (cd artifacts/collaboration-server && zip -qr ../release/VectorSpace-server-$VERSION.zip .)
           git archive --format=zip --output=artifacts/release/VectorSpace-source-$VERSION.zip HEAD
-          (cd artifacts/release && sha256sum *.zip > SHA256SUMS.txt)
-      - name: Publish GitHub release
+          (cd artifacts/release && sha256sum *.zip *.tar.gz > SHA256SUMS.txt)
+          cat artifacts/release/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VectorSpace-release
+          path: artifacts/release/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
+          if-no-files-found: error
+      - name: Publish GitHub release for version tag
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           EXTRA=()
           case "$VERSION" in *-*) EXTRA+=(--prerelease);; esac
-          gh release create "$GITHUB_REF_NAME" artifacts/release/* --verify-tag --generate-notes --title "VectorSpace $VERSION" "${EXTRA[@]}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/release/* --clobber
+          else
+            gh release create "$TAG" artifacts/release/* --verify-tag --generate-notes --title "VectorSpace $VERSION" "${EXTRA[@]}"
+          fi
+
+  nuget:
+    name: Publish to NuGet.org (Trusted Publishing)
+    needs: [version, release]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: nuget
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: packages
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check NuGet user
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+        run: test -n "$NUGET_USER" || { echo 'Set the NUGET_USER variable (your nuget.org profile name) for this repository or its nuget environment.' >&2; exit 1; }
+      - name: NuGet login (OIDC → short-lived API key)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+      - name: Push packages
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

@@ -7,14 +7,16 @@
     <!-- Uno 6.7's managed and native Skia dependencies must share one ABI version. -->
     <VectorSpaceSkiaVersion>3.119.2</VectorSpaceSkiaVersion>
     <SkiaSharpVersion>$(VectorSpaceSkiaVersion)</SkiaSharpVersion>
-    <Authors>Wiesław Šoltés; VectorSpace contributors</Authors>
-    <Company>VectorSpace</Company>
-    <Copyright>Copyright © 2026 VectorSpace contributors</Copyright>
+    <Authors>Wiesław Šoltés</Authors>
+    <Company>Wiesław Šoltés</Company>
+    <Copyright>Copyright © 2026 Wiesław Šoltés</Copyright>
     <RepositoryUrl>https://github.com/wieslawsoltes/VectorSpace</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/wieslawsoltes/VectorSpace</PackageProjectUrl>
+    <PackageProjectUrl>https://wieslawsoltes.github.io/UnoSpace/projects/vectorspace/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageTags>vectorspace;vector;design;graphics;svg;prototyping;collaboration;uno-platform;skiasharp;webassembly;desktop</PackageTags>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -25,5 +27,6 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)build/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 </Project>

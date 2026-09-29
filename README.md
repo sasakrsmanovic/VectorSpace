@@ -125,11 +125,25 @@ docker compose up --build -d
 
 The Compose port is loopback-only. Use HTTPS and exact allowed origins for Internet hosting. Do not commit keys, remove volumes unintentionally or run multiple processes against one data directory. [Deployment, upgrades and backups](docs/HOSTING.md).
 
+## Download
+
+Every [release](https://github.com/wieslawsoltes/VectorSpace/releases/latest) ships a self-contained, single-file desktop app — no .NET install needed:
+
+| OS | x64 | Arm64 |
+| --- | --- | --- |
+| Windows | `VectorSpace-<version>-win-x64.zip` | `VectorSpace-<version>-win-arm64.zip` |
+| macOS | `VectorSpace-<version>-osx-x64.tar.gz` | `VectorSpace-<version>-osx-arm64.tar.gz` |
+| Linux | `VectorSpace-<version>-linux-x64.tar.gz` | `VectorSpace-<version>-linux-arm64.tar.gz` |
+
+Extract and run `VectorSpace` (`VectorSpace.exe` on Windows). Builds are not code-signed yet: on macOS clear the quarantine flag with `xattr -d com.apple.quarantine VectorSpace`; on Windows choose **More info → Run anyway** in SmartScreen. Verify downloads against `SHA256SUMS.txt`.
+
+The libraries below are published to [NuGet.org](https://www.nuget.org/packages?q=VectorSpace), e.g. `dotnet add package VectorSpace.Workbench`.
+
 ## Ten reusable libraries
 
 | Package | Responsibility | UI dependency |
 |---|---|---|
-| `VectorSpace.Core` | Scene graph, typed styles, variables, reactions and affine/path geometry | None |
+| `VectorSpace.Model` (assembly `VectorSpace.Core`) | Scene graph, typed styles, variables, reactions and affine/path geometry | None |
 | `VectorSpace.Layout` | Flow/grid layout, constraints and indexed snapping | None |
 | `VectorSpace.Documents` | Native/property JSON, validation, SVG, samples and storage contracts | None |
 | `VectorSpace.Editing` | Selection, transactions, property transfer, batch naming, components and history | None |
@@ -140,7 +154,7 @@ The Compose port is loopback-only. Use HTTPS and exact allowed origins for Inter
 | `VectorSpace.Editor` | Design surface, prototype player and retained remote-presence overlay | Uno / Skia |
 | `VectorSpace.Workbench` | Authoring, clipboard, sharing, recovery and history workflows | Uno / Skia |
 
-All ten libraries are packable. `.nupkg`/`.snupkg` build outputs do not imply NuGet.org publication. The separate ASP.NET host lives under `server/`.
+All ten libraries are packed with symbols and published to NuGet.org on tagged releases. The core model package is `VectorSpace.Model` because the `VectorSpace.Core` ID on NuGet.org belongs to another owner; its assembly and namespaces remain `VectorSpace.Core`. The separate ASP.NET host lives under `server/`.
 
 ```csharp
 using VectorSpace.Documents;
@@ -189,7 +203,7 @@ Native text inputs retain their editing shortcuts. Browser-reserved keys and OS 
 
 Current native **schema 5** migrates schemas 1–4 and preserves new instance style/name records. SVG/PNG are not lossless native substitutes. A 0.7 server upgrades a schema-4 room after replay by appending a system revision; existing history and receipts remain intact. Back up server data and upgrade clients with the service. [Migration details](docs/EDITING_WORKFLOWS.md#native-format-and-shared-room-upgrade).
 
-**Build** gates browser artifacts on engines, shared-editor boundaries, actual HTTP/restart tests and browser acceptance. It preserves benchmarks/server/packages/source and test artifacts. **Desktop** compiles Windows/Linux/macOS. **Pages** deploys the successful main artifact, verifies provenance and tests the public static client; collaboration cases use that same artifact with a real ephemeral backend during Build. **Release** handles explicitly tagged releases.
+**Build** gates browser artifacts on engines, shared-editor boundaries, actual HTTP/restart tests and browser acceptance. It preserves benchmarks/server/packages/source and test artifacts. **Desktop** compiles Windows/Linux/macOS. **Pages** deploys the successful main artifact, verifies provenance and tests the public static client; collaboration cases use that same artifact with a real ephemeral backend during Build. **Release** runs for `v*` tags or a supplied manual version: it repeats the engine, server and browser gates, publishes self-contained single-file desktop executables for Windows, macOS and Linux (x64 and arm64), the browser/server/source archives and versioned packages with symbols, and emits `SHA256SUMS.txt`. Tags attach all assets to a GitHub Release and publish the packages to NuGet.org with [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing) (OIDC, no stored API key) from the protected `nuget` environment. Manual runs are dry runs that upload every asset as workflow artifacts and publish nothing.
 
 See [architecture](docs/ARCHITECTURE.md), [validation](docs/VALIDATION.md), [security](SECURITY.md), [contributing](CONTRIBUTING.md), and [changelog](CHANGELOG.md).
 

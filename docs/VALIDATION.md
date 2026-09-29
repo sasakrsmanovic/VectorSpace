@@ -26,7 +26,7 @@ Tests use real pointer, keyboard, file-picker and clipboard input. `?test=1` pro
 
 **Pages** deploys the successful main browser artifact, checks `build-info.json` against the source commit, and runs the **40 static cases** on the public URL. The 12 collaboration cases already ran against that artifact with a compiled temporary backend during Build. Their explicit exclusion from a static-only Pages run is not evidence of a public collaboration server.
 
-A persistent public backend requires separate HTTPS hosting and disk. Templates, uploaded server archives and ephemeral tests do not provision that service. Generated NuGet archives are not proof of NuGet.org publication.
+A persistent public backend requires separate HTTPS hosting and disk. Templates, uploaded server archives and ephemeral tests do not provision that service. Packages reach NuGet.org only from tagged Release runs through Trusted Publishing; archives from other runs are build outputs, not publication.
 
 ## Reproduce
 

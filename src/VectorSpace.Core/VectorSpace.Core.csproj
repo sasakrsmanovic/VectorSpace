@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <PackageId>VectorSpace.Model</PackageId>
     <Description>Platform-independent vector document, scene graph and geometry for VectorSpace.</Description>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
