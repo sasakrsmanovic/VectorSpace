@@ -19,11 +19,33 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: python3 scripts/integrate-shape-ui.py
+      - name: Apply reviewed source integration and precise curve validation
+        run: |
+          python3 scripts/integrate-shape-ui.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/VectorSpace.Tests/EditingWorkflowTests.cs');s=p.read_text();old='PropertyClipboard.Prefix + "{\\"version\\":2,\\"properties\\":{}}"';assert s.count(old)==1;s=s.replace(old,'PropertyClipboard.Prefix + "{\\"version\\":99,\\"properties\\":{}}"');p.write_text(s)
+          p=Path('tests/VectorSpace.Tests/ShapeTests.Gestures.cs');s=p.read_text();old='using var before = new SKPathMeasure(original, false); using var after = new SKPathMeasure(parsed, false);';assert s.count(old)==1;s=s.replace(old,'using var before = new SKPathMeasure(original, false, 1000); using var after = new SKPathMeasure(parsed, false, 1000);');old='Near(before.Length, after.Length, .03); Check(commands.SequenceEqual(saved) && svg.Contains(\'C\'));';assert s.count(old)==1;s=s.replace(old,old+'''
+              // Default path measurement is a rendering-speed approximation and samples a
+              // long native conic differently from many short cubics. Use equal high-resolution
+              // measurement and check positions, not a relaxed error threshold.
+              for (var i = 0; i <= 1000; i++)
+              {
+                  var a = before.GetPosition(before.Length * i / 1000); var b = after.GetPosition(after.Length * i / 1000);
+                  Check(new Vec2(a.X - b.X, a.Y - b.Y).Length < .01, "Exported conic deviated at arc-length sample " + i);
+              }
+          ''');p.write_text(s)
+          p=Path('tests/VectorSpace.Tests/Program.cs');s=p.read_text();old='if (args.Contains("--benchmark-appearance"))';assert s.count(old)==1;s=s.replace(old,'if (args.Contains("--benchmark-shapes")) return ShapeBenchmarks.Run();\n'+old);p.write_text(s)
+          PY
       - name: Shape pixels, native contours and gesture regressions
         run: dotnet run --project tests/VectorSpace.Tests -c Release
       - name: Compile reusable Uno workbench
         run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Measure and verify stroke resource retention
+        run: |
+          mkdir -p artifacts
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-shapes > artifacts/shapes.json
+          cat artifacts/shapes.json
       - name: Preserve validated UI integration
         run: |
           git config user.name 'github-actions[bot]'
@@ -38,7 +60,9 @@ jobs:
           mkdir -p artifacts
           git diff > artifacts/shape-ui-integration.patch
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: always()
         with:
-          name: shape-ui-integration-diagnostics
-          path: artifacts/shape-ui-integration.patch
+          name: shape-ui-integration-validation
+          path: |
+            artifacts/shape-ui-integration.patch
+            artifacts/shapes.json
