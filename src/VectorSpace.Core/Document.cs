@@ -85,6 +85,12 @@ public sealed class InstanceOverride
     public List<FillStyle>? Fills { get; set; }
     public List<ShadowStyle>? Effects { get; set; }
     public bool? Visible { get; set; }
+    public string? Name { get; set; }
+    public List<StrokeStyle>? Strokes { get; set; }
+    public TypographyStyle? Typography { get; set; }
+    public double? Opacity { get; set; }
+    public BlendKind? Blend { get; set; }
+    public double? CornerRadius { get; set; }
 }
 
 /// <summary>A serializable scene node. Coordinates are relative to the parent, not the canvas.</summary>
@@ -201,7 +207,8 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public int FormatVersion { get; set; } = 4;
+    public const int CurrentFormatVersion = 5;
+    public int FormatVersion { get; set; } = CurrentFormatVersion;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";
     public List<DesignPage> Pages { get; set; } = [new()];

@@ -7,12 +7,17 @@ internal static class AppearanceValidation
     public static void Validate(DesignNode node, ref long imageCharacters)
     {
         CheckFills(node.Fills, ref imageCharacters);
+        PropertyClipboard.ValidateStrokes(node.Strokes);
         CheckEffects(node.Shadows);
         foreach (var entry in node.Overrides.Values)
         {
             if (entry is null) throw new InvalidDataException("Invalid instance override.");
             if (entry.Fills is { } fills) CheckFills(fills, ref imageCharacters);
             if (entry.Effects is { } effects) CheckEffects(effects);
+            if (entry.Strokes is { } strokes) PropertyClipboard.ValidateStrokes(strokes);
+            PropertyClipboard.ValidateTypography(entry.Typography);
+            PropertyClipboard.ValidateScalars(entry.Opacity, entry.Blend, entry.CornerRadius);
+            if (entry.Name is { } name && (name.Length > 4096 || string.IsNullOrWhiteSpace(name) || name.Any(char.IsControl))) throw new InvalidDataException("Invalid instance layer name.");
         }
     }
     private static bool Finite(double value, double min, double max) => double.IsFinite(value) && value >= min && value <= max;

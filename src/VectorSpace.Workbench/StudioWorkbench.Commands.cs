@@ -13,6 +13,7 @@ public sealed partial class StudioWorkbench
     private IEnumerable<QuickAction> Actions()
     {
         foreach (var action in EditingActions()) yield return action;
+        foreach (var action in PropertyActions()) yield return action;
         yield return new("Share file", "", () => RunAsync(ShowShareAsync));
         yield return new("People in this file", "", () => RunAsync(ShowParticipantsAsync));
         yield return new("Version history", "", () => RunAsync(ShowSharedHistoryAsync));
@@ -103,6 +104,9 @@ public sealed partial class StudioWorkbench
         AddMenu(menu, "Copy                           Ctrl C", () => RunAsync(() => CopyAsync(false)), selected);
         AddMenu(menu, "Cut                              Ctrl X", () => RunAsync(() => CopyAsync(true)), selected);
         AddMenu(menu, "Paste                          Ctrl V", () => RunAsync(PasteAsync));
+        AddMenu(menu, "Copy properties              Ctrl Alt C", () => RunAsync(() => CopyPropertiesAsync(PropertyGroups.All)), selected);
+        AddMenu(menu, "Paste properties             Ctrl Alt V", () => RunAsync(() => PastePropertiesAsync()), selected);
+        AddMenu(menu, "Paste selected properties…", () => RunAsync(() => PastePropertiesAsync(choose: true)), selected);
         AddMenu(menu, "Duplicate                   Ctrl D", () => Run(() => Session.DuplicateSelection()), selected);
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "Group selection           Ctrl G", () => Run(() => Session.GroupSelection()), selected);
@@ -116,7 +120,7 @@ public sealed partial class StudioWorkbench
         AddMenu(menu, "Send backward", () => Run(() => Session.Reorder(-1)), selected);
         AddMenu(menu, "Send to back", () => Run(() => Session.Reorder(-1, true)), selected);
         menu.Items.Add(new MenuFlyoutSeparator());
-        AddMenu(menu, "Rename                         F2", () => { if (Session.Primary is { } n) RunAsync(() => RenameLayerAsync(n)); }, selected);
+        AddMenu(menu, "Rename layers                 F2", () => RunAsync(RenameSelectionAsync), selected);
         AddMenu(menu, "Toggle lock", () => Run(() => Session.Edit("Toggle lock", () => { foreach (var n in Session.Selection) n.Locked = !n.Locked; })), selected);
         AddMenu(menu, "Delete                           Delete", () => Run(Session.DeleteSelection), selected);
         menu.ShowAt(Surface, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position });
@@ -152,9 +156,12 @@ public sealed partial class StudioWorkbench
                 VirtualKey.Y => Session.Redo,
                 VirtualKey.A => Session.SelectAll,
                 VirtualKey.D => () => Session.DuplicateSelection(),
+                VirtualKey.C when alt => () => RunAsync(() => CopyPropertiesAsync(PropertyGroups.All)),
                 VirtualKey.C => () => RunAsync(() => CopyAsync(false)),
                 VirtualKey.X => () => RunAsync(() => CopyAsync(true)),
+                VirtualKey.V when alt => () => RunAsync(() => PastePropertiesAsync()),
                 VirtualKey.V => () => RunAsync(() => PasteAsync(shift)),
+                VirtualKey.R => () => RunAsync(RenameSelectionAsync),
                 VirtualKey.O when shift => () => { Session.OutlinesVisible = !Session.OutlinesVisible; Surface.Invalidate(); },
                 VirtualKey.O => () => RunAsync(OpenAsync),
                 VirtualKey.G when alt => () => Session.GroupSelection(true),
@@ -198,7 +205,7 @@ public sealed partial class StudioWorkbench
                 VirtualKey.Number1 when shift => () => Surface.Fit(),
                 VirtualKey.Number2 when shift => () => Surface.Fit(true),
                 VirtualKey.Number0 => () => Surface.ZoomTo(1),
-                VirtualKey.F2 => () => { if (Session.Primary is { } n) RunAsync(() => RenameLayerAsync(n)); },
+                VirtualKey.F2 => () => RunAsync(RenameSelectionAsync),
                 VirtualKey.Tab => () => Session.SelectSibling(shift),
                 VirtualKey.Escape => () => { Surface.CancelGesture(); Session.Select((DesignNode?)null); Session.Tool = EditorTool.Move; },
                 VirtualKey.Enter when shift => Session.SelectParent,
@@ -233,7 +240,8 @@ public sealed partial class StudioWorkbench
         catch { text = _clipboard; }
         text ??= _clipboard;
         if (string.IsNullOrWhiteSpace(text)) { ShowStatus("The clipboard is empty or clipboard access is unavailable."); return; }
-        if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..], inPlace);
+        if (text.StartsWith(PropertyClipboard.Prefix, StringComparison.Ordinal)) { PropertyTransfer.Paste(Session, PropertyClipboard.Read(text).Properties); Surface.FocusCanvas(); }
+        else if (text.StartsWith(ClipboardPrefix, StringComparison.Ordinal)) Session.Paste(text[ClipboardPrefix.Length..], inPlace);
         else if (text.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase) || text.TrimStart().StartsWith("<?xml", StringComparison.OrdinalIgnoreCase)) ImportSvg(text, "Pasted SVG");
         else
         {
@@ -264,11 +272,6 @@ public sealed partial class StudioWorkbench
             foreach (var node in nodes) { node.X = point.X - node.Width / 2; node.Y = point.Y - node.Height / 2; Session.AddNode(node); } Session.Select(nodes.Select(n => n.Id));
         });
         Surface.Fit(true); ShowStatus(result.Warnings.Count == 0 ? "Imported editable SVG" : "Imported SVG. " + string.Join(" ", result.Warnings));
-    }
-    private async Task SaveAsync()
-    {
-        Surface.CommitPendingEdits();
-        var json = DocumentJson.Save(Session.Document); await _storage.SaveAsync(SafeName(Session.Document.Name) + ".vectorspace", Encoding.UTF8.GetBytes(json), "application/json"); Session.MarkSaved(json); ShowStatus("Downloaded editable document");
     }
     private async Task ExportAsync(bool svg)
     {
@@ -303,7 +306,10 @@ public sealed partial class StudioWorkbench
     }
     private async Task RenameLayerAsync(DesignNode node)
     {
-        var text = await PromptAsync("Rename layer", node.Name); if (!string.IsNullOrWhiteSpace(text)) Session.Edit("Rename layer", () => node.Name = text);
+        var id = node.Id; var before = node.Name;
+        var text = await PromptAsync("Rename layer", before);
+        if (!string.IsNullOrWhiteSpace(text)) LayerRename.Apply(Session, [new(id, before, text)]);
+        Surface.FocusCanvas();
     }
     private async Task EditCommentAsync(Vec2 anchor, CommentThread? thread)
     {

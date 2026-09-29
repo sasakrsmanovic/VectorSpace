@@ -45,6 +45,7 @@ async function enterPoints(page) {
 async function save(page, name) {
   const pending = page.waitForEvent('download'); await page.keyboard.press('Control+s'); const d = await pending;
   await fs.mkdir('artifacts', { recursive: true }); const path = `artifacts/${name}.vectorspace`; await d.saveAs(path);
+  await expect.poll(async () => (await state(page)).saving).toBe(false);
   return JSON.parse(await fs.readFile(path, 'utf8'));
 }
 const target = doc => doc.pages[0].nodes[0].children.find(n => n.id === 'target');
@@ -186,6 +187,7 @@ test('Text saves an active edit and Escape rolls back only the subsequent text t
   await control(page, 'Edit canvas text'); await page.keyboard.press('Control+a'); await page.keyboard.insertText('Precise editing λ');
   const first = await save(page, 'active-text-save'); const text = first.pages[0].nodes[0].children.find(n => n.kind === 'Text');
   expect(text.text).toBe('Precise editing λ');
+  await expect.poll(async () => (await state(page)).canvasFocused).toBe(true);
   await page.keyboard.press('Enter'); await control(page, 'Edit canvas text');
   await page.keyboard.press('Control+a'); await page.keyboard.insertText('Discard this change'); await page.keyboard.press('Escape');
   const second = await save(page, 'canceled-text-edit');

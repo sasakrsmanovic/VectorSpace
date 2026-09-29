@@ -6,7 +6,7 @@ namespace VectorSpace.Workbench;
 public sealed partial class StudioWorkbench
 {
     private double _exportScale = 1;
-    private void Change(string label, Action<DesignNode> change) => Run(() => Session.UpdateSelection(label, change));
+    private void Change(string label, Action<DesignNode> change) => Run(() => PropertyTransfer.Update(Session, label, change));
     private void RefreshInspector()
     {
         _inspector.Children.Clear();

@@ -7,7 +7,7 @@ using VectorSpace.Documents;
 namespace VectorSpace.Editing;
 
 /// <summary>Reusable local components with linked instances and explicit text/fill overrides.</summary>
-public static class ComponentService
+public static partial class ComponentService
 {
     private sealed record SyncStamp(string Source, string Overrides);
     private static readonly ConditionalWeakTable<DesignNode, SyncStamp> Stamps = new();
@@ -70,10 +70,8 @@ public static class ComponentService
         if (fills) { value.Fill = null; value.Fills = CloneFills(node.Fills); }
         if (effects) value.Effects = CloneEffects(node.Shadows);
     }
-    private static List<FillStyle> CloneFills(List<FillStyle> values) => System.Text.Json.JsonSerializer.Deserialize(
-        System.Text.Json.JsonSerializer.Serialize(values, VectorSpaceJsonContext.Default.ListFillStyle), VectorSpaceJsonContext.Default.ListFillStyle)!;
-    private static List<ShadowStyle> CloneEffects(List<ShadowStyle> values) => System.Text.Json.JsonSerializer.Deserialize(
-        System.Text.Json.JsonSerializer.Serialize(values, VectorSpaceJsonContext.Default.ListShadowStyle), VectorSpaceJsonContext.Default.ListShadowStyle)!;
+    private static List<FillStyle> CloneFills(List<FillStyle> values) => StyleCloner.Fills(values);
+    private static List<ShadowStyle> CloneEffects(List<ShadowStyle> values) => StyleCloner.Effects(values);
     /// <summary>Resolve acyclic local component dependencies, preserve scoped descendant IDs, and skip unchanged instances.</summary>
     public static SynchronizationStatistics Synchronize(DesignDocument document)
     {
@@ -142,6 +140,12 @@ public static class ComponentService
             instance.VariantProperties = copy.VariantProperties;
             instance.Reactions = copy.Reactions; instance.PrototypeTargetId = copy.PrototypeTargetId;
             instance.PrototypeOverflow = copy.PrototypeOverflow; instance.PrototypeReactionsOverride = copy.PrototypeReactionsOverride;
+            if (instance.Overrides.TryGetValue(definition.Id, out var rootProperties))
+            {
+                if (rootProperties.Name is not null) instance.Name = copy.Name;
+                if (rootProperties.Opacity.HasValue) instance.Opacity = copy.Opacity;
+                if (rootProperties.Blend.HasValue) instance.Blend = copy.Blend;
+            }
             instance.SourceId ??= definition.Id;
             // A binding authored on an instance is local. Definition bindings are refreshed unless explicitly overridden.
             foreach (var key in instance.VariableBindings.Where(p => !p.Value.IsOverride).Select(p => p.Key).ToArray()) instance.VariableBindings.Remove(key);
@@ -182,6 +186,7 @@ public static class ComponentService
     {
         if (node.SourceId is { } source && overrides.TryGetValue(source, out var o))
         {
+            ApplyPropertyOverrides(node, o);
             if (o.Text is not null) node.Text = o.Text;
             if (o.Fills is not null) node.Fills = CloneFills(o.Fills);
             if (o.Effects is not null) node.Shadows = CloneEffects(o.Effects);
@@ -209,9 +214,8 @@ public static class ComponentService
             }
             foreach (var pair in node.Overrides.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
-                Add(node.SourceId); Add(pair.Key); Add(pair.Value.Text); Add(pair.Value.Fill); Add(pair.Value.Visible?.ToString());
-                if (pair.Value.Fills is not null) Add(System.Text.Json.JsonSerializer.Serialize(pair.Value.Fills, VectorSpaceJsonContext.Default.ListFillStyle));
-                if (pair.Value.Effects is not null) Add(System.Text.Json.JsonSerializer.Serialize(pair.Value.Effects, VectorSpaceJsonContext.Default.ListShadowStyle));
+                Add(node.SourceId); Add(pair.Key);
+                Add(System.Text.Json.JsonSerializer.Serialize(pair.Value, VectorSpaceJsonContext.Default.InstanceOverride));
             }
             foreach (var pair in node.VariableBindings.Where(p => p.Value.IsOverride).OrderBy(p => p.Key)) { Add(node.SourceId); Add(pair.Key.ToString()); Add(pair.Value.VariableId); Add(pair.Value.Disabled.ToString()); Add(pair.Value.Fallback.ToString()); }
             foreach (var pair in node.VariableModes.OrderBy(p => p.Key, StringComparer.Ordinal)) { Add(node.SourceId); Add(pair.Key); Add(pair.Value); }

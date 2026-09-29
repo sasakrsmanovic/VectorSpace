@@ -30,6 +30,7 @@ internal sealed partial class Room
             if (record.Commit is { } commit) { _engine.Accept(commit); Remember(commit); }
             _receipts[record.Actor] = record;
         }
+        UpgradeNativeFormat();
     }
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private void Pulse() { _event++; var previous = _changed; _changed = NewSignal(); previous.TrySetResult(); }

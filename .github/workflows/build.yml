@@ -18,10 +18,15 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Validate Skia input-readiness harness
+        run: node --test tests/browser-harness/*.test.mjs
       - name: Validate publication metadata and asset collection
         run: python3 -m unittest discover -s tests/scripts -v
       - run: dotnet run --project tests/VectorSpace.Tests -c Release
-      - name: Measure indexed snapping and retained appearance resources
+      - name: Measure snapping, retained appearance and editing workflows
         run: |
           mkdir -p artifacts/benchmarks
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark > artifacts/benchmarks/snap-index.json
@@ -30,6 +35,8 @@ jobs:
           cat artifacts/benchmarks/appearance.json
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-editing > artifacts/benchmarks/editing.json
           cat artifacts/benchmarks/editing.json
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-workflows > artifacts/benchmarks/editing-workflows.json
+          cat artifacts/benchmarks/editing-workflows.json
       - uses: actions/upload-artifact@v7
         with:
           name: VectorSpace-performance

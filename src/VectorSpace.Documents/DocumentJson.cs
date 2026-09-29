@@ -7,6 +7,7 @@ namespace VectorSpace.Documents;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = false, UseStringEnumConverter = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(DesignDocument))]
 [JsonSerializable(typeof(DesignNode))]
+[JsonSerializable(typeof(InstanceOverride))]
 [JsonSerializable(typeof(List<DesignNode>))]
 [JsonSerializable(typeof(List<PrototypeReaction>))]
 [JsonSerializable(typeof(List<FillStyle>))]
@@ -22,7 +23,7 @@ public static class DocumentJson
     {
         if (json.Length > MaxDocumentCharacters) throw new InvalidDataException("The document exceeds the 32 MiB text limit.");
         var document = JsonSerializer.Deserialize(json, VectorSpaceJsonContext.Default.DesignDocument) ?? throw new InvalidDataException("The file does not contain a VectorSpace document.");
-        Validate(document); document.FormatVersion = 4; document.RebuildParents(); return document;
+        Validate(document); document.FormatVersion = DesignDocument.CurrentFormatVersion; document.RebuildParents(); return document;
     }
     public static DesignNode CloneNode(DesignNode node, bool newIds = false)
     {
@@ -54,7 +55,7 @@ public static class DocumentJson
     }
     public static void Validate(DesignDocument document)
     {
-        if (document.FormatVersion is not (1 or 2 or 3 or 4)) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
+        if (document.FormatVersion is < 1 or > DesignDocument.CurrentFormatVersion) throw new InvalidDataException($"Unsupported VectorSpace format version {document.FormatVersion}.");
         if (document.Pages is null || document.Pages.Count is < 1 or > 1000) throw new InvalidDataException("A document must have between 1 and 1000 pages.");
         var ids = new HashSet<string>(StringComparer.Ordinal); var count = 0; long imageCharacters = 0;
         foreach (var page in document.Pages)

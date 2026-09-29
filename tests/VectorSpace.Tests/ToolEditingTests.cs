@@ -167,7 +167,7 @@ internal static class ToolEditingTests
         test("arrow keeps endpoint and two head branches", () =>
         {
             var n = new DesignNode { Kind = NodeKind.Arrow }; DrawingGeometry.Apply(n, new(50, 50), new(-50, 50), false, true);
-            Check(n.PathData!.Count(c => c == 'M') == 2 && n.PathData.Count(c => c == 'L') == 3); Equal(n.Bounds.Center.X, 50);
+            Check(n.PathData!.Count(c => c == 'M') == 2 && n.PathData!.Count(c => c == 'L') == 3); Equal(n.Bounds.Center.X, 50);
         });
         foreach (var kind in new[] { NodeKind.Rectangle, NodeKind.Ellipse, NodeKind.Line, NodeKind.Polygon, NodeKind.Star })
             test("convert primitive to undoable editable points " + kind, () =>

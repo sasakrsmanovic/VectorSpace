@@ -1,28 +1,32 @@
 # Validation and delivery
 
-## Separate suites and evidence
+## Regression suites
 
-The original editor runner contains **385 cases**, covering geometry, layout, transactions, design systems, prototype state, images/effects, SVG and tool editing. Six Python publication cases cover version/provenance and static asset collection. Exact-commit Actions logs remain the source of truth for passing status; a source count does not certify a green build.
+The engine runner contains **421 cases**: 385 prior geometry/layout/design-system/prototype/appearance/tool cases and 36 editing-workflow regressions. New coverage includes typed property ownership, unsupported/locked targets, geometry/content preservation, variable materialization, persistent instance overrides, variant matching, compact JSON defaults, native-schema migration, stable ordering and bounded rename preflight. The stable-order case exhaustively compares selected subsets of sibling lists up to eight items against an independent block-move oracle.
 
-The collaboration model runner adds **20 cases** for projection, independent property merging, conditional history, concurrent insertion/replies, conflict recovery, hierarchy validation and generated wire serialization. The shared editor runner adds **23 cases** for transaction boundaries, rollback, viewer guards, local selection/viewport preservation, history detachment, remote deletion, recovery, version restoration and invitation endpoint handling.
+The collaboration model runner contains **20 cases**. The shared-editor runner contains **23**, including a projection oracle with **59 equivalence/reuse assertions**. They cover guarded history, independent edits, replies/insertion, local boundaries and conflict recovery. Six Python publication cases validate version/provenance and asset collection.
 
-Eight black-box Python cases start the **actual ASP.NET process**. They exercise authorization, invitation revocation, viewer restrictions, concurrent requests, atomic conflicts, idempotent retries, long-poll deltas, ephemeral presence and service restart with an incomplete journal tail. No in-memory transport substitutes for the real server.
+**Nine black-box HTTP tests** start the actual ASP.NET process. In addition to authorization, roles, revocation, concurrent edits, idempotence, presence, long polls and restart recovery, they verify schema-4 rooms upgrade once to schema 5 with a durable system revision. Existing historical versions and post-upgrade edits remain usable. No in-memory transport replaces the network service.
 
-Published-browser acceptance contains **46 Chromium cases**: 35 existing editor/design-system/prototype/appearance/tool workflows plus eleven tagged `@collaboration` multi-window workflows. Tests use actual pointer, keyboard, clipboard and file-picker operations on the Uno application. Read-only `?test=1` diagnostics expose control bounds/state, not document-mutation commands. Sensitive invitation inputs omit diagnostic values.
+Counts describe source coverage, not proof that an arbitrary build passed. Exact-commit Actions results and retained reports are the evidence.
 
-## Multi-user browser acceptance
+## Browser workflows
 
-Separate browser contexts join actual service rooms through the Share dialog. Cases cover synchronized presence and independent edits; own undo preserving a peer's properties; an active pointer transaction deferring remote application; viewer/commenter behavior; disconnected edits and reconnect; conflicting work recovered after reload; participant following; concurrent replies across modal boundaries; room/invitation creation through controls; version download/restore and active-access revocation, including revocation during an active pointer or inline-text edit. The shared-editor runner includes 59 seeded projection equivalence and key/value reuse assertions.
+The full suite contains **52 Chromium cases**: 40 static editor workflows and 12 real multi-window collaboration workflows tagged `@collaboration`. New cases use actual property-copy shortcuts, selective transfer controls, typography transfer, numbered/capture-based batch naming and stable layer ordering. A two-client case verifies property paste and conditional own undo preserve a peer's later geometry change.
 
-A test harness creates an ephemeral backend, key and room directory, runs Playwright against a separately published/served client, and disposes the backend afterward. API calls seed test rooms/invitations, while document editing and workbench workflows use real controls. Test credentials refer only to the disposable test service.
+The inline-text regression saves immediately after typing, checks the host save has completed and canvas keyboard focus is restored, reopens the selected text with Enter and cancels only the second transaction. It does not insert a delay before the initial save to hide the asynchronous input problem.
+
+Other browser coverage includes tools and baseline gestures, image/crop/effect/SVG workflows, design-system bindings/variants, prototype playback/authoring, real room creation/joining, sharing consent, following, comments, offline reconnect/recovery, history/restore/revocation and access revoked during active pointer/text transactions.
+
+Tests use real pointer, keyboard, file-picker and clipboard input. `?test=1` provides read-only diagnostics, including save/focus and deferred-delivery state; it does not expose a document mutation API. Room-seeding requests go to a real temporary server, while editing goes through Uno controls. Credentials are temporary and sensitive input values are excluded from diagnostics.
 
 ## Build and deployment gates
 
-**Build** has engine, collaboration and browser jobs. Successful browser artifacts require all three. It publishes ten reusable package/symbol pairs and a self-hostable server, preserves source snapshots and records benchmark/test artifacts. **Desktop** independently compiles Windows, Linux and macOS; compilation is not full native interaction certification.
+**Build** validates engine, collaboration and browser jobs and creates ten reusable package/symbol pairs, a self-hostable server, benchmark outputs and source/test artifacts. Successful browser delivery requires every job. **Desktop** independently compiles Windows, Linux and macOS. Compilation does not constitute native interaction certification.
 
-**Pages** deploys the successful main-branch browser artifact, verifies its source commit through `build-info.json` and executes the **35 static editor cases** against the public URL. The eleven collaboration cases already ran against the same artifact and an actual temporary backend in Build. They are explicitly excluded from the static-only public check; that does not constitute live public-backend verification.
+**Pages** deploys the successful main browser artifact, checks `build-info.json` against the source commit, and runs the **40 static cases** on the public URL. The 12 collaboration cases already ran against that artifact with a compiled temporary backend during Build. Their explicit exclusion from a static-only Pages run is not evidence of a public collaboration server.
 
-A public collaboration server must be deployed separately with HTTPS and persistent storage. A hosting blueprint, uploaded server artifact or passing CI service does not mean such a deployment exists. Generated NuGet archives are not evidence of publication to NuGet.org.
+A persistent public backend requires separate HTTPS hosting and disk. Templates, uploaded server archives and ephemeral tests do not provision that service. Generated NuGet archives are not proof of NuGet.org publication.
 
 ## Reproduce
 
@@ -34,14 +38,14 @@ python3 -m unittest discover -s tests/scripts -v
 dotnet build server/VectorSpace.Server -c Release
 python3 -m unittest discover -s tests/server -v
 
-# With the published client already served on port 4173:
+# With a separately served published client on port 4173:
 python3 scripts/run-collaboration-browser-tests.py
-# Static-only checks against a configured URL:
+# Static checks only:
 npm run test:browser -- --grep-invert @collaboration
 ```
 
-The collaborator benchmark verifies a one-property batch reconstructs the exact native document and reports both wire bytes and projection/diff CPU/allocation cost. Existing snapping, appearance and direct-path benchmarks retain their own oracle/pixel checks. No whole-application FPS, constant-time projection or arbitrary-scale collaboration claim is made.
+The workflow benchmark uses 20,000 siblings with 10,000 selected, comparing a correct stable remove/append reference against stable partition. It checks exact output before reporting timing and temporary allocation. A separate property-capture check compares zero versus 10,000 unrelated descendants. Run with `--benchmark-workflows`; native history, validation, layout, network and painting are excluded. Existing snapping, paths, appearance and collaboration-projection benchmarks retain their own reference/pixel oracles.
 
-## Remaining certification boundaries
+## Certification boundaries
 
-Chromium is the browser acceptance target. Native UI interaction, other browser engines, broad accessibility, production security/load testing, power-loss durability on every filesystem, distributed storage and complete Figma feature/pixel compatibility are not certified by these checks. See [features](FEATURES.md), [collaboration semantics](COLLABORATION.md) and [hosting](HOSTING.md).
+Chromium is the automated browser target. Native UI interaction, other browsers, broad assistive-technology compatibility, production security/load testing, all-filesystem power-loss durability and complete Figma product/pixel parity are not certified. See [editing workflows](EDITING_WORKFLOWS.md), [features](FEATURES.md), [collaboration](COLLABORATION.md) and [hosting](HOSTING.md).
