@@ -65,12 +65,12 @@ public sealed partial class EditorSession
     public EditorTool Tool { get => _tool; set { if (_tool == value) return; _tool = value; Notify(EditorChangeKind.Tool); } }
     public EditorSession(DesignDocument document)
     {
-        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply(); _savedJson = DocumentJson.Save(document);
+        DocumentJson.Validate(document); document.FormatVersion = DesignDocument.CurrentFormatVersion; document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply(); _savedJson = DocumentJson.Save(document);
     }
     public void Load(DesignDocument document)
     {
         if (SharedHistory is not null) throw new InvalidOperationException("Leave the shared file before opening another document.");
-        DocumentJson.Validate(document); document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply();
+        DocumentJson.Validate(document); document.FormatVersion = DesignDocument.CurrentFormatVersion; document.RebuildParents(); Document = document; Page = document.Pages[0]; new VariableResolver(document).Apply();
         _before = null; _selected.Clear(); _undo.Clear(); _redo.Clear(); _savedJson = DocumentJson.Save(document); IsDirty = false; Notify(EditorChangeKind.Document, "Open document");
     }
     public void SetPage(string id)
@@ -128,6 +128,7 @@ public sealed partial class EditorSession
         // Keep the rollback snapshot until serialization/validation has succeeded.
         DocumentJson.Validate(Document);
         var after = Capture(); var before = _before;
+        if (after.Json.Length > DocumentJson.MaxDocumentCharacters) throw new InvalidDataException("The edit exceeds the native document size limit. No changes were committed.");
         if (before.Json != after.Json)
         {
             if (SharedHistory is { } shared) shared.Commit(_interactionLabel, before.Json, after.Json);
@@ -298,18 +299,7 @@ public sealed partial class EditorSession
             }
         });
     }
-    public void Reorder(int direction, bool extreme = false)
-    {
-        var nodes = SelectionRoots.Where(n => !n.IsEffectivelyLocked).ToArray(); if (nodes.Length == 0) return;
-        Edit(direction > 0 ? "Bring forward" : "Send backward", () =>
-        {
-            foreach (var node in direction > 0 ? nodes.Reverse() : nodes)
-            {
-                var list = node.Parent?.Children ?? Page.Nodes; var index = list.IndexOf(node);
-                list.RemoveAt(index); list.Insert(extreme ? (direction > 0 ? list.Count : 0) : Math.Clamp(index + direction, 0, list.Count), node);
-            }
-        });
-    }
+    public void Reorder(int direction, bool extreme = false) => ReorderCore(direction, extreme);
     public void Align(string alignment)
     {
         var nodes = SelectionRoots.Where(n => !n.IsEffectivelyLocked).ToArray(); if (nodes.Length == 0) return;

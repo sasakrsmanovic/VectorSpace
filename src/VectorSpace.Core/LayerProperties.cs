@@ -14,6 +14,13 @@ public sealed record TypographyStyle
     public double LineHeight { get; init; } = 1.25;
     public double LetterSpacing { get; init; }
     public TextAlignment Alignment { get; init; }
+    [JsonConstructor]
+    public TypographyStyle(string fontFamily = "Inter", double fontSize = 24, int fontWeight = 400,
+        double lineHeight = 1.25, double letterSpacing = 0, TextAlignment alignment = TextAlignment.Left)
+    {
+        FontFamily = fontFamily; FontSize = fontSize; FontWeight = fontWeight;
+        LineHeight = lineHeight; LetterSpacing = letterSpacing; Alignment = alignment;
+    }
     public static TypographyStyle Capture(DesignNode node) => new()
     {
         FontFamily = node.FontFamily, FontSize = node.FontSize, FontWeight = node.FontWeight,

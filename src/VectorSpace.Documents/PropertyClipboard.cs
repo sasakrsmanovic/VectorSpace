@@ -64,7 +64,7 @@ public static class PropertyClipboard
         if (strokes.Count > 64) throw new InvalidDataException("A layer is limited to 64 strokes.");
         foreach (var s in strokes)
             if (s is null || s.Color is null || !double.IsFinite(s.Width) || s.Width is < 0 or > 1e5 || !double.IsFinite(s.Opacity) || s.Opacity is < 0 or > 1 ||
-                s.Dashes is null || s.Dashes.Count > 128 || s.Dashes.Any(d => !double.IsFinite(d) || d <= 0 || d > 1e5))
+                s.Dashes is null || s.Dashes.Count > 128 || s.Dashes.Any(d => !double.IsFinite(d) || d < 0 || d > 1e5) || s.Dashes.Count > 0 && s.Dashes.All(d => d == 0))
                 throw new InvalidDataException("Invalid stroke or dash pattern.");
     }
 }

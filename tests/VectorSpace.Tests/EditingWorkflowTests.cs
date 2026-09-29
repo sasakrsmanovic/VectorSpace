@@ -203,6 +203,15 @@ internal static class EditingWorkflowTests
             LayerRename.Apply(e, LayerRename.Plan(LayerRename.SelectedTargets(e), new("Layer $n")));
             Check(root.Name == "Layer 1" && child.Name == "Layer 2" && child.WorldMatrix == matrix && child.Parent == root);
         });
+        test("compact transferred typography uses explicit constructor defaults", () => {
+            var packet = PropertyClipboard.Read(PropertyClipboard.Prefix + "{\"properties\":{\"typography\":{\"fontSize\":19}}}");
+            Check(packet.Properties.Typography!.FontSize == 19 && packet.Properties.Typography.FontFamily == "Inter" && packet.Properties.Typography.LineHeight == 1.25);
+        });
+        test("public rename plans validate null entries and preserve no-op history", () => {
+            var n = new DesignNode(); var e = Editor(n);
+            Throws<ArgumentException>(() => LayerRename.Apply(e, [null!]));
+            Check(LayerRename.Apply(e, [new(n.Id, n.Name, n.Name)]) == 0 && !e.CanUndo);
+        });
         test("style cloning covers every serialized paint property", () => {
             var f = Source().Fills[0]; f.ImageMode = ImageScaleMode.Tile; f.ImageScale = 1.7; f.ImageRotation = 37; f.ImageOffset = new(.1, -.2); f.Exposure = .3; f.Contrast = -.4; f.Saturation = .7;
             f.GradientRadius = 3; f.GradientFocal = new(.2, .7); f.GradientUserSpace = true;

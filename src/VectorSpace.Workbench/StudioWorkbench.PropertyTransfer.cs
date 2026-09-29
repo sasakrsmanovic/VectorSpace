@@ -26,7 +26,7 @@ public sealed partial class StudioWorkbench
     {
         if (Session.Primary is not { } source) { ShowStatus("Select a source layer to copy properties."); return Task.CompletedTask; }
         var text = PropertyClipboard.Copy(source, groups);
-        if (PropertyClipboard.Read(text).Properties.Groups == PropertyGroups.None) { ShowStatus("The source has no supported properties in that group."); return Task.CompletedTask; }
+        if (groups == PropertyGroups.Typography && source.Kind != NodeKind.Text) { ShowStatus("The source has no supported properties in that group."); return Task.CompletedTask; }
         _propertyClipboard = text;
         try { var data = new DataPackage(); data.SetText(text); Clipboard.SetContent(data); ShowStatus("Copied properties from " + source.Name); }
         catch { ShowStatus("Properties copied within this editor; system clipboard access is unavailable."); }
@@ -55,6 +55,7 @@ public sealed partial class StudioWorkbench
             root.Children.Add(panel);
             root.Children.Add(Wrapped("Position, dimensions, text content, hierarchy and prototype links are preserved. Copied values replace variable bindings only for the transferred properties.", 10));
             var dialog = Dialog("Paste properties", root, "Apply properties", "Cancel");
+            dialog.IsPrimaryButtonEnabled = panel.SelectedKeys.Count > 0;
             panel.SelectionChanged += () => dialog.IsPrimaryButtonEnabled = panel.SelectedKeys.Count > 0;
             if (await ShowDialogAsync(dialog) != ContentDialogResult.Primary) return;
             groups = PropertyGroups.None; foreach (var key in panel.SelectedKeys) groups |= Enum.Parse<PropertyGroups>(key);

@@ -196,10 +196,10 @@ internal static class AppearanceTests
         {
             var n = Node(Image(ImageScaleMode.Crop)); n.Fills[0].ImageOffset = new(.25, -.3); n.Fills[0].Exposure = .5;
             n.Shadows = [new() { Kind = EffectKind.InnerShadow, Spread = 8 }, new() { Kind = EffectKind.LayerBlur }];
-            var read = DocumentJson.Load(DocumentJson.Save(Document(n))); Check(read.FormatVersion == 4); var c = read.Pages[0].Nodes[0]; Check(c.Fills[0].ImageData == n.Fills[0].ImageData && c.Fills[0].ImageOffset == n.Fills[0].ImageOffset); Check(c.Shadows[0].Kind == EffectKind.InnerShadow);
+            var read = DocumentJson.Load(DocumentJson.Save(Document(n))); Check(read.FormatVersion == DesignDocument.CurrentFormatVersion); var c = read.Pages[0].Nodes[0]; Check(c.Fills[0].ImageData == n.Fills[0].ImageData && c.Fills[0].ImageOffset == n.Fills[0].ImageOffset); Check(c.Shadows[0].Kind == EffectKind.InnerShadow);
         });
         foreach (var version in new[] { 1, 2, 3 }) test("appearance migration preserves legacy shadow v" + version, () =>
-        { var d = Document(Node(new FillStyle())); d.FormatVersion = version; d.Pages[0].Nodes[0].Shadows.Add(new()); var read = DocumentJson.Load(DocumentJson.Save(d)); Check(read.FormatVersion == 4 && read.Pages[0].Nodes[0].Shadows[0].Kind == EffectKind.DropShadow); });
+        { var d = Document(Node(new FillStyle())); d.FormatVersion = version; d.Pages[0].Nodes[0].Shadows.Add(new()); var read = DocumentJson.Load(DocumentJson.Save(d)); Check(read.FormatVersion == DesignDocument.CurrentFormatVersion && read.Pages[0].Nodes[0].Shadows[0].Kind == EffectKind.DropShadow); });
         test("image clipboard is self-contained across documents and undoable", () =>
         {
             var source = new EditorSession(Document(Node(Image()))); source.Select(source.Page.Nodes[0]); var target = new EditorSession(new()); target.Paste(source.CopySelection());

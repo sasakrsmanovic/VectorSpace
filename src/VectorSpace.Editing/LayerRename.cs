@@ -92,6 +92,8 @@ public static class LayerRename
         ArgumentNullException.ThrowIfNull(editor); ArgumentNullException.ThrowIfNull(plan);
         if (plan.Count == 0) return 0;
         if (plan.Count > DocumentJson.MaxNodes) throw new ArgumentException("Too many layers in the rename plan.");
+        if (plan.Any(p => p is null || string.IsNullOrEmpty(p.Id) || p.Before is null || p.After is null)) throw new ArgumentException("Invalid rename plan entry.");
+        if (plan.Sum(p => (long)p.After.Length) > DocumentJson.MaxDocumentCharacters / 2) throw new ArgumentException("Batch rename exceeds the output budget.");
         var ids = plan.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
         if (ids.Count != plan.Count) throw new ArgumentException("Duplicate rename target.");
         var nodes = editor.Page.AllNodes().Where(n => ids.Contains(n.Id)).ToDictionary(n => n.Id, StringComparer.Ordinal);
@@ -101,6 +103,7 @@ public static class LayerRename
             if (!nodes.TryGetValue(change.Id, out var node) || node.IsEffectivelyLocked || node.Name != change.Before)
                 throw new InvalidOperationException("A rename target changed, was removed or became locked. Review a fresh preview before applying.");
         }
+        if (plan.All(p => p.Before == p.After)) return 0;
         editor.Edit(plan.Count == 1 ? "Rename layer" : "Rename layers", () =>
         {
             foreach (var change in plan)

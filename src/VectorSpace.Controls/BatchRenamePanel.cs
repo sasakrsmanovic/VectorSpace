@@ -74,5 +74,5 @@ public sealed class BatchRenamePanel : Grid, IDisposable
         _summary.Text = summary; _summary.Foreground = Studio.Brush(error ? "#B3261E" : Studio.Muted);
         AutomationProperties.SetName(_summary, "Rename preview status");
     }
-    public void Dispose() { _disposed = true; _timer.Stop(); PreviewRequested = null; InputChanged = null; }
+    public new void Dispose() { _disposed = true; _timer.Stop(); PreviewRequested = null; InputChanged = null; }
 }

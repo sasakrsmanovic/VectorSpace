@@ -144,4 +144,22 @@ class CollaborationServerTests(unittest.TestCase):
         self.assertEqual(old['pages'][0]['nodes'][0]['x'], 0); self.assertEqual(current['pages'][0]['nodes'][0]['x'], 10)
         self.assertEqual(len(self.request(path + '/history', token=token)[1]), 1)
 
+    def test_schema_four_rooms_upgrade_once_without_rewriting_old_history(self):
+        path, token = self.room()
+        self.stop()
+        metadata = Path(self.directory.name) / (path.rsplit('/', 1)[1] + '.room.json')
+        data = json.loads(metadata.read_text())
+        data['initial']['cells']['$root\x1fformatVersion'] = '4'
+        metadata.write_text(json.dumps(data))
+        self.start()
+        current = self.snapshot(path, token)
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '5')
+        self.assertEqual(current['revision'], 1)
+        self.assertEqual(self.request(path + '/history', token=token)[1][0]['author'], 'System')
+        self.stop(); self.start()
+        self.assertEqual(self.snapshot(path, token)['revision'], 1)
+        batch = self.batch(self.snapshot(path, token), value='27')
+        self.assertTrue(self.request(path + '/edits', batch, token)[1]['receipt']['accepted'])
+        self.assertEqual(self.request(path + '/versions/0', token=token)[1]['pages'][0]['nodes'][0]['x'], 0)
+
 if __name__ == '__main__': unittest.main(verbosity=2)
