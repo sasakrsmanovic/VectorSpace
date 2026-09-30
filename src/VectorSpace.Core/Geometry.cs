@@ -1,16 +1,19 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace VectorSpace.Core;
 
 public readonly record struct Vec2(double X, double Y)
 {
     public static Vec2 Zero => default;
+    [JsonIgnore]
     public double Length => Math.Sqrt(X * X + Y * Y);
     public static Vec2 operator +(Vec2 a, Vec2 b) => new(a.X + b.X, a.Y + b.Y);
     public static Vec2 operator -(Vec2 a, Vec2 b) => new(a.X - b.X, a.Y - b.Y);
     public static Vec2 operator *(Vec2 a, double s) => new(a.X * s, a.Y * s);
     public static Vec2 operator /(Vec2 a, double s) => new(a.X / s, a.Y / s);
     public double DistanceTo(Vec2 p) => (this - p).Length;
+    [JsonIgnore]
     public bool IsFinite => double.IsFinite(X) && double.IsFinite(Y);
 }
 

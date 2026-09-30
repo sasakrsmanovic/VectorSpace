@@ -39,6 +39,18 @@ public static class EditablePathConversion
         if (contours.Count == 0) throw new InvalidOperationException("This layer has no editable contour.");
         editor.Edit("Convert to editable path", () =>
         {
+            // Line/arrow layers permit zero and subpixel extents; editable paths use
+            // a nonzero layout frame. Retain the captured geometry and local transform
+            // rather than letting layout inflate/rotate it around a new center.
+            var width = FrameExtent(node.Width, node.MinWidth, node.MaxWidth);
+            var height = FrameExtent(node.Height, node.MinHeight, node.MaxHeight);
+            if (width != node.Width || height != node.Height)
+            {
+                var local = node.LocalMatrix;
+                node.Width = width; node.Height = height;
+                var next = node.LocalMatrix;
+                node.X += local.DX - next.DX; node.Y += local.DY - next.DY;
+            }
             node.Kind = NodeKind.Path; node.Commands = null; node.Arc = null; node.Corners = null; node.PathData = null;
             node.PathWidth = node.Width; node.PathHeight = node.Height;
             if (contours.Count == 1) { node.Points = contours[0].Points; node.Closed = contours[0].Closed; node.Contours = null; }
@@ -64,6 +76,10 @@ public static class EditablePathConversion
             if (contours.Count >= PathTopology.MaxContours) throw new InvalidOperationException("Editable conversion is limited to 10,000 contours.");
             contours.Add(new() { Points = points, Closed = closed }); points = null; closed = false;
         }
+    }
+    private static double FrameExtent(double value, double minimum, double maximum)
+    {
+        var min = Math.Max(1, minimum); return Math.Clamp(value, min, Math.Max(min, maximum));
     }
     private static Vec2 V(SKPoint p) => new(p.X, p.Y);
 }

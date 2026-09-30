@@ -2,7 +2,7 @@
 
 ## Engine and protocol coverage
 
-The engine runner retains the earlier geometry, layout, design-system, prototype and editing regressions and adds compound vector coverage. It checks contour-local adjacency and subdivision, winding and holes, rational-conic conversion, cut/join/reverse/delete preflight, clipboard/components, schema migration, native cache invalidation and sparse captured dragging. Pixel comparisons and high-resolution curve samples supplement object-state assertions. The executable prints the exact case count and exits nonzero on any failure.
+The engine runner retains the earlier geometry, layout, design-system, prototype and editing regressions and adds compound vector coverage. It checks contour-local adjacency and subdivision, winding and holes, rational-conic conversion, cut/join/reverse/delete preflight, clipboard/components, schema migration, native cache invalidation and sparse captured dragging. Pixel comparisons and high-resolution curve samples supplement object-state assertions. The executable prints the exact case count and exits nonzero on any failure. The source contains 608 engine cases, including 16 conversion/resize regressions for zero/subpixel lines and arrows under rotation/reflection, coordinate-only serialization, legacy derived-metadata compatibility for schemas 1–7 and finite-coordinate validation.
 
 The collaboration model runner contains 20 cases. The shared-editor runner contains 24, including 59 projection equivalence/reuse assertions and a compound-property-versus-peer-transform case. Six publication tests and nine input-readiness tests cover package/assets metadata, actual Skia control readiness and modal containment.
 
@@ -12,7 +12,7 @@ Source counts describe coverage, not a passing delivery. Use the matching commit
 
 ## Browser acceptance
 
-The source suite contains **70 Chromium cases**: **56 static editor cases** and **14 independent multi-window collaboration cases** tagged `@collaboration`. The eight compound static cases cover Enter conversion, holes/islands, cross-contour anchor selection and dragging, contour deletion/undo, fill rules, cut/join, capture cancellation, seam subdivision and the original Vector playground. Prior shape, text, image, prototype, design-system, property-clipboard and auto-layout workflows remain in the suite.
+The source suite contains **72 Chromium cases**: **58 static editor cases** and **14 independent multi-window collaboration cases** tagged `@collaboration`. The eight compound static cases cover Enter conversion, holes/islands, cross-contour anchor selection and dragging, contour deletion/undo, fill rules, cut/join, capture cancellation, seam subdivision and the original Vector playground. Two further cases convert zero-extent lines/arrows through Enter, check world endpoints, keyboard-resize the resulting path and undo back to the exact primitive. Prior shape, text, image, prototype, design-system, property-clipboard and auto-layout workflows remain in the suite.
 
 The new compound multi-window case changes inner anchors in one client, moves the layer in another, then verifies own undo and redo preserve the peer transform. Whole `contours` properties use the existing guarded shared transactions; these tests do not establish vector-CRDT semantics for simultaneous edits to the same property. Existing role/revocation/reconnect/recovery/presence/history/comment tests are retained.
 
@@ -22,7 +22,7 @@ All edits use actual pointer, keyboard, file-picker, clipboard and Uno controls.
 
 **Build** validates engine, collaboration and browser jobs, retaining ten reusable package/symbol pairs, a self-hostable server, benchmarks and source/test artifacts. **Desktop** separately compiles Windows, Linux and macOS. Compilation is not native interaction certification.
 
-**Pages** deploys the successful main browser artifact without rebuilding it, verifies `build-info.json` against its source commit, then runs the **56 static cases** on the public URL. The 14 collaboration cases run against that browser artifact and a temporary real backend during Build. Static Pages success is not proof of a persistent public backend deployment.
+**Pages** deploys the successful main browser artifact without rebuilding it, verifies `build-info.json` against its source commit, then runs the **58 static cases** on the public URL. The 14 collaboration cases run against that browser artifact and a temporary real backend during Build. Static Pages success is not proof of a persistent public backend deployment.
 
 A production collaboration service needs separate HTTPS hosting and persistent disk. NuGet.org publication requires the configured tagged-release workflow; normal CI packages are build artifacts, not a release publication.
 
