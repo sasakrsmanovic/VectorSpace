@@ -5,10 +5,11 @@
 - Add independent corner radii, signed ellipse arcs/rings/open contours, and custom contextual controls with direct canvas grips.
 - Add centered/inside/outside stroke regions, cap/join/miter/dash-phase editing, shared drawing/picking geometry and bounded native caches.
 - Retain live Boolean operands with editable operations, release, exact native flattening and per-stroke outline layers.
-- Build primitives directly in Skia and preserve rational conics in native contour commands; add bounded renderer-aware SVG conversion.
-- Preserve zero-extent line stroke coordinates during outlining, independent prototype clips and uniform instance-radius overrides.
+- Build primitives directly in Skia and preserve rational conics in native contour commands; add bounded renderer-aware SVG conversion. Preserve the original top-left clockwise rectangle anchor order during point conversion.
+- Preserve zero-extent line stroke coordinates during outlining, independent prototype clips, inherited independent corners and explicit uniform instance-radius overrides.
+- Retain oversized authored values on untouched corners, materialize direct radius edits and restore bindings through undo. Keep native contour inputs compatible with the existing destructive Boolean API.
 - Upgrade to native schema 6 and style clipboard packet 2, retain older native/clipboard inputs, and verify persisted schema-5 rooms upgrade once.
-- Add 80 native regressions, eight static browser workflows and one multi-window shape-editing workflow; retain scoped stroke-construction benchmarks.
+- Add 94 native regressions, eight static browser workflows and one multi-window shape-editing workflow; retain scoped stroke-construction benchmarks. Browser tests use modal-contained targets, verified clipboard contents and exact cancellation baselines.
 - Preserve the existing published NuGet package documentation and release configuration. Full Figma feature/pixel parity remains unfinished.
 
 ## 0.7.0-alpha.1 — Editing workflows
