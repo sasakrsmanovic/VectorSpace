@@ -22,7 +22,7 @@ public sealed partial class DesignSurface
         if (_gesture == Gesture.ImageCrop) EndImageCrop();
         if (_gesture == Gesture.Shape) EndShapeEdit();
         if (Session?.IsInteracting == true) Session.CommitInteraction();
-        _gesture = Gesture.None; _canvas.ReleasePointerCaptures();
+        _gesture = Gesture.None; _moveStarted = false; _pendingDuplicate = null; _canvas.ReleasePointerCaptures();
     }
     public bool HandleToolKey(VirtualKey key, bool control, bool shift, bool alt)
     {

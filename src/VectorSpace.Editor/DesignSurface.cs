@@ -135,7 +135,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         if (e.Kind == EditorChangeKind.Tool)
         {
             if (_penNode is not null) CompletePath(false, false);
-            else if (Session?.IsInteracting == true && !IsTextEditing) CancelGesture();
+            else if ((Session?.IsInteracting == true || _gesture == Gesture.Move) && !IsTextEditing) CancelGesture();
             if (Session?.Tool != EditorTool.Move) { _vectorNode = null; _pointSelection.Clear(); }
         }
         if (e.Kind is EditorChangeKind.Document or EditorChangeKind.Selection) ValidateVectorTarget();

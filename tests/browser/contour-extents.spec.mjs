@@ -21,6 +21,16 @@ for (const kind of ['Line', 'Arrow']) {
     // must not run frame layout and inflate a native primitive's zero axis.
     expect(await state(page)).toMatchObject({ history: 0, interacting: false,
       width: original.width, height: original.height });
+    // Switching tools during a not-yet-started drag must release the pending
+    // capture, not activate an old Move gesture on the next pointer sample.
+    const pending = await screen(page, original.x + original.width / 4, original.y + original.height / 4);
+    await page.mouse.move(pending.x, pending.y); await page.mouse.down();
+    expect((await state(page)).interacting).toBe(false);
+    await page.keyboard.press('r'); await expect.poll(async () => (await state(page)).tool).toBe('Rectangle');
+    await page.mouse.move(pending.x + 20, pending.y + 20, { steps: 3 }); await page.mouse.up();
+    expect(await state(page)).toMatchObject({ history: 0, interacting: false, x: original.x, y: original.y,
+      width: original.width, height: original.height });
+    await page.keyboard.press('v');
     await page.keyboard.press('Enter'); await expect.poll(async () => (await state(page)).vectorEditing).toBe(true);
     const converted = child(await save(page, `converted-zero-${kind}.vectorspace`), original.id);
     expect(converted.kind).toBe('Path'); expect(converted.pathWidth).toBeGreaterThan(0); expect(converted.pathHeight).toBeGreaterThan(0);
