@@ -101,7 +101,7 @@ public static class LiveBooleanOperations
                     NodeGeometry.SetLocalMatrix(n, localMatrix);
                 }
                 n.Boolean = null; n.Arc = null; n.Corners = null;
-                n.Commands = null; n.Points.Clear(); n.PathData = null; n.Fills.Clear(); n.Strokes.Clear(); n.Children.Clear(); n.ClipContent = false;
+                n.Commands = null; n.Contours = null; n.Points.Clear(); n.PathData = null; n.Fills.Clear(); n.Strokes.Clear(); n.Children.Clear(); n.ClipContent = false;
                 n.VariableBindings.Remove(VariableTarget.Fill); n.VariableBindings.Remove(VariableTarget.Stroke);
                 foreach (var part in children[i]) n.Add(part);
             }
@@ -116,7 +116,7 @@ public static class LiveBooleanOperations
         (NativeShapeGeometry.Capture(path), path.FillType == SKPathFillType.EvenOdd ? PathFillRule.EvenOdd : PathFillRule.NonZero);
     internal static void SetPath(DesignNode node, List<PathCommand> commands, PathFillRule rule)
     {
-        node.Kind = NodeKind.Path; node.Boolean = null; node.Arc = null; node.Corners = null; node.PathData = null; node.Points.Clear(); node.Children.Clear();
+        node.Kind = NodeKind.Path; node.Boolean = null; node.Arc = null; node.Corners = null; node.PathData = null; node.Contours = null; node.Points.Clear(); node.Children.Clear();
         node.Commands = commands; node.FillRule = rule; node.PathWidth = Math.Max(1e-9, node.Width); node.PathHeight = Math.Max(1e-9, node.Height);
         node.Closed = commands.Count > 0 && commands[^1].Verb == PathVerb.Close; node.ClipContent = false;
     }

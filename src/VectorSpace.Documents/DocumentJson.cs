@@ -77,12 +77,13 @@ public static class DocumentJson
             if (l.GridColumns is < 1 or > 128 || l.Columns is null || l.Rows is null || l.Columns.Count > 128 || l.Rows.Count > 10000 || n.ColumnSpan is < 1 or > 128 || n.RowSpan is < 1 or > 128 || n.GridColumn is < -1 or > 127 || n.GridRow is < -1 or > 10000) throw new InvalidDataException("Invalid grid placement.");
             foreach (var track in l.Columns.Concat(l.Rows))
                 if (track is null || !double.IsFinite(track.Value) || !double.IsFinite(track.Min) || !double.IsFinite(track.Max) || track.Value < 0 || track.Min < 0 || track.Max < track.Min || track.Max > 1e7) throw new InvalidDataException("Invalid grid track.");
+            if (n.Contours is not null && document.FormatVersion < 7) throw new InvalidDataException("Editable compound contours require native schema 7.");
             ShapeValidation.Validate(n);
             AppearanceValidation.Validate(n, ref imageCharacters);
             n.Opacity = Numbers.Clamp(n.Opacity, 0, 1); n.FontSize = Numbers.Clamp(n.FontSize, 1, 4096);
             n.CornerRadius = Numbers.Clamp(n.CornerRadius, 0, 1e6); n.Sides = Math.Clamp(n.Sides, 3, 128);
             n.StarRatio = Numbers.Clamp(n.StarRatio, .01, 1); n.LineHeight = Numbers.Clamp(n.LineHeight, .2, 10);
-            if (n.Points.Any(p => !p.Position.IsFinite || (p.ControlIn.HasValue && !p.ControlIn.Value.IsFinite) || (p.ControlOut.HasValue && !p.ControlOut.Value.IsFinite))) throw new InvalidDataException("A path contains invalid points.");
+            // ShapeValidation validates all anchor representations before traversal.
             if (n.Kind == NodeKind.ComponentSet && n.Children.Any(c => c.Kind != NodeKind.Component)) throw new InvalidDataException("Component sets can contain only component definitions.");
             foreach (var child in n.Children) Check(child, depth + 1);
         }

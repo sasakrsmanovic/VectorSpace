@@ -9,14 +9,13 @@ public sealed partial class StudioWorkbench
         if (Surface.IsVectorEditing && node is not null)
         {
             var points = AddSection("Vector editing");
-            points.Body.Children.Add(Studio.Text($"{Surface.SelectedPointIndices.Count} of {node.Points.Count} anchors selected", 11, Studio.Muted));
-            points.Body.Children.Add(Studio.Columns((new StudioButton("Select all points", Surface.SelectAllPoints), -1), (new StudioButton("Done editing", Surface.EndVectorEdit), -1)));
-            points.Body.Children.Add(Studio.Columns((new StudioButton("Corner", () => Run(() => Surface.SetPointTangents(TangentMode.Corner))), -1), (new StudioButton("Smooth", () => Run(() => Surface.SetPointTangents(TangentMode.Smooth))), -1), (new StudioButton("Mirrored", () => Run(() => Surface.SetPointTangents(TangentMode.Mirrored))), -1)));
-            points.Body.Children.Add(new StudioButton("Split selected segments", () => Run(Surface.SplitSelectedSegments)));
-            points.Body.Children.Add(new StudioButton("Delete selected anchors", () => Run(Surface.DeleteSelectedPoints)));
-            points.Body.Children.Add(Studio.Columns((new StudioButton("Reverse path", () => Run(Surface.ReversePath)), -1), (new StudioButton(node.Closed ? "Open path" : "Close path", () => Run(Surface.TogglePathClosed)), -1)));
-            points.Body.Children.Add(new StudioButton("Simplify freehand", () => Run(Surface.SimplifyPath)));
-            points.Body.Children.Add(Wrapped("Click a segment to insert an anchor. Shift-click or drag a box to select points. Drag handles; Alt frees the opposite handle. Shift constrains angles. B smooths selected points; Alt+B removes handles.", 10));
+            var controls = new VectorEditingControl(new(Surface.SelectedPointIndices.Count, Surface.VectorAnchorCount,
+                Surface.VectorContourCount, Surface.ActiveContourIndex, Surface.ActiveContourClosed, node.FillRule == PathFillRule.EvenOdd,
+                Surface.CanCutAnchor, Surface.CanJoinEndpoints));
+            controls.Command += command => Run(() => ExecuteVectorCommand(command));
+            controls.FillRuleChanged += evenOdd => Run(() => Surface.SetPathFillRule(evenOdd ? PathFillRule.EvenOdd : PathFillRule.NonZero));
+            points.Body.Children.Add(controls);
+            points.Body.Children.Add(Wrapped("Shift-click or box-select across contours. Click a segment to insert. X cuts at an anchor; Ctrl+J joins endpoints. Alt frees handles; Shift constrains. Enter finishes.", 10));
         }
         else if (node is not null && EditablePathConversion.Supports(node))
         {
@@ -31,6 +30,29 @@ public sealed partial class StudioWorkbench
             options.Body.Children.Add(Wrapped("Shift constrains shapes and line angles; Alt draws from the center. While dragging a polygon/star, Up/Down changes its sides; Alt+Up/Down changes the star ratio. Up/Down adjusts rectangle corners.", 10));
         }
     }
+    private void ExecuteVectorCommand(VectorEditCommand command)
+    {
+        switch (command)
+        {
+            case VectorEditCommand.SelectAll: Surface.SelectAllPoints(); break;
+            case VectorEditCommand.Done: Surface.EndVectorEdit(); break;
+            case VectorEditCommand.Corner: Surface.SetPointTangents(TangentMode.Corner); break;
+            case VectorEditCommand.Smooth: Surface.SetPointTangents(TangentMode.Smooth); break;
+            case VectorEditCommand.Mirrored: Surface.SetPointTangents(TangentMode.Mirrored); break;
+            case VectorEditCommand.Subdivide: Surface.SplitSelectedSegments(); break;
+            case VectorEditCommand.DeleteAnchors: Surface.DeleteSelectedPoints(); break;
+            case VectorEditCommand.Reverse: Surface.ReversePath(); break;
+            case VectorEditCommand.ToggleClosed: Surface.TogglePathClosed(); break;
+            case VectorEditCommand.Simplify: Surface.SimplifyPath(); break;
+            case VectorEditCommand.PreviousContour: Surface.SelectContour(-1); break;
+            case VectorEditCommand.NextContour: Surface.SelectContour(1); break;
+            case VectorEditCommand.SelectContour: Surface.SelectContour(); break;
+            case VectorEditCommand.Cut: Surface.CutSelectedAnchor(); break;
+            case VectorEditCommand.Join: Surface.JoinSelectedEndpoints(); break;
+            case VectorEditCommand.DeleteContour: Surface.DeleteActiveContour(); break;
+            default: throw new ArgumentOutOfRangeException(nameof(command));
+        }
+    }
     private IEnumerable<QuickAction> EditingActions()
     {
         foreach (var tool in Enum.GetValues<EditorTool>())
@@ -41,6 +63,12 @@ public sealed partial class StudioWorkbench
         yield return new("Split selected segments", "", () => Run(Surface.SplitSelectedSegments));
         yield return new("Smooth points", "B", () => Run(() => Surface.SetPointTangents(TangentMode.Smooth)));
         yield return new("Corner points", "Alt B", () => Run(() => Surface.SetPointTangents(TangentMode.Corner)));
+        yield return new("Select contour", "", () => Run(() => Surface.SelectContour()));
+        yield return new("Next contour", "", () => Run(() => Surface.SelectContour(1)));
+        yield return new("Previous contour", "", () => Run(() => Surface.SelectContour(-1)));
+        yield return new("Cut at selected anchor", "X", () => Run(Surface.CutSelectedAnchor));
+        yield return new("Join selected endpoints", "Ctrl J", () => Run(Surface.JoinSelectedEndpoints));
+        yield return new("Delete contour", "", () => Run(Surface.DeleteActiveContour));
         yield return new("Reverse path", "", () => Run(Surface.ReversePath));
         yield return new("Simplify freehand", "", () => Run(Surface.SimplifyPath));
         yield return new("Flip horizontal", "Shift H", () => Run(() => Session.FlipSelection(true)));

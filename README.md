@@ -13,9 +13,15 @@ An infinite canvas, floating tool palette, contextual properties, local design s
 
 ![VectorSpace browser workbench](docs/images/workbench.png)
 
-**Source version: 0.8.0-alpha.1.** Original code, icons and samples. Independent of Figma and not a claim of complete Figma feature or pixel parity. Successful Pages runs and public `build-info.json` identify the deployed source; this version label alone does not prove deployment.
+**Source version: 0.9.0-alpha.1.** Original code, icons and samples. Independent of Figma and not a claim of complete Figma feature or pixel parity. Successful Pages runs and public `build-info.json` identify the deployed source; this version label alone does not prove deployment.
 
 **[Open the browser editor](https://wieslawsoltes.github.io/VectorSpace/)** · **[Editing workflows](docs/EDITING_WORKFLOWS.md)** · **[Collaboration](docs/COLLABORATION.md)** · **[Hosting](docs/HOSTING.md)** · **[Compatibility](docs/FEATURES.md)**
+
+## Compound vector editing
+
+Edit holes and disjoint contours as one vector layer: select anchors across contours, subdivide exact cubic segments, adjust Bézier handles, cut/join endpoints, navigate or remove contours, and choose non-zero/even-odd fill rules. A compact custom Uno vector inspector composes the reusable topology/editing APIs. Sparse pointer captures update only selected anchors instead of resetting the whole path each sample.
+
+[Compound editing workflows, APIs and limits](docs/CONTOURS.md) explain schema **7**, conic conversion tolerance, shared-property conflicts and scoped performance measurements. This is compound cubic editing, not full branching vector-network or Figma pixel parity.
 
 ## Shape editing and native geometry
 

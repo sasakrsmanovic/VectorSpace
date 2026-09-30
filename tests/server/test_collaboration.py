@@ -153,7 +153,7 @@ class CollaborationServerTests(unittest.TestCase):
         metadata.write_text(json.dumps(data))
         self.start()
         current = self.snapshot(path, token)
-        self.assertEqual(current['cells']['$root\x1fformatVersion'], '6')
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '7')
         self.assertEqual(current['revision'], 1)
         self.assertEqual(self.request(path + '/history', token=token)[1][0]['author'], 'System')
         self.stop(); self.start()
@@ -173,7 +173,7 @@ class CollaborationServerTests(unittest.TestCase):
         self.start()
         current = self.snapshot(path, token)
         self.assertEqual(current['revision'], 1)
-        self.assertEqual(current['cells']['$root\x1fformatVersion'], '6')
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '7')
         stroke = json.loads(current['cells']['node:a\x1fstrokes'])[0]
         self.assertEqual(stroke['cap'], 'Round')
         self.assertEqual(stroke['alignment'], 'Center')
@@ -186,5 +186,30 @@ class CollaborationServerTests(unittest.TestCase):
         self.assertEqual(json.loads(restored['cells']['node:a\x1fstrokes'])[0]['alignment'], 'Outside')
         historic = self.request(path + '/versions/0', token=token)[1]
         self.assertEqual(historic['pages'][0]['nodes'][0]['strokes'][0]['alignment'], 'Center')
+
+    def test_schema_six_room_upgrades_and_compound_geometry_survives_restart(self):
+        path, token = self.room()
+        self.stop()
+        metadata = Path(self.directory.name) / (path.rsplit('/', 1)[1] + '.room.json')
+        data = json.loads(metadata.read_text())
+        data['initial']['cells']['$root\x1fformatVersion'] = '6'
+        metadata.write_text(json.dumps(data))
+        self.start()
+        current = self.snapshot(path, token)
+        self.assertEqual(current['revision'], 1)
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '7')
+        contours = [{'closed': True, 'points': [{'position': {'x': x, 'y': y}} for x, y in loop]}
+                    for loop in [[(0, 0), (100, 0), (100, 100), (0, 100)], [(25, 25), (25, 75), (75, 75), (75, 25)]]]
+        batch = self.batch(current, 'kind', '"Path"')
+        key = 'node:a\x1fcontours'
+        batch['changes'].append({'key': key, 'before': current['cells'].get(key), 'after': json.dumps(contours), 'expectedVersion': current['versions'].get(key, 0)})
+        self.assertTrue(self.request(path + '/edits', batch, token)[1]['receipt']['accepted'])
+        self.stop(); self.start()
+        restored = self.snapshot(path, token)
+        self.assertEqual(restored['revision'], 2)
+        self.assertEqual(json.loads(restored['cells'][key]), contours)
+        historic = self.request(path + '/versions/0', token=token)[1]
+        self.assertIsNone(historic['pages'][0]['nodes'][0].get('contours'))
+        self.assertEqual(historic['formatVersion'], 7)
 
 if __name__ == '__main__': unittest.main(verbosity=2)

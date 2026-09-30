@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0-alpha.1 — Compound vector editing
+
+- Add explicit editable contours, contour-aware native/SVG rendering and retained geometry comparisons.
+- Extend point selection, Bézier manipulation, exact subdivision, cancellation and history to holes and disjoint contours.
+- Add reusable compact Uno contour controls: navigation, selection, cut/join, closure, winding and contour removal.
+- Replace whole-path per-sample reset with sparse captured anchor baselines; add equivalent-output benchmarks.
+- Share bounded sampled conic-to-cubic conversion with SVG export; preserve native commands until explicit conversion.
+- Introduce schema 7 with legacy migration and durable schema-6 room upgrade coverage.
+- Extend engine, actual browser and collaboration tests without skipping prior workflows. Full Figma vector networks and pixel parity remain out of scope.
+
 ## 0.8.0-alpha.1
 
 - Add independent corner radii, signed ellipse arcs/rings/open contours, and custom contextual controls with direct canvas grips.

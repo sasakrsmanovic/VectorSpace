@@ -100,6 +100,22 @@ Test("shared commit rejected after an active gesture can roll back without losin
     Check(!e.IsInteracting && e.Primary!.X == 0 && e.Primary.Id == "a" && h.Commits.Count == 0);
 });
 
+
+Test("compound anchor edits project as an atomic property independent of a peer transform", () => {
+    var d = Document(); var n = d.Find("a")!; n.Kind = NodeKind.Path;
+    n.Contours = [new() { Points = [new() { Position = new(0, 0) }, new() { Position = new(100, 0) }] },
+        new() { Points = [new() { Position = new(150, 0) }, new() { Position = new(200, 0) }] }];
+    var initial = DocumentProjection.FromDocument(d); var own = Clone(d); PathEditing.Move(own.Find("a")!, [2], new(10, 5));
+    var changes = DocumentProjection.Diff(initial, DocumentProjection.FromDocument(own, initial));
+    Check(changes.Count == 1 && changes[0].Key == DocumentProjection.Key("node:a", "contours"));
+    var peer = Clone(d); peer.Find("a")!.X = 37; var engine = new TransactionEngine(initial);
+    var moved = engine.Prepare(new("peer", "peer", 1, "Move", 0, DocumentProjection.Diff(initial, DocumentProjection.FromDocument(peer, initial))), RoomRole.Editor, "Peer");
+    engine.Accept(moved);
+    var edited = engine.Prepare(new("own", "own", 1, "Anchors", 0, changes), RoomRole.Editor, "Owner"); engine.Accept(edited);
+    var result = DocumentProjection.ToDocument(engine.State);
+    Check(result.Find("a")!.X == 37 && result.Find("a")!.Contours![1].Points[0].Position == new Vec2(160, 5));
+});
+
 var failures = 0;
 foreach (var (name, run) in tests) { try { run(); Console.WriteLine("PASS " + name); } catch (Exception e) { failures++; Console.WriteLine("FAIL " + name + "\n" + e); } }
 Console.WriteLine($"SHARED EDITOR RESULT: {tests.Count - failures}/{tests.Count} passed"); return failures == 0 ? 0 : 1;

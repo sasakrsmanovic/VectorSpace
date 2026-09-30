@@ -207,7 +207,7 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public const int CurrentFormatVersion = 6;
+    public const int CurrentFormatVersion = 7;
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";

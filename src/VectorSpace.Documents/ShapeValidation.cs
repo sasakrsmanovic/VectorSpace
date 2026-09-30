@@ -13,8 +13,21 @@ public static class ShapeValidation
             throw new InvalidDataException("Invalid ellipse arc.");
         if (n.Boolean is { } op && (!Enum.IsDefined(op) || n.Kind != NodeKind.Group || n.Layout.Direction != LayoutDirection.None || n.Children.Count > 128 || n.Children.Any(c => c is null || !ShapeGeometry.IsOperand(c) || !c.IsBoolean && c.Children.Count != 0)))
             throw new InvalidDataException("A live Boolean group requires at most 128 vector operands and no auto-layout.");
+        if (n.Points.Count > 100_000 || n.Points.Any(p => !ValidAnchor(p))) throw new InvalidDataException("A path contains invalid anchors or exceeds 100,000 anchors.");
+        if (n.Contours is { } contours)
+        {
+            if (n.Kind != NodeKind.Path || n.PathData is not null || n.Commands is not null || n.Points.Count != 0 || contours.Count is < 1 or > 10_000)
+                throw new InvalidDataException("Compound editable contours cannot coexist with another path representation.");
+            var anchors = 0;
+            foreach (var contour in contours)
+            {
+                if (contour is null || contour.Points is null || contour.Points.Count < 2 || contour.Points.Count > 100_000 - anchors || contour.Points.Any(p => !ValidAnchor(p)))
+                    throw new InvalidDataException("A compound path requires 2–100,000 valid anchors per contour and no more than 100,000 overall.");
+                anchors += contour.Points.Count;
+            }
+        }
         if (n.Commands is not { } commands) return;
-        if (n.Kind != NodeKind.Path || n.PathData is not null || n.Points.Count != 0 || commands.Count > 100000)
+        if (n.Kind != NodeKind.Path || n.PathData is not null || n.Contours is not null || n.Points.Count != 0 || commands.Count > 100000)
             throw new InvalidDataException("Native contour commands cannot coexist with SVG data or editable anchors.");
         var open = false;
         foreach (var c in commands)
@@ -31,6 +44,7 @@ public static class ShapeValidation
         if (!Enum.IsDefined(s.Alignment) || !Enum.IsDefined(s.Cap) || !Enum.IsDefined(s.Join) || !Finite(s.MiterLimit, 1, 128) || !Finite(s.DashOffset, -1e9, 1e9))
             throw new InvalidDataException("Invalid stroke alignment, cap, join or dash offset.");
     }
+    private static bool ValidAnchor(PathPoint? point) => point is { } p && Point(p.Position) && (!p.ControlIn.HasValue || Point(p.ControlIn.Value)) && (!p.ControlOut.HasValue || Point(p.ControlOut.Value));
     private static bool Point(Vec2 p) => p.IsFinite && Math.Abs(p.X) <= 1e9 && Math.Abs(p.Y) <= 1e9;
     private static bool Finite(double n, double min, double max) => double.IsFinite(n) && n >= min && n <= max;
 }

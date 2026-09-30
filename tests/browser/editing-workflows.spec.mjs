@@ -67,7 +67,7 @@ test('property shortcuts transfer styles without changing geometry and undo atom
   await select(page, 'b'); await page.keyboard.press('Control+Alt+v');
   await expect.poll(async () => (await state(page)).fill).toBe('#F24822');
   const result = await save(page, 'property-shortcuts'), a = node(result, 'a'), b = node(result, 'b');
-  expect(result.formatVersion).toBe(6); expect(b.fills).toEqual(a.fills); expect(b.strokes).toEqual(a.strokes); expect(b.shadows).toEqual(a.shadows);
+  expect(result.formatVersion).toBe(7); expect(b.fills).toEqual(a.fills); expect(b.strokes).toEqual(a.strokes); expect(b.shadows).toEqual(a.shadows);
   expect(b.opacity).toBe(.75); expect(b.blend).toBe('Multiply'); expect(b.cornerRadius).toBe(18);
   expect([b.x, b.y, b.width, b.height, b.name]).toEqual([360, 80, 160, 100, 'Icon_002']);
   await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).fill).toBe('#0D99FF');

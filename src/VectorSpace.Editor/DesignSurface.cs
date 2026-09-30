@@ -86,7 +86,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 if (index >= 0 && handle == 0)
                 {
                     _pointSelection.Clear(); _pointSelection.Add(index);
-                    var point = vector.Points[index]; SetPointTangents(point.ControlIn is null && point.ControlOut is null ? TangentMode.Smooth : TangentMode.Corner);
+                    var point = Topology.Points[index]; SetPointTangents(point.ControlIn is null && point.ControlOut is null ? TangentMode.Smooth : TangentMode.Corner);
                 }
                 e.Handled = true; return;
             }
@@ -128,6 +128,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 _canvas.ReleasePointerCaptures();
             }
             Renderer.TrimCache(Session?.Page.AllNodes().Select(n => n.Id) ?? []); _hover = null;
+            _pointTopology = null; _pointDrag = null;
             if (_vectorNode is not null) _vectorNode = Session?.Document.Find(_vectorNode.Id);
         }
         if (e.Kind == EditorChangeKind.Tool)

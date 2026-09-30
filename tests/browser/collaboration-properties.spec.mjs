@@ -13,6 +13,6 @@ test('@collaboration property paste converges while own undo preserves peer geom
   await expect.poll(async () => (await state(bob)).fill).toBe('#0D99FF'); expect((await state(bob)).y).toBe(81);
   await page.keyboard.press('Control+Shift+z'); await synced(page, 4); await synced(bob, 4);
   const saved = await document(bob, 'shared-property-transfer.vectorspace');
-  expect(saved.formatVersion).toBe(6); expect(node(saved, 'b').fills[0].color).toBe('#F24822'); expect(node(saved, 'b').y).toBe(81);
+  expect(saved.formatVersion).toBe(7); expect(node(saved, 'b').fills[0].color).toBe('#F24822'); expect(node(saved, 'b').y).toBe(81);
   expect((await shared(page)).recovery).toBe(0); expect((await shared(bob)).recovery).toBe(0);
 });

@@ -49,7 +49,7 @@ test('image picker places an editable self-contained layer with undo and redo', 
   await (await picker).setFiles({ name: 'Original image.png', mimeType: 'image/png', buffer: Buffer.from(image, 'base64') });
   await expect.poll(async () => (await state(page)).nodes).toBe(before.nodes + 1);
   const added = await state(page); expect(added.name).toBe('Original image'); expect(added.width).toBe(240); expect(added.height).toBe(120); expect(added.imageMode).toBe('Fill');
-  const doc = await save(page, 'image-import.vectorspace'); expect(doc.formatVersion).toBe(6);
+  const doc = await save(page, 'image-import.vectorspace'); expect(doc.formatVersion).toBe(7);
   const layer = doc.pages[0].nodes.find(n => n.id === added.id); expect(layer.fills[0].imageData).toMatch(/^data:image\/png;base64,/);
   await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).nodes).toBe(before.nodes);
   await page.keyboard.press('Control+Shift+z'); await expect.poll(async () => (await state(page)).id).toBe(added.id);

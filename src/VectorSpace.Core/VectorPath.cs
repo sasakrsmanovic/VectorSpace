@@ -13,6 +13,12 @@ public static class VectorPath
         if (ShapeGeometry.HasCorners(node) && node.Corners is not null) return ShapePathSvg.Corners(node);
         var w = node.Width; var h = node.Height;
         if (!string.IsNullOrWhiteSpace(node.PathData)) return node.PathData;
+        if (node.Kind == NodeKind.Path && node.Contours is { } contours)
+        {
+            var result = new StringBuilder();
+            foreach (var contour in contours) AppendContour(result, contour.Points, contour.Closed);
+            return result.ToString();
+        }
         if (node.Kind == NodeKind.Path && node.Points.Count > 0)
         {
             var result = new StringBuilder("M" + P(node.Points[0].Position));
@@ -44,6 +50,13 @@ public static class VectorPath
         var r = Math.Clamp(node.CornerRadius, 0, Math.Min(w, h) / 2);
         if (r < .001) return $"M0 0 H{N(w)} V{N(h)} H0 Z";
         return $"M{N(r)} 0 H{N(w - r)} A{N(r)} {N(r)} 0 0 1 {N(w)} {N(r)} V{N(h - r)} A{N(r)} {N(r)} 0 0 1 {N(w - r)} {N(h)} H{N(r)} A{N(r)} {N(r)} 0 0 1 0 {N(h - r)} V{N(r)} A{N(r)} {N(r)} 0 0 1 {N(r)} 0 Z";
+    }
+    private static void AppendContour(StringBuilder builder, IReadOnlyList<PathPoint> points, bool closed)
+    {
+        if (points.Count == 0) return;
+        builder.Append('M').Append(P(points[0].Position));
+        for (var i = 1; i < points.Count; i++) Segment(builder, points[i - 1], points[i]);
+        if (closed) { Segment(builder, points[^1], points[0]); builder.Append('Z'); }
     }
     private static void Segment(StringBuilder builder, PathPoint a, PathPoint b)
     {

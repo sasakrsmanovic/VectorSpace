@@ -14,7 +14,7 @@ test('independent corner controls alter real pixels and persist exact authored r
   await page.waitForTimeout(200); const get = pixels(await page.screenshot({ path: 'artifacts/screenshots/independent-corners.png' }));
   const empty = await screen(page, 162, 172), filled = await screen(page, 337, 172);
   expect(get(empty.x, empty.y)).toEqual([255, 255, 255]); expect(get(filled.x, filled.y)[0]).toBeGreaterThan(220); expect(get(filled.x, filled.y)[2]).toBeLessThan(80);
-  await point(page, 250, 240); const doc = await save(page, 'shape-corners.vectorspace'); expect(doc.formatVersion).toBe(6);
+  await point(page, 250, 240); const doc = await save(page, 'shape-corners.vectorspace'); expect(doc.formatVersion).toBe(7);
   expect(child(doc, 'rect').corners).toEqual({ topLeft: 70, topRight: 0, bottomRight: 35, bottomLeft: 0 });
   await page.keyboard.press('Control+z'); await expect.poll(async () => (await state(page)).corners[2]).toBe(12);
   await page.keyboard.press('Control+Shift+z'); await expect.poll(async () => (await state(page)).corners[2]).toBe(35);
