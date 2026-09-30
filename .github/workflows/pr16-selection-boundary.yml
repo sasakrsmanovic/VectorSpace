@@ -24,21 +24,8 @@ jobs:
               p=Path(path);s=p.read_text();assert s.count(old)==1,(path,old[:80],s.count(old));p.write_text(s.replace(old,new))
           p='src/VectorSpace.Editor/DesignSurface.cs'
           edit(p,'    private DesignNode? _pendingDuplicate;', '    private DesignNode? _pendingDuplicate;\n    private bool _moveStarted;')
-          edit(p,'            editor.BeginInteraction(alt ? "Duplicate layers" : "Move layers");\n            _pendingDuplicate = alt ? hit : null;\n            CaptureOriginals(); _gesture = Gesture.Move;', '''            // Selection alone must not normalize layout, clone the document into
-                      // history or enqueue a collaborative edit. Capture the drag only once
-                      // pointer movement crosses its threshold; current permissions and node
-                      // identities are checked then. A remote document replacement cancels
-                      // the pending gesture through SessionChanged before it can activate.
-                      _pendingDuplicate = alt ? hit : null;
-                      _moveStarted = false; _gesture = Gesture.Move;'''.replace('\n          ', '\n'))
-          edit(p,'            case Gesture.Move:\n                if (screen.DistanceTo(_startScreen) < 3) break;\n                if (_pendingDuplicate is not null)', '''            case Gesture.Move:
-                          if (!_moveStarted)
-                          {
-                              if (screen.DistanceTo(_startScreen) < 3) break;
-                              editor.BeginInteraction(_pendingDuplicate is null ? "Move layers" : "Duplicate layers");
-                              CaptureOriginals(); _moveStarted = true;
-                          }
-                          if (_pendingDuplicate is not null)'''.replace('\n          ', '\n'))
+          edit(p,'            editor.BeginInteraction(alt ? "Duplicate layers" : "Move layers");\n            _pendingDuplicate = alt ? hit : null;\n            CaptureOriginals(); _gesture = Gesture.Move;', '            // Selection alone must not normalize layout, clone the document into\n            // history or enqueue a collaborative edit. Capture the drag only once\n            // pointer movement crosses its threshold; current permissions and node\n            // identities are checked then. A remote document replacement cancels\n            // the pending gesture through SessionChanged before it can activate.\n            _pendingDuplicate = alt ? hit : null;\n            _moveStarted = false; _gesture = Gesture.Move;')
+          edit(p,'            case Gesture.Move:\n                if (screen.DistanceTo(_startScreen) < 3) break;\n                if (_pendingDuplicate is not null)', '            case Gesture.Move:\n                if (!_moveStarted)\n                {\n                    if (screen.DistanceTo(_startScreen) < 3) break;\n                    editor.BeginInteraction(_pendingDuplicate is null ? "Move layers" : "Duplicate layers");\n                    CaptureOriginals(); _moveStarted = true;\n                }\n                if (_pendingDuplicate is not null)')
           edit(p,'        else if (gesture is not Gesture.None and not Gesture.Pan and not Gesture.Marquee and not Gesture.PenControl) editor.CommitInteraction();\n        _marquee = null; _guide = null; _snapLines = []; RequestFrame();', '        else if (gesture is not Gesture.None and not Gesture.Pan and not Gesture.Marquee and not Gesture.PenControl &&\n            (gesture != Gesture.Move || _moveStarted)) editor.CommitInteraction();\n        _moveStarted = false; _pendingDuplicate = null;\n        _marquee = null; _guide = null; _snapLines = []; RequestFrame();')
           edit(p,'_gesture = Gesture.None; _created = null; _penNode = null;', '_gesture = Gesture.None; _moveStarted = false; _pendingDuplicate = null; _created = null; _penNode = null;')
           edit(p,'_pendingDuplicate = null; _gesture = Gesture.None; _created', '_pendingDuplicate = null; _moveStarted = false; _gesture = Gesture.None; _created')
