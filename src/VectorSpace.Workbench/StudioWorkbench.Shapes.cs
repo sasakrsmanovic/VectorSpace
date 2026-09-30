@@ -24,6 +24,7 @@ public sealed partial class StudioWorkbench
                 {
                     n.CornerRadius = value.TopLeft;
                     n.Corners = value.Independent ? new(value.TopLeft, value.TopRight, value.BottomRight, value.BottomLeft) : null;
+                    n.VariableBindings.Remove(VariableTarget.CornerRadius);
                 }
             }));
             section.Body.Children.Add(control);

@@ -4,7 +4,7 @@ using VectorSpace.Editing;
 
 internal static class ShapeOverrideTests
 {
-    private static void Check(bool value) { if (!value) throw new Exception("Shape override changed unrelated corner geometry."); }
+    private static void Check(bool value) { if (!value) throw new Exception("Shape authoring changed unrelated corner geometry."); }
     private static (EditorSession Editor, DesignNode Definition, string Id) Fixture()
     {
         var definition = new DesignNode { Kind = NodeKind.Component, Width = 200, Height = 160 };
@@ -51,6 +51,32 @@ internal static class ShapeOverrideTests
             Check(e.Document.Find(id)!.Corners == new CornerRadii(30, 10, 20, 5));
             PropertyTransfer.Paste(e, new() { CornerRadius = 9 });
             Check(e.Document.Find(id)!.Corners is null && e.Document.Find(id)!.CornerRadius == 9);
+        });
+        test("Alt corner drag preserves oversized authored values on all untouched corners", () =>
+        {
+            var n = new DesignNode { Width = 100, Height = 80, Corners = new(300, 180, 5, 70) };
+            var g = new ShapeGesture(n, 2, n.WorldMatrix.Map(new Vec2(95, 75)));
+            g.Apply(n, n.WorldMatrix.Map(new Vec2(90, 70)), independentCorner: true);
+            Check(n.Corners == new CornerRadii(300, 180, 10, 70));
+            n.Width = 1000; n.Height = 800;
+            Check(n.EffectiveCorners.TopLeft == 300 && n.EffectiveCorners.TopRight == 180);
+        });
+        test("oversized dragged corner starts at its visible radius rather than its latent authored radius", () =>
+        {
+            var n = new DesignNode { Width = 100, Height = 80, Corners = new(300, 200, 10, 20) };
+            var g = new ShapeGesture(n, 0, n.WorldMatrix.Map(new Vec2(40, 40)));
+            g.Apply(n, n.WorldMatrix.Map(new Vec2(35, 35)), independentCorner: true);
+            Check(n.Corners == new CornerRadii(35, 200, 10, 20));
+        });
+        test("direct corner authoring materializes its binding and undo restores it", () =>
+        {
+            var n = new DesignNode { Width = 100, Height = 80, CornerRadius = 8 };
+            n.VariableBindings[VariableTarget.CornerRadius] = new() { Disabled = true, Fallback = VariableResolver.Read(n, VariableTarget.CornerRadius) };
+            var e = new EditorSession(new() { Pages = [new() { Nodes = [n] }] }); e.Select(n);
+            e.BeginInteraction("Corner drag");
+            new ShapeGesture(n, 0, new(8, 8)).Apply(n, new(18, 18)); e.Preview(false); e.CommitInteraction();
+            Check(e.Primary!.CornerRadius == 18 && !e.Primary.VariableBindings.ContainsKey(VariableTarget.CornerRadius));
+            e.Undo(); Check(e.Primary!.CornerRadius == 8 && e.Primary.VariableBindings.ContainsKey(VariableTarget.CornerRadius));
         });
     }
 }

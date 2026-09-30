@@ -21,7 +21,9 @@ public sealed class ShapeGesture
         if (node.Kind != NodeKind.Ellipse && !ShapeGeometry.HasCorners(node)) throw new InvalidOperationException("Select an ellipse or a corner-bearing shape.");
         if (handle < 0 || handle >= (node.Kind == NodeKind.Ellipse ? 3 : 4)) throw new ArgumentOutOfRangeException(nameof(handle));
         _id = node.Id; _handle = handle; _start = _inverse.Map(startWorld); _width = node.Width; _height = node.Height;
-        _corners = node.EffectiveCorners;
+        // Preserve authored values on untouched corners. Only the dragged corner's
+        // visible baseline is clamped; resizing back up must recover other radii.
+        _corners = node.Corners ?? new(node.CornerRadius, node.CornerRadius, node.CornerRadius, node.CornerRadius);
         if (node.Kind == NodeKind.Ellipse) { _arc = node.Arc ?? new(); _lastAngle = Angle(_start); }
     }
     public void Apply(DesignNode node, Vec2 world, bool independentCorner = false, bool constrainAngle = false)
@@ -31,10 +33,14 @@ public sealed class ShapeGesture
         if (_arc is null)
         {
             var xSign = _handle is 0 or 3 ? 1 : -1; var ySign = _handle is 0 or 1 ? 1 : -1;
-            var delta = local - _start;
-            var radius = Math.Clamp(_corners.At(_handle) + (delta.X * xSign + delta.Y * ySign) / 2, 0, Math.Min(_width, _height) / 2);
+            var delta = local - _start; var limit = Math.Min(_width, _height) / 2;
+            var baseline = Math.Clamp(_corners.At(_handle), 0, limit);
+            var radius = Math.Clamp(baseline + (delta.X * xSign + delta.Y * ySign) / 2, 0, limit);
             node.Corners = independentCorner ? _corners.With(_handle, radius) : null;
             if (!independentCorner) node.CornerRadius = radius;
+            // A direct geometry edit materializes its value before variable resolution.
+            // Undo/cancel restores the binding as part of the enclosing transaction.
+            node.VariableBindings.Remove(VariableTarget.CornerRadius);
             return;
         }
         if (_handle == 2)
