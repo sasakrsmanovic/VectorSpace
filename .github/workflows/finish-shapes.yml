@@ -20,7 +20,12 @@ jobs:
         with:
           global-json-file: global.json
       - name: Apply guarded source integration
-        run: python3 scripts/finish-shapes.py
+        run: |
+          python3 scripts/finish-shapes.py
+          # Workflow changes are committed separately through the authorized GitHub
+          # connection. This job keeps only contents permission and does not need
+          # permission to modify any workflow.
+          git restore --source=HEAD -- .github/workflows/build.yml
       - name: Engine and exact stroke-extent regressions
         run: |
           mkdir -p artifacts
@@ -37,7 +42,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm scripts/finish-shapes.py
-          git add src tests docs README.md CHANGELOG.md .github/workflows/build.yml scripts/finish-shapes.py
+          git add src tests docs README.md CHANGELOG.md scripts/finish-shapes.py
           git commit -m 'fix: finalize native shape integration, persisted schema upgrades and documentation'
           git push origin HEAD:feat/shape-stroke-editing-0.8
       - name: Preserve diagnostics
