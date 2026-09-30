@@ -51,6 +51,11 @@ public static class EditablePathConversion
                 var next = node.LocalMatrix;
                 node.X += local.DX - next.DX; node.Y += local.DY - next.DY;
             }
+            // Open ellipse arcs suppress their fill stack. Clearing the arc modifier
+            // must not turn the converted open path's implicit chord into visible fill.
+            // Retain the authored paints as hidden values rather than discarding them.
+            if (node.Kind == NodeKind.Ellipse && node.Arc?.Open == true)
+                foreach (var fill in node.Fills) fill.Visible = false;
             node.Kind = NodeKind.Path; node.Commands = null; node.Arc = null; node.Corners = null; node.PathData = null;
             node.PathWidth = node.Width; node.PathHeight = node.Height;
             if (contours.Count == 1) { node.Points = contours[0].Points; node.Closed = contours[0].Closed; node.Contours = null; }

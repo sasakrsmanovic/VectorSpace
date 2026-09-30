@@ -6,6 +6,7 @@ internal static class CompoundSubdivisionTests
 {
     public static void Register(Action<string, Action> test)
     {
+        OpenArcConversionTests.Register(test);
         EditablePathExtentTests.Register(test);
         CoordinateSerializationTests.Register(test);
         test("vector playground contains genuine editable compound studies", () =>
