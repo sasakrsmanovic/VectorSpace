@@ -153,7 +153,7 @@ class CollaborationServerTests(unittest.TestCase):
         metadata.write_text(json.dumps(data))
         self.start()
         current = self.snapshot(path, token)
-        self.assertEqual(current['cells']['$root\x1fformatVersion'], '5')
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '6')
         self.assertEqual(current['revision'], 1)
         self.assertEqual(self.request(path + '/history', token=token)[1][0]['author'], 'System')
         self.stop(); self.start()
@@ -161,5 +161,30 @@ class CollaborationServerTests(unittest.TestCase):
         batch = self.batch(self.snapshot(path, token), value='27')
         self.assertTrue(self.request(path + '/edits', batch, token)[1]['receipt']['accepted'])
         self.assertEqual(self.request(path + '/versions/0', token=token)[1]['pages'][0]['nodes'][0]['x'], 0)
+
+    def test_schema_five_strokes_upgrade_and_remain_editable_after_restart(self):
+        path, token = self.room()
+        self.stop()
+        metadata = Path(self.directory.name) / (path.rsplit('/', 1)[1] + '.room.json')
+        data = json.loads(metadata.read_text())
+        data['initial']['cells']['$root\x1fformatVersion'] = '5'
+        data['initial']['cells']['node:a\x1fstrokes'] = '[{"width":4}]'
+        metadata.write_text(json.dumps(data))
+        self.start()
+        current = self.snapshot(path, token)
+        self.assertEqual(current['revision'], 1)
+        self.assertEqual(current['cells']['$root\x1fformatVersion'], '6')
+        stroke = json.loads(current['cells']['node:a\x1fstrokes'])[0]
+        self.assertEqual(stroke['cap'], 'Round')
+        self.assertEqual(stroke['alignment'], 'Center')
+        stroke['alignment'] = 'Outside'
+        batch = self.batch(current, 'strokes', json.dumps([stroke]))
+        self.assertTrue(self.request(path + '/edits', batch, token)[1]['receipt']['accepted'])
+        self.stop(); self.start()
+        restored = self.snapshot(path, token)
+        self.assertEqual(restored['revision'], 2)
+        self.assertEqual(json.loads(restored['cells']['node:a\x1fstrokes'])[0]['alignment'], 'Outside')
+        historic = self.request(path + '/versions/0', token=token)[1]
+        self.assertEqual(historic['pages'][0]['nodes'][0]['strokes'][0]['alignment'], 'Center')
 
 if __name__ == '__main__': unittest.main(verbosity=2)

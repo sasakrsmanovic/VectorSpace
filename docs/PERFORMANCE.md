@@ -73,3 +73,12 @@ The full native document was 1,732,800 UTF-8 bytes; its exact one-cell edit batc
 This measures projection/diff only: no network latency, journal flush, UI dispatch, render, native allocation or embedded-image workload is included. Projection still visits the entire document. A twofold observed projection speed ratio is not an application-wide speedup.
 
 Presence does not enter undo history or trigger document projection. Client samples and room wakeups are coalesced; cursor painting uses a separate retained overlay. Unchanged follow-viewports do not cause another editor viewport notification, and remote-only revisions do not rewrite an unchanged local recovery journal. Full canonicalization, snapshots, retained revision/receipt state and recovery documents still consume workload-dependent memory. See [collaboration bounds](COLLABORATION.md).
+
+
+## Retained stroke and Boolean geometry (0.8)
+
+`--benchmark-shapes` compares rebuilding stroke fill regions against descriptor-keyed reuse for 160 native rectangle/ring-sector paths, mixed alignment/caps/joins and dash patterns. Five warmed interleaved batches each query ten passes. Exact captured native commands are compared before measurement, and the retained phase must build zero additional stroke regions.
+
+Paint color/opacity and a whole-layer transform do not invalidate local stroke geometry. Source geometry, width, alignment, cap, join, miter, dashes or phase do. LRU entries own their region and optional hit-tolerance path; capacity reductions and deleted-layer trimming dispose excess resources immediately. Live Boolean keys track operation, ordered operand identities, transforms and geometry references instead of cloning or serializing descendants every frame.
+
+The report includes per-query managed bytes and elapsed batch time. It excludes painting, native allocations, UI, layout, history, network and cold setup. Source geometry is cached in both implementations; this is a resource-construction benchmark, not an application-wide frame-rate or Figma comparison. See [shape semantics](SHAPES.md). Native conic round-trip pixel equality and high-resolution SVG approximation checks are separate correctness regressions.

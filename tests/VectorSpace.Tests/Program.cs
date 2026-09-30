@@ -87,6 +87,8 @@ DrawingTargetTests.Register(Test);
 
 EditingWorkflowTests.Register(Test);
 ShapeTests.Register(Test);
+ShapeIntegrationTests.Register(Test);
+StrokeOutlineExtentTests.Register(Test);
 
 var failed = 0;
 foreach (var (name, test) in tests) { try { test(); Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + "\n" + ex); } }

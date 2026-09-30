@@ -36,6 +36,6 @@ public static partial class ComponentService
         if (value.Typography is { } type && node.Kind == NodeKind.Text) type.Apply(node);
         if (value.Opacity is { } opacity) node.Opacity = opacity;
         if (value.Blend is { } blend) node.Blend = blend;
-        if (value.CornerRadius is { } radius) node.CornerRadius = radius;
+        if (value.CornerRadius is { } radius) { node.CornerRadius = radius; node.Corners = null; }
     }
 }

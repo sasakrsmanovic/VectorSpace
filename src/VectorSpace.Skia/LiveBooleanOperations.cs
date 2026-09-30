@@ -90,7 +90,17 @@ public static class LiveBooleanOperations
         {
             for (var i = 0; i < nodes.Length; i++)
             {
-                var n = nodes[i]; n.Kind = NodeKind.Group; n.Boolean = null; n.Arc = null; n.Corners = null;
+                var n = nodes[i]; var localMatrix = n.LocalMatrix;
+                var degenerate = n.Width < 1 || n.Height < 1;
+                n.Kind = NodeKind.Group;
+                if (degenerate)
+                {
+                    // Groups/paths have nonzero layout frames. Preserve the authored stroke
+                    // coordinates and old transform instead of scaling a zero extent by 1e9.
+                    n.Width = Math.Max(1, n.Width); n.Height = Math.Max(1, n.Height);
+                    NodeGeometry.SetLocalMatrix(n, localMatrix);
+                }
+                n.Boolean = null; n.Arc = null; n.Corners = null;
                 n.Commands = null; n.Points.Clear(); n.PathData = null; n.Fills.Clear(); n.Strokes.Clear(); n.Children.Clear(); n.ClipContent = false;
                 n.VariableBindings.Remove(VariableTarget.Fill); n.VariableBindings.Remove(VariableTarget.Stroke);
                 foreach (var part in children[i]) n.Add(part);
@@ -99,7 +109,7 @@ public static class LiveBooleanOperations
     }
     private static DesignNode Part(DesignNode source, string name, (List<PathCommand> Commands, PathFillRule Rule) data)
     {
-        var result = new DesignNode { Name = name, Width = source.Width, Height = source.Height, Fills = [], HorizontalConstraint = AxisConstraint.Scale, VerticalConstraint = AxisConstraint.Scale };
+        var result = new DesignNode { Name = name, Width = Math.Max(1, source.Width), Height = Math.Max(1, source.Height), Fills = [], HorizontalConstraint = AxisConstraint.Scale, VerticalConstraint = AxisConstraint.Scale };
         SetPath(result, data.Commands, data.Rule); return result;
     }
     internal static (List<PathCommand> Commands, PathFillRule Rule) Capture(SKPath path) =>
@@ -123,18 +133,3 @@ public static class LiveBooleanOperations
     }
 }
 
-public static class SceneSvg
-{
-    /// <summary>Renderer-aware export bakes only a temporary copy of live Boolean geometry and
-    /// provides exact aligned-stroke regions. The authored scene and history are never modified.</summary>
-    public static string Export(SceneRenderer renderer, IEnumerable<DesignNode> roots, RectD bounds)
-    {
-        var copies = roots.Select(n => { var clone = DocumentJson.CloneNode(n); clone.Parent = n.Parent; Bake(clone); return clone; }).ToArray();
-        return SvgFormat.Export(copies, bounds, (node, index) => ShapePathSvg.Commands(NativeShapeGeometry.Capture(renderer.StrokeGeometry(node, index))));
-        void Bake(DesignNode n)
-        {
-            if (n.IsBoolean) { var data = LiveBooleanOperations.Capture(renderer.Geometry(n)); LiveBooleanOperations.SetPath(n, data.Commands, data.Rule); }
-            else foreach (var child in n.Children) Bake(child);
-        }
-    }
-}
