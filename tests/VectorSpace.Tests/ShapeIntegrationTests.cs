@@ -1,4 +1,3 @@
-using SkiaSharp;
 using VectorSpace.Core;
 using VectorSpace.Documents;
 using VectorSpace.Editing;
@@ -10,6 +9,7 @@ internal static class ShapeIntegrationTests
     public static void Register(Action<string, Action> test)
     {
         ShapeOverrideTests.Register(test);
+        LegacyBooleanTests.Register(test);
         test("normal selection ignores a Boolean hole while entered scope reaches retained operands", () =>
         {
             var frame = new DesignNode { Kind = NodeKind.Frame, Width = 300, Height = 200 };

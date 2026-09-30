@@ -1,0 +1,56 @@
+name: Inspect shape browser failures
+on:
+  push:
+    branches: ['feat/shape-stroke-editing-0.8']
+    paths: ['.github/workflows/shape-diagnostics.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: VectorSpace-browser-validation
+          run-id: 36675578240
+          github-token: ${{ github.token }}
+          path: report
+      - name: Read retained failure states without rerunning edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          for path in sorted(Path('report/test-results').glob('*/trace.zip')):
+              print('\nCASE', path.parent.name)
+              states=[]; controls=[]; actions=[]
+              with zipfile.ZipFile(path) as z:
+                  for name in z.namelist():
+                      if not name.endswith('.trace'): continue
+                      for line in z.read(name).decode('utf-8').splitlines():
+                          try: e=json.loads(line)
+                          except ValueError: continue
+                          if e.get('type')=='before' and e.get('method') in ['press','click','insertText','down','up']:
+                              actions.append((e.get('class'),e.get('method'),e.get('params')))
+                          result=e.get('result',{}).get('value')
+                          if isinstance(result,dict) and 'o' in result:
+                              def decode(v):
+                                  if not isinstance(v,dict): return v
+                                  if 'o' in v: return {p['k']:decode(p['v']) for p in v['o']}
+                                  if 'a' in v: return [decode(x) for x in v['a']]
+                                  for k in ['s','n','b','v']: 
+                                      if k in v: return v[k]
+                                  return None
+                              result=decode(result)
+                          if isinstance(result,dict) and any(k in result for k in ['vectorEditing','shapeEditing','collaboration']):
+                              reduced={k:result[k] for k in ['id','kind','name','selection','tool','status','vectorEditing','selectedPoints','vertexSelection','interacting','shapeEditing','corners','arcSweep','x','y','zoom','panX','panY','collaboration'] if k in result}
+                              if not states or states[-1]!=reduced: states.append(reduced)
+                          if isinstance(result,dict) and 'name' in result and 'type' in result and 'x' in result:
+                              if result.get('name') not in ['Private collaboration link','Collaboration creation key','Collaboration invitation link']:
+                                  controls.append({k:result[k] for k in ['name','type','x','y','width','height','value'] if k in result})
+              print('RECENT STATES',json.dumps(states[-14:],ensure_ascii=False))
+              print('RECENT CONTROLS',json.dumps(controls[-20:],ensure_ascii=False))
+              print('RECENT INPUT',json.dumps(actions[-25:],ensure_ascii=False))
+          PY
