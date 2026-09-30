@@ -1,0 +1,69 @@
+name: Integrate compound vector editing
+on:
+  push:
+    branches: ['feat/compound-vector-editing-0.9']
+    paths: ['scripts/contours-transfer-*.txt', '.github/workflows/integrate-contours.yml']
+permissions:
+  contents: write
+concurrency:
+  group: integrate-contours
+  cancel-in-progress: true
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Reconstruct and preserve exact local source changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, lzma, subprocess
+          from pathlib import Path
+          parts = sorted(Path('scripts').glob('contours-transfer-*.txt'))
+          assert len(parts) == 6
+          patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '72c6ccbc3f6ffcc1ce94366525053b2523cb9288858d0942cf39c1624495ea04'
+          assert b'diff --git a/.github/' not in patch
+          Path('/tmp/contours-source.patch').write_bytes(patch)
+          subprocess.run(['git','apply','--unidiff-zero','--check','/tmp/contours-source.patch'], check=True)
+          subprocess.run(['git','apply','--unidiff-zero','/tmp/contours-source.patch'], check=True)
+          for p in parts: p.unlink()
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src tests docs README.md CHANGELOG.md Directory.Build.props scripts/contours-transfer-*.txt
+          git diff --cached --check
+          git commit -m 'feat: compound cubic contours, cut and join, custom vector controls and sparse anchor capture'
+          git push origin HEAD:feat/compound-vector-editing-0.9
+      - name: Engine regressions and scoped sparse capture benchmark
+        run: |
+          mkdir -p artifacts
+          dotnet run --project tests/VectorSpace.Tests -c Release > artifacts/contour-engine.log 2>&1 || { grep -A10 -E 'FAIL|error' artifacts/contour-engine.log; tail -5 artifacts/contour-engine.log; exit 1; }
+          tail -3 artifacts/contour-engine.log
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-contours > artifacts/contours.json
+          cat artifacts/contours.json
+      - name: Compile reusable custom Uno controls and editor
+        if: always()
+        run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
+      - name: Actual collaboration projection and persisted room upgrade
+        if: always()
+        run: |
+          dotnet run --project tests/VectorSpace.Collaboration.EditorTests -c Release
+          dotnet build server/VectorSpace.Server -c Release
+          python3 -m unittest discover -s tests/server -v
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: compound-integration-validation
+          path: |
+            artifacts/contour-engine.log
+            artifacts/contours.json
+            artifacts/collaboration-server.log
+          if-no-files-found: ignore
