@@ -57,6 +57,11 @@ public sealed partial class StudioWorkbench
     {
         foreach (var tool in Enum.GetValues<EditorTool>())
             yield return new("Tool: " + tool, "", () => { Surface.FinishTextEdit(true); Session.Tool = tool; Surface.FocusCanvas(); });
+        yield return new("Vector playground", "", () => RunAsync(async () =>
+        {
+            if (await ConfirmAsync("Open vector playground?", "Save your current file before replacing it with editable compound contours, cubic strokes and endpoint studies."))
+            { Session.Load(VectorSample.Create()); Surface.Fit(firstFrame: true); }
+        }));
         yield return new("Edit vector points", "Enter", () => Run(Surface.BeginVectorEdit));
         yield return new("Finish vector editing", "Enter", Surface.EndVectorEdit);
         yield return new("Select all points", "Ctrl A", Surface.SelectAllPoints);

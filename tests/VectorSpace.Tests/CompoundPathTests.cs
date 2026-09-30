@@ -33,6 +33,7 @@ internal static partial class CompoundPathTests
     public static void Register(Action<string, Action> test)
     {
         RegisterGeometry(test); RegisterTopology(test); RegisterValidation(test); RegisterWorkflows(test);
+        CompoundSubdivisionTests.Register(test);
     }
     private static void RegisterGeometry(Action<string, Action> test)
     {

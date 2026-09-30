@@ -53,7 +53,7 @@ The group's authored coordinate frame is retained while editing/flattening, rath
 
 **Outline stroke** creates native filled contour children for each visible nonzero stroke and retains an additional child for the original fill. Each stroke keeps its own color/opacity; root opacity, effects, transformation and identifier remain on the resulting group. Dashed gaps and compound contours are preserved. The operation does not merge differently colored strokes into one solid paint or round-trip the result through SVG.
 
-A supported first-fill/first-stroke variable binding is transferred to the corresponding filled child. Outline is transactional and reversible. Text glyph outlining and arbitrary ordinary container outlining are not included. Native compound contours can be selected, transformed, painted, serialized and exported, but the anchor editor still supports its documented single-contour topology subset.
+A supported first-fill/first-stroke variable binding is transferred to the corresponding filled child. Outline is transactional and reversible. Text glyph outlining and arbitrary ordinary container outlining are not included. Native compound contours can be selected, transformed, painted, serialized and exported. Version 0.9 also converts them explicitly into editable cubic contours; see [compound editing](CONTOURS.md) for approximation and topology boundaries.
 
 ## Native geometry and SVG
 
@@ -63,7 +63,7 @@ SVG cannot encode general rational conics directly. `ShapePathSvg` converts them
 
 Use **`SceneSvg.Export`** for live Booleans or aligned strokes. It prepares temporary result copies and exports the same stroke regions without modifying the authored document. The portable two-argument `SvgFormat.Export` API remains available, but explicitly rejects features requiring native geometry instead of emitting a wrong approximation. Centered stroke SVG includes caps, joins, miter limit, dashes/phase and fill rules. Import reads those supported properties with inheritance.
 
-The native format is **schema 6**, with migration from previous schemas. Clients and self-hosted collaboration servers should upgrade together. Existing room journals add a durable schema-upgrade revision without rewriting prior history. Keep backups before upgrading; older clients must reject schema 6.
+Shape descriptors were introduced in **schema 6**. The current **schema 7** additionally supports editable compound contours and migrates earlier supported schemas. Clients and self-hosted servers should upgrade together. Room journals add a durable schema-upgrade revision without rewriting prior history. Keep backups before upgrading; older clients must reject newer unsupported schemas.
 
 ## Reusable components
 

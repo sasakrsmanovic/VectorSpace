@@ -6,7 +6,7 @@ public enum TangentMode { Corner, Smooth, Mirrored }
 
 /// <summary>Double-precision operations on single or compound editable cubic contours.
 /// Global anchor indices follow PathTopology; operations validate before mutating. Callers own history.</summary>
-public static class PathEditing
+public static partial class PathEditing
 {
     public static bool CanEdit(DesignNode node) => node.Kind == NodeKind.Path && node.PathData is null && node.Commands is null &&
         (node.Contours is { Count: > 0 } || node.Points.Count > 0);

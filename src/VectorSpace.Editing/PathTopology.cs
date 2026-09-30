@@ -30,8 +30,8 @@ public sealed class PathTopology
         _lists = new List<PathPoint>[count]; var contours = new Contour[count]; var total = 0;
         for (var i = 0; i < count; i++)
         {
-            var list = _source is null ? node.Points : _source[i].Points;
-            if (list is null || list.Count < 1 || list.Count > MaxAnchors - total) throw new InvalidOperationException("Invalid editable anchor count.");
+            var list = _source is null ? node.Points : _source[i]?.Points;
+            if (list is null || list.Count < (_source is null ? 1 : 2) || list.Count > MaxAnchors - total) throw new InvalidOperationException("Invalid editable anchor count.");
             _lists[i] = list; contours[i] = new(total, list.Count, _source is null ? node.Closed : _source[i].Closed); total += list.Count;
         }
         _owners = new int[total];
@@ -41,7 +41,8 @@ public sealed class PathTopology
             var range = contours[c];
             for (var j = 0; j < range.Count; j++)
             {
-                var index = range.Offset + j; points[index] = _lists[c][j]; _owners[index] = c;
+                var index = range.Offset + j;
+                points[index] = _lists[c][j] ?? throw new InvalidOperationException("A path cannot contain a null anchor."); _owners[index] = c;
                 if (j + 1 < range.Count) segments.Add(new(index, index + 1, c));
                 else if (range.Closed) segments.Add(new(index, range.Offset, c));
             }
@@ -55,8 +56,8 @@ public sealed class PathTopology
         if (!ReferenceEquals(node, _node) || !ReferenceEquals(node.Contours, _source) || (_source?.Count ?? 1) != _lists.Length) return false;
         for (var i = 0; i < _lists.Length; i++)
         {
-            var list = _source is null ? node.Points : _source[i].Points;
-            if (!ReferenceEquals(list, _lists[i]) || list.Count != Contours[i].Count || (_source is null ? node.Closed : _source[i].Closed) != Contours[i].Closed) return false;
+            var list = _source is null ? node.Points : _source[i]?.Points;
+            if (list is null || !ReferenceEquals(list, _lists[i]) || list.Count != Contours[i].Count || (_source is null ? node.Closed : _source[i].Closed) != Contours[i].Closed) return false;
         }
         return true;
     }

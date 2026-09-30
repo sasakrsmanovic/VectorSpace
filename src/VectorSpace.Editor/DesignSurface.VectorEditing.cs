@@ -114,8 +114,7 @@ public sealed partial class DesignSurface
     {
         var segments = Topology.Segments.Where(s => _pointSelection.Contains(s.Start) && _pointSelection.Contains(s.End)).Select(s => s.Start).Reverse().ToArray();
         if (segments.Length == 0) throw new InvalidOperationException("Select both ends of a segment first.");
-        if (segments.Length > PathTopology.MaxAnchors - Topology.Points.Count) throw new InvalidOperationException("Subdivision exceeds the editable anchor budget.");
-        foreach (var i in segments) PathEditing.Insert(node, i, .5);
+        PathEditing.Subdivide(node, segments);
         _pointSelection.Clear();
     });
     public void SimplifyPath() => EditPoints("Simplify freehand", node =>

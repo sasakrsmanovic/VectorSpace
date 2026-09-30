@@ -204,10 +204,23 @@ class CollaborationServerTests(unittest.TestCase):
         key = 'node:a\x1fcontours'
         batch['changes'].append({'key': key, 'before': current['cells'].get(key), 'after': json.dumps(contours), 'expectedVersion': current['versions'].get(key, 0)})
         self.assertTrue(self.request(path + '/edits', batch, token)[1]['receipt']['accepted'])
+        canonical = self.snapshot(path, token)['cells'][key]
+        normalized = json.loads(canonical)
+        # Vec2 also serializes computed read-only fields. Verify every authored
+        # coordinate/closure and absent handle, then require byte-identical
+        # canonical cell persistence through a real service restart.
+        self.assertEqual(len(normalized), len(contours))
+        for actual, expected in zip(normalized, contours):
+            self.assertEqual(actual['closed'], expected['closed'])
+            self.assertEqual([(p['position']['x'], p['position']['y']) for p in actual['points']],
+                             [(p['position']['x'], p['position']['y']) for p in expected['points']])
+            for point in actual['points']:
+                self.assertIsNone(point.get('controlIn'))
+                self.assertIsNone(point.get('controlOut'))
         self.stop(); self.start()
         restored = self.snapshot(path, token)
         self.assertEqual(restored['revision'], 2)
-        self.assertEqual(json.loads(restored['cells'][key]), contours)
+        self.assertEqual(restored['cells'][key], canonical)
         historic = self.request(path + '/versions/0', token=token)[1]
         self.assertIsNone(historic['pages'][0]['nodes'][0].get('contours'))
         self.assertEqual(historic['formatVersion'], 7)

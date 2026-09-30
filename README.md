@@ -27,7 +27,7 @@ Edit holes and disjoint contours as one vector layer: select anchors across cont
 
 Independent corners, ellipse sectors/rings/open arcs, aligned strokes, caps/joins/miter/dash phase and live Boolean groups are editable through custom contextual controls. Corner/arc grips operate directly on the canvas with modifier, undo and cancellation support. Flattening and stroke outlines preserve exact native conic/compound contours rather than round-tripping the document through SVG text.
 
-The stroke/Boolean caches share geometry between drawing and picking, retain unchanged resources and dispose evicted paths. Open **Ctrl+K → Shape playground** for the original editable study. [Shape workflows, APIs and boundaries](docs/SHAPES.md) describe the supported behavior; this is not full vector-network editing or pixel-certified Figma parity. Native schema **6** requires updating collaborative clients and the self-hosted server together.
+The stroke/Boolean caches share geometry between drawing and picking, retain unchanged resources and dispose evicted paths. Open **Ctrl+K → Shape playground** for the original editable study. [Shape workflows, APIs and boundaries](docs/SHAPES.md) describe the supported behavior; this is not full vector-network editing or pixel-certified Figma parity. Current native schema **7** requires updating collaborative clients and the self-hosted server together.
 
 ## New editing workflows
 
@@ -244,7 +244,7 @@ Console.WriteLine($"Correction {snap.Correction}, {snap.Lines.Count} guide lines
 
 ### VectorSpace.Documents
 
-Reading, writing and validating native `.vectorspace` JSON (schema 5, migrating 1–4), safe SVG import/export (no scripts, external resources or DTDs), the style-only property clipboard, sample documents and the storage interfaces hosts implement. Depends on `VectorSpace.Model`; no UI.
+Reading, writing and validating native `.vectorspace` JSON (schema 7, migrating 1–6), safe SVG import/export (no scripts, external resources or DTDs), the style-only property clipboard, sample documents and the storage interfaces hosts implement. Depends on `VectorSpace.Model`; no UI.
 
 ```bash
 dotnet add package VectorSpace.Documents --prerelease
@@ -532,7 +532,7 @@ Native text inputs retain their editing shortcuts. Browser-reserved keys and OS 
 
 ## Persistence and delivery
 
-Current native **schema 5** migrates schemas 1–4 and preserves new instance style/name records. SVG/PNG are not lossless native substitutes. A 0.7 server upgrades a schema-4 room after replay by appending a system revision; existing history and receipts remain intact. Back up server data and upgrade clients with the service. [Migration details](docs/EDITING_WORKFLOWS.md#native-format-and-shared-room-upgrade).
+Current native **schema 7** migrates schemas 1–6 and preserves editable compound contours, native conics and instance overrides. SVG/PNG are not lossless native substitutes. Servers upgrade older supported room snapshots after replay by appending a durable system revision; prior history and receipts remain intact. Back up room data and upgrade clients with the service. [Compound geometry and migration](docs/CONTOURS.md#collaboration-and-compatibility).
 
 **Build** gates browser artifacts on engines, shared-editor boundaries, actual HTTP/restart tests and browser acceptance. It preserves benchmarks/server/packages/source and test artifacts. **Desktop** compiles Windows/Linux/macOS. **Pages** deploys the successful main artifact, verifies provenance and tests the public static client; collaboration cases use that same artifact with a real ephemeral backend during Build. **Release** runs for `v*` tags or a supplied manual version: it repeats the engine, server and browser gates, publishes self-contained single-file desktop executables for Windows, macOS and Linux (x64 and arm64), the browser/server/source archives and versioned packages with symbols, and emits `SHA256SUMS.txt`. Tags attach all assets to a GitHub Release and publish the packages to NuGet.org with [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing) (OIDC, no stored API key) from the protected `nuget` environment. Manual runs are dry runs that upload every asset as workflow artifacts and publish nothing.
 

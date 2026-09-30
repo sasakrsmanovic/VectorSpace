@@ -39,7 +39,7 @@ test('anchors in different contours move together while unrelated anchors and la
   const n = child(await save(page, 'compound-anchor-move.vectorspace'), 'compound');
   expect(n.contours[0].points[0].position.x).toBeCloseTo(21, 2); expect(n.contours[0].points[0].position.y).toBeCloseTo(10, 2);
   expect(n.contours[1].points[0].position.x).toBeCloseTo(81, 2); expect(n.contours[1].points[0].position.y).toBeCloseTo(60, 2);
-  expect(n.contours[0].points[1].position).toEqual({ x: 240, y: 0 }); expect(n.contours[2].points[0].position).toEqual({ x: 280, y: 0 });
+  expect(n.contours[0].points[1].position).toMatchObject({ x: 240, y: 0 }); expect(n.contours[2].points[0].position).toMatchObject({ x: 280, y: 0 });
   expect([n.x, n.y]).toEqual([160, 180]);
   await page.screenshot({ path: 'artifacts/screenshots/compound-anchor-editing.png' });
 });
@@ -99,6 +99,18 @@ test('subdivision uses the active contour seam rather than bridging into its nei
   await inspect(page, 'Split selected segments'); await click(page, 'Split selected segments');
   await expect.poll(async () => (await state(page)).points).toBe(16);
   const n = child(await save(page, 'compound-subdivide.vectorspace'), 'compound');
-  expect(n.contours.map(c => c.points.length)).toEqual([4, 8, 4]); expect(n.contours[1].points[7].position).toEqual({ x: 120, y: 50 });
+  expect(n.contours.map(c => c.points.length)).toEqual([4, 8, 4]); expect(n.contours[1].points[7].position).toMatchObject({ x: 120, y: 50 });
   expect(await color(page, 280, 280)).toEqual([255, 255, 255]);
+});
+
+
+test('vector playground opens from actual quick actions and its compound badge enters editing', async ({ page }) => {
+  await open(page); await action(page, 'Vector playground'); await click(page, 'Continue');
+  await expect.poll(async () => (await state(page)).page).toBe('Vector studies');
+  await point(page, 85, 260); await expect.poll(async () => (await state(page)).id).toBe('vector-holes');
+  await page.keyboard.press('Enter'); await expect.poll(async () => (await state(page)).vectorEditing).toBe(true);
+  await expect.poll(async () => (await state(page)).contours).toBe(3);
+  await page.screenshot({ path: 'artifacts/screenshots/vector-playground.png' });
+  const document = await save(page, 'vector-playground.vectorspace');
+  expect(document.formatVersion).toBe(7); expect(child(document, 'vector-holes').contours).toHaveLength(3);
 });
