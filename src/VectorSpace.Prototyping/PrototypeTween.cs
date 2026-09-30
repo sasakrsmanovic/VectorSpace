@@ -39,7 +39,7 @@ public sealed class PrototypeTween
     }
     private static bool Compatible(DesignNode from, DesignNode to) =>
         (to.Kind != NodeKind.Text || from.Text == to.Text && from.FontFamily == to.FontFamily && from.FontWeight == to.FontWeight) &&
-        (to.Kind != NodeKind.Path || from.PathData == to.PathData && from.Points.Count == 0 && to.Points.Count == 0) &&
+        (to.Kind != NodeKind.Path || from.PathData == to.PathData && from.Points.Count == 0 && to.Points.Count == 0 && from.Commands is null && to.Commands is null && from.Contours is null && to.Contours is null) &&
         from.Fills.Count == to.Fills.Count && from.Fills.All(f => f.Kind == FillKind.Solid) && to.Fills.All(f => f.Kind == FillKind.Solid);
     private void Ghost(DesignNode parent, DesignNode source)
     {

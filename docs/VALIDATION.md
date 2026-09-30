@@ -1,32 +1,30 @@
 # Validation and delivery
 
-## Source coverage
+## Engine and protocol coverage
 
-The engine runner contains **515 cases**: 421 prior cases and 94 shape/integration regressions. Shape tests cover independent radii and clipping, signed arcs/ring holes, native conic round-trips, aligned/dashed stroke regions, zero-extent line outlines, Boolean identities/undo, retained-cache invalidation, transformed gestures, source/instance corner overrides, stable primitive anchor order, the destructive Boolean compatibility API and bounded validation. Pixel comparisons and high-resolution curve-position checks supplement object-state assertions.
+The engine runner retains the earlier geometry, layout, design-system, prototype and editing regressions and adds compound vector coverage. It checks contour-local adjacency and subdivision, winding and holes, rational-conic conversion, cut/join/reverse/delete preflight, clipboard/components, schema migration, native cache invalidation and sparse captured dragging. Pixel comparisons and high-resolution curve samples supplement object-state assertions. The executable prints the exact case count and exits nonzero on any failure. The source contains 610 engine cases, including 16 conversion/resize regressions for zero/subpixel lines and arrows under rotation/reflection, coordinate-only serialization, legacy derived-metadata compatibility for schemas 1–7 and finite-coordinate validation. Two further cases keep open-arc fills suppressed through explicit vector conversion, color changes, undo/redo and persistence.
 
-The collaboration model runner contains **20 cases**. The shared-editor runner contains **23**, including a projection oracle with **59 equivalence/reuse assertions**. Six publication tests and **nine input-readiness harness tests** cover build metadata/assets, unobstructed Skia control readiness and modal containment when the inspector has an identically named control.
+The collaboration model runner contains 20 cases. The shared-editor runner contains 24, including 59 projection equivalence/reuse assertions and a compound-property-versus-peer-transform case. Six publication tests and nine input-readiness tests cover package/assets metadata, actual Skia control readiness and modal containment.
 
-**Ten black-box HTTP tests** start the actual ASP.NET process. They test authorization, roles, revocation, concurrent edits, idempotence, presence, long polls, journal recovery and schema-4/5 room upgrades to schema 6. The schema-5 test edits upgraded stroke alignment, restarts the service and reads earlier history. No in-memory transport replaces the server.
+Eleven black-box HTTP tests start the actual ASP.NET process. They cover authorization, revocation, concurrency, idempotence, presence, long polls, journal recovery and persisted schema-4/5/6 room upgrades to current schema 7. The schema-6 case authors compound contours after upgrade, restarts the service and checks earlier history. An in-memory mock does not replace the server.
 
-These counts describe source coverage. Passing results require the matching commit's Actions run and retained reports; a source count alone is not a delivery claim.
+Source counts describe coverage, not a passing delivery. Use the matching commit's Actions run and retained reports for results.
 
-## Browser workflows
+## Browser acceptance
 
-The complete suite contains **61 Chromium cases**: 48 static editor workflows and 13 independent multi-window collaboration workflows tagged `@collaboration`. Eight new static cases use actual corner/arc fields and grips, Alt/Shift modifiers, capture cancellation, stroke controls/property transfer, live Boolean editing/flatten/release, stroke outlines and the original Shape playground. They inspect downloaded native files and rendered pixels as well as read-only diagnostics.
+The source suite contains **73 Chromium cases**: **59 static editor cases** and **14 independent multi-window collaboration cases** tagged `@collaboration`. The eight compound static cases cover Enter conversion, holes/islands, cross-contour anchor selection and dragging, contour deletion/undo, fill rules, cut/join, capture cancellation, seam subdivision and the original Vector playground. Two further cases verify selection-only clicks preserve zero-extent primitives without starting history, convert lines/arrows through Enter, check world endpoints, keyboard-resize the resulting path and undo back to the exact primitive. An additional open-arc case checks actual fill pixels and paint visibility before conversion, afterward and after undo. Prior shape, text, image, prototype, design-system, property-clipboard and auto-layout workflows remain in the suite.
 
-A two-client shape case verifies corner changes and own undo retain a peer's later move; stroke outline children then synchronize across the actual service. The other collaboration cases exercise consent/joining, roles, presence/following, comments, offline reconnect/recovery, revision restoration and revocation during pointer/text transactions.
+The new compound multi-window case changes inner anchors in one client, moves the layer in another, then verifies own undo and redo preserve the peer transform. Whole `contours` properties use the existing guarded shared transactions; these tests do not establish vector-CRDT semantics for simultaneous edits to the same property. Existing role/revocation/reconnect/recovery/presence/history/comment tests are retained.
 
-The prior 40 static cases retain editing, text-save/re-entry, image/SVG, auto-layout, design-system and prototype checks. Tests use real pointer, keyboard, file-picker and clipboard input. `?test=1` provides read-only coordinates/state, not a document mutation API. Credentials are temporary and sensitive input values are excluded from diagnostics.
-
-Quick-action tests restrict targets to the modal result area, rather than clicking an identically named control behind the palette. Clipboard tests grant the test browser its clipboard permission, verify the actual serialized clipboard contents and wait for the pasted property before saving. Corner cancellation compares the exact committed pointer-derived baseline, not a rounded coordinate literal. Existing point-editing tests retain their original top-left clockwise anchor assertions; the native geometry implementation must preserve that ordering.
+All edits use actual pointer, keyboard, file-picker, clipboard and Uno controls. `?test=1` exposes read-only state and bounds, never a document mutation API. Tests inspect downloaded native files and real rendered pixels. Modal result containment prevents clicking identically named inspector controls behind a dialog. Clipboard operations wait for actual copied/pasted contents. Input retries and skipped failing cases are not used to obtain a passing report.
 
 ## Build and deployment gates
 
-**Build** validates engine, collaboration and browser jobs, then retains ten reusable package/symbol pairs, a self-hostable server, benchmarks and source/test artifacts. **Desktop** separately compiles Windows, Linux and macOS; compilation is not native interaction certification.
+**Build** validates engine, collaboration and browser jobs, retaining ten reusable package/symbol pairs, a self-hostable server, benchmarks and source/test artifacts. **Desktop** separately compiles Windows, Linux and macOS. Compilation is not native interaction certification.
 
-**Pages** deploys the successful main browser artifact without rebuilding it, verifies `build-info.json` against the source commit and runs the **48 static cases** on the public URL. The 13 collaboration cases run against the same browser artifact and a temporary compiled backend during Build. Excluding them from static-only Pages checks is not evidence of a hosted public backend.
+**Pages** deploys the successful main browser artifact without rebuilding it, verifies `build-info.json` against its source commit, then runs the **59 static cases** on the public URL. The 14 collaboration cases run against that browser artifact and a temporary real backend during Build. Static Pages success is not proof of a persistent public backend deployment.
 
-A persistent collaboration service requires separate HTTPS hosting and disk. Packages reach NuGet.org only through the configured tagged-release workflow; ordinary CI artifacts are build outputs, not publication.
+A production collaboration service needs separate HTTPS hosting and persistent disk. NuGet.org publication requires the configured tagged-release workflow; normal CI packages are build artifacts, not a release publication.
 
 ## Reproduce
 
@@ -45,8 +43,8 @@ python3 scripts/run-collaboration-browser-tests.py
 npm run test:browser -- --grep-invert @collaboration
 ```
 
-The shape benchmark (`--benchmark-shapes`) verifies native command equivalence for 160 shapes, then compares warm stroke-region rebuilding with retained reuse in interleaved batches. Native allocations, painting, UI, layout, history, network and cold setup are excluded. Existing snapping, appearance, editing-workflow and collaboration benchmarks keep their own correctness oracles. See [performance](PERFORMANCE.md) and [shape semantics](SHAPES.md).
+The sparse capture benchmark (`--benchmark-contours`) validates 610,000 anchor states before comparing full-path capture/reset against selected-anchor capture. Topology is retained in both paths. It excludes history, renderer scans, painting, layout, hit testing, UI, networking and cold setup. Other geometry/appearance/snapping/editing/collaboration benchmarks retain their own equivalence oracles. See [performance](PERFORMANCE.md), [compound editing](CONTOURS.md) and [shape semantics](SHAPES.md).
 
 ## Certification boundaries
 
-Chromium is the automated browser target. Native UI interaction, other browsers, broad assistive-technology compatibility, production security/load testing, all-filesystem power-loss durability and complete Figma product/pixel parity are not certified. See [features](FEATURES.md), [collaboration](COLLABORATION.md) and [hosting](HOSTING.md).
+Chromium is the automated browser target. Other browsers, native UI interaction, broad assistive-technology compatibility, production security/load testing, all-filesystem power-loss durability, complete branching vector networks and Figma product/pixel parity are not certified. See [features](FEATURES.md), [collaboration](COLLABORATION.md) and [hosting](HOSTING.md).

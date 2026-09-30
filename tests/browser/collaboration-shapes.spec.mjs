@@ -28,7 +28,7 @@ test('@collaboration independent corners and stroke geometry converge without ov
   await expect.poll(async () => (await shared(page)).pending).toBe(0);
   await expect.poll(async () => (await shared(bob)).revision).toBe((await shared(page)).revision);
   const saved = await document(bob, 'shared-shape-outline.vectorspace');
-  expect(saved.formatVersion).toBe(6); expect(node(saved, 'a').children.some(c => c.commands?.length > 0)).toBe(true);
+  expect(saved.formatVersion).toBe(7); expect(node(saved, 'a').children.some(c => c.commands?.length > 0)).toBe(true);
   expect(node(saved, 'a').x).toBe(81);
   expect((await shared(page)).recovery).toBe(0); expect((await shared(bob)).recovery).toBe(0);
 });

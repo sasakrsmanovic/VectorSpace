@@ -85,7 +85,10 @@ internal static class BrowserDiagnostics
                 json.WriteNumber("effects", primary?.Shadows.Count ?? 0);
                 json.WriteBoolean("vectorEditing", workbench.Surface.IsVectorEditing);
                 json.WriteStartArray("selectedPoints"); foreach (var index in workbench.Surface.SelectedPointIndices) json.WriteNumberValue(index); json.WriteEndArray();
-                json.WriteNumber("points", primary?.Points.Count ?? 0);
+                json.WriteNumber("points", primary?.Contours?.Sum(c => c.Points.Count) ?? primary?.Points.Count ?? 0);
+                json.WriteNumber("contours", primary?.Contours?.Count ?? (primary?.Points.Count > 0 ? 1 : 0));
+                json.WriteNumber("activeContour", workbench.Surface.ActiveContourIndex);
+                json.WriteString("fillRule", primary?.FillRule.ToString());
                 json.WriteNumber("sides", primary?.Sides ?? 0);
                 json.WriteNumber("guides", session.Page.Guides.Count);
                 json.WriteBoolean("interacting", session.IsInteracting);

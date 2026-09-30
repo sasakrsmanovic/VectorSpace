@@ -1,10 +1,10 @@
 # Tools and direct editing
 
-Version 0.5 adds a point-editing mode, precision line construction, tool-lifecycle fixes and reusable geometry commands. All editing is C#/Uno/Skia; browser diagnostics are read-only.
+The point editor supports single and compound cubic contours, precision line construction, captured gestures and reusable geometry commands. All editing is C#/Uno/Skia; browser diagnostics are read-only.
 
 ## Vector points
 
-Select a vector shape and press **Enter**, double-click it, or choose **Edit vector points**. Rectangles, ellipses, polygons, stars, lines and single-contour SVG paths can be converted transactionally. Existing point paths enter without a conversion history entry. Compound paths are left unchanged and report that multiple contours are not supported; this avoids flattening holes or losing disconnected geometry. Instance geometry must be detached first.
+Select a vector shape and press **Enter**, double-click it, or choose **Edit vector points**. Rectangles, ellipses, polygons, stars, lines and single/compound SVG or native paths can be converted transactionally. Existing editable paths enter without a conversion history entry. Compound conversion retains each open/closed contour and its winding; holes and disconnected geometry are not merged. [Compound editing](CONTOURS.md) describes contour navigation, fill rules, cut/join and model limits. Instance geometry must be detached first.
 
 Click an anchor to select it, Shift-click to toggle additional anchors, or drag a box to select points. Dragging a selected anchor moves all selected anchors and their tangent handles from one captured baseline. Arrow keys nudge selected points by one world unit; Shift uses ten. A plain click on an already selected anchor collapses the selection on release; dragging preserves it. Layer coordinates do not change. Point coordinates account for path scaling and rotated/reflected ancestors.
 
@@ -12,11 +12,11 @@ Click a segment to insert an anchor. Cubic insertion uses exact de Casteljau sub
 
 Selected anchors expose their handles. Drag a handle to retain the opposite handle's length and alignment, or hold Alt to move it independently. Shift constrains the handle angle to 45-degree increments. **Smooth**, **Mirrored**, and **Corner** construct balanced tangents, equal-length tangents, or remove tangents, respectively. B smooths; Alt+B makes corners. Double-clicking an anchor toggles smooth/corner.
 
-Delete removes selected anchors and reconnects surviving neighbors; it does **not** perform Figma's curve-fitting delete-and-heal. At least two anchors must remain. A closed contour reduced to two anchors becomes open. **Reverse path** swaps order and tangent directions. **Open/Close path** changes closure without throwing away endpoint handles. **Simplify freehand** applies only to open straight-segment polylines, preserving both endpoints. Its iterative error-bounded algorithm has a comparison budget; on adversarial input it retains the original contour instead of blocking or discarding detail.
+Delete removes selected anchors and reconnects surviving neighbors; it does **not** perform Figma's curve-fitting delete-and-heal. At least two anchors must remain in every affected contour; whole-contour removal is explicit. A closed contour reduced to two anchors becomes open. **Reverse path** swaps order and tangent directions. **Open/Close path** changes closure without throwing away endpoint handles. **Simplify freehand** applies only to open straight-segment polylines, preserving both endpoints. Its iterative error-bounded algorithm has a comparison budget; on adversarial input it retains the original contour instead of blocking or discarding detail.
 
 Enter or Escape leaves point mode while retaining the selected layer. During an active point drag, Escape first restores that drag; another Escape leaves point mode. Ctrl+Z/Redo restore document snapshots and rebind the active contour by identity rather than keeping stale references. Undo or redo during a captured point/layer geometry drag first cancels that interaction and releases capture; later pointer movement cannot reapply its abandoned baseline outside history. The point inspector and context menu expose the operations without requiring shortcuts.
 
-Conversion degree-elevates quadratic segments exactly. Rational conics are approximated with sixteen quadratic pieces per conic before cubic degree elevation. This is not an exact rational representation. Closest-segment insertion uses bounded numerical search in screen coordinates, not a certified global solver for every self-intersecting cubic.
+Conversion degree-elevates quadratic segments exactly. Rational conics use the shared bounded cubic approximation with a sampled 0.0005 local-unit positional tolerance. This is not an exact rational representation or a mathematical global-error guarantee; undo restores native source commands. Closest-segment insertion uses bounded numerical search in screen coordinates, not a certified global solver for every self-intersecting cubic.
 
 ## Drawing tools
 
@@ -48,6 +48,6 @@ Run the scoped benchmark with `dotnet run --project tests/VectorSpace.Tests -c R
 
 ## Boundaries
 
-This increment improves the existing tool set; it does not implement every Figma vector tool. Vector networks, multi-contour topology editing, shape builder, variable-width strokes, pressure brushes, vector eraser/knife/lasso, general path joining, corner smoothing, full rich text and pixel-identical Figma UI remain outstanding. Arbitrary affine skew, nested auto-layout precedence and other compatibility limits remain documented in [Features](FEATURES.md).
+This increment improves the existing tool set; it does not implement every Figma vector tool. Branching vector networks, per-region paints, shape builder, variable-width strokes, pressure brushes, vector eraser/knife/lasso, endpoint welding/curve healing, corner smoothing, full rich text and pixel-identical Figma UI remain outstanding. Open endpoint joining within one layer and explicit anchor cuts are supported, not arbitrary intersection-based knife operations. Arbitrary affine skew, nested auto-layout precedence and other compatibility limits remain documented in [Features](FEATURES.md).
 
 Behavior reference: [Figma vector editing](https://help.figma.com/hc/en-us/articles/360039957634-Edit-vector-layers). This reference defines terminology, not a binary/pixel compatibility claim.

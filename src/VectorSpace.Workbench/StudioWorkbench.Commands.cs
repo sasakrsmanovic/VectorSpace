@@ -94,6 +94,10 @@ public sealed partial class StudioWorkbench
             AddMenu(menu, "Corner points", () => Run(() => Surface.SetPointTangents(TangentMode.Corner)));
             AddMenu(menu, "Split selected segments", () => Run(Surface.SplitSelectedSegments));
             AddMenu(menu, "Delete selected anchors", () => Run(Surface.DeleteSelectedPoints));
+            AddMenu(menu, "Select contour", () => Run(() => Surface.SelectContour()));
+            AddMenu(menu, "Cut at selected anchor", () => Run(Surface.CutSelectedAnchor), Surface.CanCutAnchor);
+            AddMenu(menu, "Join selected endpoints", () => Run(Surface.JoinSelectedEndpoints), Surface.CanJoinEndpoints);
+            AddMenu(menu, "Delete contour", () => Run(Surface.DeleteActiveContour), Surface.VectorContourCount > 1);
             AddMenu(menu, "Done editing", Surface.EndVectorEdit);
             menu.ShowAt(Surface, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position }); return;
         }

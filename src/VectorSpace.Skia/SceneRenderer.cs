@@ -9,7 +9,8 @@ public sealed partial class SceneRenderer : IDisposable
 {
     private readonly record struct GeometryKey(NodeKind Kind, double Width, double Height, double Radius, int Sides, double Ratio, string? Data, double PathWidth, double PathHeight, bool Closed, CornerRadii? Corners, EllipseArc? Arc, PathFillRule FillRule);
     private readonly record struct PointKey(Vec2 Position, Vec2? In, Vec2? Out);
-    private sealed record CachedPath(GeometryKey Key, PointKey[] Points, SKPath Path, LinkedListNode<string> Recency, PathCommand[]? Commands);
+    private sealed record ContourKey(bool Closed, PointKey[] Points);
+    private sealed record CachedPath(GeometryKey Key, PointKey[] Points, SKPath Path, LinkedListNode<string> Recency, PathCommand[]? Commands, ContourKey[]? Contours);
     private readonly LinkedList<string> _recency = new();
     private readonly record struct TextKey(string Text, string Family, int Weight, double Size, double Width, double Spacing);
     private sealed record TextLine(string Text, float Width);
@@ -54,7 +55,7 @@ public sealed partial class SceneRenderer : IDisposable
     {
         if (node.IsBoolean) return BooleanGeometry(node);
         var key = new GeometryKey(node.Kind, node.Width, node.Height, node.CornerRadius, node.Sides, node.StarRatio, node.PathData, node.PathWidth, node.PathHeight, node.Closed, node.Corners, node.Arc, node.FillRule);
-        if (_paths.TryGetValue(node.Id, out var cache) && cache.Key == key && PointsEqual(cache.Points, node) && CommandsEqual(cache.Commands, node.Commands))
+        if (_paths.TryGetValue(node.Id, out var cache) && cache.Key == key && PointsEqual(cache.Points, node) && CommandsEqual(cache.Commands, node.Commands) && ContoursEqual(cache.Contours, node.Contours))
         {
             GeometryCacheHits++; _recency.Remove(cache.Recency); _recency.AddLast(cache.Recency); return cache.Path;
         }
@@ -64,7 +65,7 @@ public sealed partial class SceneRenderer : IDisposable
         RemoveCached(node.Id);
         while (_paths.Count >= Math.Max(1, GeometryCacheCapacity) && _recency.First is { } oldest) RemoveCached(oldest.Value);
         var points = node.Kind == NodeKind.Path ? node.Points.Select(p => new PointKey(p.Position, p.ControlIn, p.ControlOut)).ToArray() : [];
-        var recency = _recency.AddLast(node.Id); _paths[node.Id] = new(key, points, path, recency, node.Commands?.ToArray()); GeometryBuilds++;
+        var recency = _recency.AddLast(node.Id); _paths[node.Id] = new(key, points, path, recency, node.Commands?.ToArray(), CaptureContours(node.Contours)); GeometryBuilds++;
         return path;
     }
     private static bool CommandsEqual(PathCommand[]? cached, List<PathCommand>? commands)
@@ -77,6 +78,30 @@ public sealed partial class SceneRenderer : IDisposable
         if (node.Kind != NodeKind.Path) return true;
         if (cached.Length != node.Points.Count) return false;
         for (var i = 0; i < cached.Length; i++) { var p = node.Points[i]; if (cached[i] != new PointKey(p.Position, p.ControlIn, p.ControlOut)) return false; }
+        return true;
+    }
+    private static ContourKey[]? CaptureContours(List<PathContour>? contours)
+    {
+        if (contours is null) return null;
+        var result = new ContourKey[contours.Count];
+        for (var c = 0; c < result.Length; c++)
+        {
+            var source = contours[c]; var points = new PointKey[source.Points.Count];
+            for (var i = 0; i < points.Length; i++) { var p = source.Points[i]; points[i] = new(p.Position, p.ControlIn, p.ControlOut); }
+            result[c] = new(source.Closed, points);
+        }
+        return result;
+    }
+    private static bool ContoursEqual(ContourKey[]? cached, List<PathContour>? contours)
+    {
+        if (cached is null || contours is null) return cached is null && contours is null;
+        if (cached.Length != contours.Count) return false;
+        for (var c = 0; c < cached.Length; c++)
+        {
+            var a = cached[c]; var b = contours[c];
+            if (a.Closed != b.Closed || a.Points.Length != b.Points.Count) return false;
+            for (var i = 0; i < a.Points.Length; i++) { var p = b.Points[i]; if (a.Points[i] != new PointKey(p.Position, p.ControlIn, p.ControlOut)) return false; }
+        }
         return true;
     }
     public void Draw(SKCanvas canvas, IEnumerable<DesignNode> nodes, RectD? worldViewport = null)

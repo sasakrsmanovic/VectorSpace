@@ -43,8 +43,8 @@ export function server() {
   if (!process.env.VECTORSPACE_COLLAB_URL || !process.env.VECTORSPACE_CREATE_KEY) throw new Error('Start the real collaboration service with scripts/run-collaboration-browser-tests.py');
   return process.env.VECTORSPACE_COLLAB_URL;
 }
-export async function room(request) {
-  const response = await request.post(server() + '/api/rooms', { headers: { 'X-VectorSpace-Create-Key': process.env.VECTORSPACE_CREATE_KEY }, data: { document: JSON.stringify(fixture()), name: 'Alice' } });
+export async function room(request, document = fixture()) {
+  const response = await request.post(server() + '/api/rooms', { headers: { 'X-VectorSpace-Create-Key': process.env.VECTORSPACE_CREATE_KEY }, data: { document: JSON.stringify(document), name: 'Alice' } });
   expect(response.ok()).toBe(true); const grant = await response.json(); return { ...grant, server: server() };
 }
 export async function invite(request, owner, name = 'Bob', role = 'Editor') {

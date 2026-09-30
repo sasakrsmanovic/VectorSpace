@@ -108,7 +108,7 @@ internal static partial class ShapeTests
         });
         test("schema-five documents retain legacy round centered stroke defaults", () => {
             var d = DocumentJson.Load("{\"formatVersion\":5,\"pages\":[{\"nodes\":[{\"strokes\":[{\"width\":3}]}]}]}"); var n = d.Pages[0].Nodes[0];
-            Check(d.FormatVersion == 6 && n.Corners is null && n.Arc is null && n.Commands is null && n.Strokes[0].Alignment == StrokeAlignment.Center && n.Strokes[0].Cap == StrokeCap.Round && n.Strokes[0].Join == StrokeJoin.Round);
+            Check(d.FormatVersion == DesignDocument.CurrentFormatVersion && n.Corners is null && n.Arc is null && n.Commands is null && n.Strokes[0].Alignment == StrokeAlignment.Center && n.Strokes[0].Cap == StrokeCap.Round && n.Strokes[0].Join == StrokeJoin.Round);
         });
     }
 }

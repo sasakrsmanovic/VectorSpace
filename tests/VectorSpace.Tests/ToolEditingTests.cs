@@ -186,7 +186,9 @@ internal static class ToolEditingTests
         test("multi-contour conversion leaves compound holes untouched", () =>
         {
             var n = new DesignNode { Kind = NodeKind.Path, PathData = "M0 0H100V100H0Z M20 20V80H80V20Z" }; var e = Editor(n); using var r = new SceneRenderer();
-            var before = DocumentJson.Save(e.Document); Throws<InvalidOperationException>(() => EditablePathConversion.Convert(e, r, n)); Check(DocumentJson.Save(e.Document) == before && !e.CanUndo);
+            var before = DocumentJson.Save(e.Document); EditablePathConversion.Convert(e, r, n);
+            Check(n.Contours?.Count == 2 && !r.Geometry(n).Contains(50, 50) && r.Geometry(n).Contains(10, 10));
+            e.Undo(); Check(DocumentJson.Save(e.Document) == before);
         });
         test("editable geometry equals SVG reference for integer cubic controls", () =>
         {

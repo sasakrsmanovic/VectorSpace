@@ -8,6 +8,7 @@ using VectorSpace.Skia;
 
 if (args.Contains("--benchmark-workflows")) return EditingWorkflowBenchmarks.Run();
 if (args.Contains("--benchmark-editing")) return EditingBenchmarks.Run();
+if (args.Contains("--benchmark-contours")) return CompoundPathBenchmarks.Run();
 if (args.Contains("--benchmark-shapes")) return ShapeBenchmarks.Run();
 if (args.Contains("--benchmark-appearance")) return AppearanceBenchmarks.Run();
 if (args.Contains("--benchmark")) return PerformanceBenchmarks.Run();
@@ -88,6 +89,7 @@ DrawingTargetTests.Register(Test);
 EditingWorkflowTests.Register(Test);
 ShapeTests.Register(Test);
 ShapeIntegrationTests.Register(Test);
+CompoundPathTests.Register(Test);
 StrokeOutlineExtentTests.Register(Test);
 
 var failed = 0;

@@ -32,6 +32,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     private string[] _marqueeBaseline = [];
     private SnapIndex _snapIndex = SnapIndex.Empty;
     private DesignNode? _pendingDuplicate;
+    private bool _moveStarted;
     private int _controlHandle;
     private bool _frameQueued;
     private IReadOnlyList<SnapLine> _snapLines = [];
@@ -86,7 +87,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
                 if (index >= 0 && handle == 0)
                 {
                     _pointSelection.Clear(); _pointSelection.Add(index);
-                    var point = vector.Points[index]; SetPointTangents(point.ControlIn is null && point.ControlOut is null ? TangentMode.Smooth : TangentMode.Corner);
+                    var point = Topology.Points[index]; SetPointTangents(point.ControlIn is null && point.ControlOut is null ? TangentMode.Smooth : TangentMode.Corner);
                 }
                 e.Handled = true; return;
             }
@@ -123,17 +124,18 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             // Never let transient gesture references survive the transaction they belong to.
             if (Session?.IsInteracting != true)
             {
-                _gesture = Gesture.None; _created = null; _penNode = null;
+                _gesture = Gesture.None; _moveStarted = false; _pendingDuplicate = null; _created = null; _penNode = null;
                 _marquee = null; _guide = null; _snapLines = []; _originals.Clear();
                 _canvas.ReleasePointerCaptures();
             }
             Renderer.TrimCache(Session?.Page.AllNodes().Select(n => n.Id) ?? []); _hover = null;
+            _pointTopology = null; _pointDrag = null;
             if (_vectorNode is not null) _vectorNode = Session?.Document.Find(_vectorNode.Id);
         }
         if (e.Kind == EditorChangeKind.Tool)
         {
             if (_penNode is not null) CompletePath(false, false);
-            else if (Session?.IsInteracting == true && !IsTextEditing) CancelGesture();
+            else if ((Session?.IsInteracting == true || _gesture == Gesture.Move) && !IsTextEditing) CancelGesture();
             if (Session?.Tool != EditorTool.Move) { _vectorNode = null; _pointSelection.Clear(); }
         }
         if (e.Kind is EditorChangeKind.Document or EditorChangeKind.Selection) ValidateVectorTarget();
@@ -220,9 +222,13 @@ public sealed partial class DesignSurface : UserControl, IDisposable
         {
             if (shift) { editor.Select(hit, true); if (!editor.SelectedIds.Contains(hit.Id)) return; }
             else if (!editor.SelectedIds.Contains(hit.Id)) editor.Select(hit);
-            editor.BeginInteraction(alt ? "Duplicate layers" : "Move layers");
+            // Selection alone must not normalize layout, clone the document into
+            // history or enqueue a collaborative edit. Capture the drag only once
+            // pointer movement crosses its threshold; current permissions and node
+            // identities are checked then. A remote document replacement cancels
+            // the pending gesture through SessionChanged before it can activate.
             _pendingDuplicate = alt ? hit : null;
-            CaptureOriginals(); _gesture = Gesture.Move;
+            _moveStarted = false; _gesture = Gesture.Move;
         }
         else
         {
@@ -270,7 +276,12 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             case Gesture.ImageCrop: MoveImageCrop(world); break;
             case Gesture.Pan: editor.Viewport.Pan = _startPan + screen - _startScreen; editor.Notify(EditorChangeKind.Viewport); break;
             case Gesture.Move:
-                if (screen.DistanceTo(_startScreen) < 3) break;
+                if (!_moveStarted)
+                {
+                    if (screen.DistanceTo(_startScreen) < 3) break;
+                    editor.BeginInteraction(_pendingDuplicate is null ? "Move layers" : "Duplicate layers");
+                    CaptureOriginals(); _moveStarted = true;
+                }
                 if (_pendingDuplicate is not null)
                 {
                     _pendingDuplicate = null; editor.DuplicateInTransaction(editor.SelectionRoots); CaptureOriginals();
@@ -363,7 +374,9 @@ public sealed partial class DesignSurface : UserControl, IDisposable
             if (node.Kind == NodeKind.Text) BeginTextEdit(node);
         }
         else if (gesture == Gesture.Pencil) FinishPath(false);
-        else if (gesture is not Gesture.None and not Gesture.Pan and not Gesture.Marquee and not Gesture.PenControl) editor.CommitInteraction();
+        else if (gesture is not Gesture.None and not Gesture.Pan and not Gesture.Marquee and not Gesture.PenControl &&
+            (gesture != Gesture.Move || _moveStarted)) editor.CommitInteraction();
+        _moveStarted = false; _pendingDuplicate = null;
         _marquee = null; _guide = null; _snapLines = []; RequestFrame();
     }
     private void Wheel(object sender, PointerRoutedEventArgs e)
@@ -378,7 +391,7 @@ public sealed partial class DesignSurface : UserControl, IDisposable
     }
     public void CancelGesture()
     {
-        _shapeNodeId = null; _shapeDocument = null; _shapeGesture = null; _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _pathPreviewWorld = null; _vectorNode = null; _pointSelection.Clear(); _pointMarquee = null;
+        _shapeNodeId = null; _shapeDocument = null; _shapeGesture = null; _cropNodeId = null; _cropDocument = null; _pendingDuplicate = null; _moveStarted = false; _gesture = Gesture.None; _created = null; _marquee = null; _snapLines = []; _guide = null; _penNode = null; _pathPreviewWorld = null; _vectorNode = null; _pointSelection.Clear(); _pointMarquee = null;
         Session?.CancelInteraction(); _canvas.ReleasePointerCaptures(); RequestFrame();
     }
     private static DesignNode NewNode(EditorTool tool, Vec2 point)

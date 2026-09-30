@@ -39,19 +39,25 @@ public static class NativeShapeGeometry
             }
             path.Close();
         }
-        else if (node.Kind == NodeKind.Path && node.Points.Count > 0)
+        else if (node.Kind == NodeKind.Path && node.Contours is { } contours)
         {
-            var points = node.Points; path.MoveTo(P(points[0].Position));
-            for (var i = 1; i < points.Count; i++) Segment(points[i - 1], points[i]);
-            if (node.Closed) { Segment(points[^1], points[0]); path.Close(); }
-            void Segment(PathPoint a, PathPoint b)
-            {
-                if (a.ControlOut.HasValue || b.ControlIn.HasValue) path.CubicTo(P(a.ControlOut ?? a.Position), P(b.ControlIn ?? b.Position), P(b.Position));
-                else path.LineTo(P(b.Position));
-            }
+            foreach (var contour in contours) AddEditableContour(path, contour.Points, contour.Closed);
         }
+        else if (node.Kind == NodeKind.Path && node.Points.Count > 0) AddEditableContour(path, node.Points, node.Closed);
         else if (node.Kind != NodeKind.Path) AddCornerBox(path, node);
         return path;
+    }
+    private static void AddEditableContour(SKPath path, IReadOnlyList<PathPoint> points, bool closed)
+    {
+        if (points.Count == 0) return;
+        path.MoveTo(P(points[0].Position));
+        for (var i = 1; i < points.Count; i++) Segment(points[i - 1], points[i]);
+        if (closed) { Segment(points[^1], points[0]); path.Close(); }
+        void Segment(PathPoint a, PathPoint b)
+        {
+            if (a.ControlOut.HasValue || b.ControlIn.HasValue) path.CubicTo(P(a.ControlOut ?? a.Position), P(b.ControlIn ?? b.Position), P(b.Position));
+            else path.LineTo(P(b.Position));
+        }
     }
     public static void AddCornerBox(SKPath path, DesignNode node)
     {

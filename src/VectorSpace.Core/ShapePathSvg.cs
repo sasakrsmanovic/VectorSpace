@@ -61,7 +61,7 @@ public static class ShapePathSvg
                 case PathVerb.Line: b.Append('L').Append(P(c.Point)); break;
                 case PathVerb.Quadratic: b.Append('Q').Append(P(c.Control1)).Append(' ').Append(P(c.Point)); break;
                 case PathVerb.Cubic: Cubic(c.Control1, c.Control2, c.Point); break;
-                case PathVerb.Conic: Conic(position, c.Control1, c.Point, c.Weight, 0, 1, 0); break;
+                case PathVerb.Conic: ConicApproximation.AppendCubics(position, c.Control1, c.Point, c.Weight, curve => Cubic(curve.Control1, curve.Control2, curve.Point)); break;
                 case PathVerb.Close: b.Append('Z'); position = contour; continue;
                 default: throw new ArgumentOutOfRangeException(nameof(commands));
             }
@@ -72,30 +72,6 @@ public static class ShapePathSvg
         {
             if (b.Length > 32 * 1024 * 1024) throw new InvalidOperationException("SVG path exceeds the export budget.");
             b.Append('C').Append(P(c1)).Append(' ').Append(P(c2)).Append(' ').Append(P(end));
-        }
-        void Conic(Vec2 a, Vec2 c, Vec2 z, double w, double t0, double t1, int depth)
-        {
-            (Vec2 Value, Vec2 Derivative) Evaluate(double t)
-            {
-                var u = 1 - t; var d = u * u + 2 * w * t * u + t * t;
-                var numerator = a * (u * u) + c * (2 * w * t * u) + z * (t * t);
-                var nd = a * (-2 * u) + c * (2 * w * (1 - 2 * t)) + z * (2 * t);
-                var dd = -2 * u + 2 * w * (1 - 2 * t) + 2 * t;
-                return (numerator / d, (nd * d - numerator * dd) / (d * d));
-            }
-            var left = Evaluate(t0); var right = Evaluate(t1); var h = (t1 - t0) / 3;
-            var c1 = left.Value + left.Derivative * h; var c2 = right.Value - right.Derivative * h;
-            var error = 0d;
-            for (var i = 1; i <= 3; i++)
-            {
-                var t = i / 4d; var u = 1 - t;
-                var cubic = left.Value * (u * u * u) + c1 * (3 * u * u * t) + c2 * (3 * u * t * t) + right.Value * (t * t * t);
-                error = Math.Max(error, cubic.DistanceTo(Evaluate(t0 + (t1 - t0) * t).Value));
-            }
-            if (error <= .0005) { Cubic(c1, c2, right.Value); return; }
-            if (depth >= 16) throw new InvalidOperationException("A rational curve exceeds the bounded SVG approximation tolerance.");
-            var middle = (t0 + t1) / 2;
-            Conic(a, c, z, w, t0, middle, depth + 1); Conic(a, c, z, w, middle, t1, depth + 1);
         }
     }
 }

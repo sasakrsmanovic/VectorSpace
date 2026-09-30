@@ -82,3 +82,8 @@ Presence does not enter undo history or trigger document projection. Client samp
 Paint color/opacity and a whole-layer transform do not invalidate local stroke geometry. Source geometry, width, alignment, cap, join, miter, dashes or phase do. LRU entries own their region and optional hit-tolerance path; capacity reductions and deleted-layer trimming dispose excess resources immediately. Live Boolean keys track operation, ordered operand identities, transforms and geometry references instead of cloning or serializing descendants every frame.
 
 The report includes per-query managed bytes and elapsed batch time. It excludes painting, native allocations, UI, layout, history, network and cold setup. Source geometry is cached in both implementations; this is a resource-construction benchmark, not an application-wide frame-rate or Figma comparison. See [shape semantics](SHAPES.md). Native conic round-trip pixel equality and high-resolution SVG approximation checks are separate correctness regressions.
+
+
+## Sparse compound-anchor capture (0.9)
+
+`--benchmark-contours` compares the former full-anchor snapshot/reset strategy with `PathPointDrag` using retained `PathTopology`. The workload selects two of 10,000 anchors in 2,500 contours, captures ten gestures and applies 60 samples each. A 610,000-comparison oracle precedes five warmed interleaved batches. Both implementations share the same anchor ordering and deltas. Capture/allocation time excludes topology creation, history snapshots, renderer key scans, hit testing, painting, native allocations, UI, layout, networking and cold setup. Do not interpret it as editor frame rate. Exact commit reports are retained in the Actions performance artifact. [Semantics and APIs](CONTOURS.md).

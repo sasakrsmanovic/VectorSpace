@@ -148,13 +148,15 @@ public sealed partial class DesignSurface
         using var fill = new SKPaint { Color = SKColors.White, IsAntialias = true };
         var transform = PathEditing.PointToWorld(node);
         Vec2 Screen(Vec2 p) => Session.Viewport.WorldToScreen(transform.Map(p));
-        for (var i = 0; i < node.Points.Count; i++)
+        var topology = node == _vectorNode ? Topology : null;
+        var points = topology?.Points ?? node.Points;
+        for (var i = 0; i < points.Count; i++)
         {
-            var point = node.Points[i]; var p = Screen(point.Position);
-            if (_pointSelection.Contains(i) || node == _penNode && i == node.Points.Count - 1)
+            var point = points[i]; var p = Screen(point.Position);
+            if (_pointSelection.Contains(i) || node == _penNode && i == points.Count - 1)
             {
-                if (point.ControlIn is { } incoming) Handle(incoming);
-                if (point.ControlOut is { } outgoing) Handle(outgoing);
+                if (point.ControlIn is { } incoming && (topology is null || topology.Previous(i) >= 0)) Handle(incoming);
+                if (point.ControlOut is { } outgoing && (topology is null || topology.Next(i) >= 0)) Handle(outgoing);
             }
             if (p.X < -8 || p.Y < -8 || p.X > ActualWidth + 8 || p.Y > ActualHeight + 8) continue;
             fill.Color = _pointSelection.Contains(i) ? stroke.Color : SKColors.White;

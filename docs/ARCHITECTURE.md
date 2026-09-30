@@ -10,7 +10,7 @@ Engine packages target `net10.0`; Uno libraries target `net10.0-browserwasm` and
 
 ## Document and transaction contract
 
-Nodes have stable IDs and parent-local double-precision transforms. Parent references are rebuilt after deserialization, not serialized. Cloning can retain or regenerate identities and remaps internal references. Native schema 4 migrates earlier supported versions; shared protocol state is a separate representation rather than a new native file format.
+Nodes have stable IDs and parent-local double-precision transforms. Parent references are rebuilt after deserialization, not serialized. Cloning can retain or regenerate identities and remaps internal references. Native schema 7 migrates schemas 1–6; shared protocol state is a separate representation rather than a new native file format.
 
 `EditorSession` owns the local selection, active page, viewport and current gesture. Previews mutate inside one transaction. A commit validates variable graphs, resolves bindings, synchronizes component definitions, resolves instance-context bindings, arranges layout, validates the result and captures the final document. Exceptions leave the pre-edit snapshot available for cancellation. Expected commit failures at pointer/text input boundaries roll back instead of propagating through Uno's event loop.
 
