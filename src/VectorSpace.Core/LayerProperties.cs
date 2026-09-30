@@ -59,7 +59,7 @@ public sealed class LayerProperties
             Typography = groups.HasFlag(PropertyGroups.Typography) && node.Kind == NodeKind.Text ? TypographyStyle.Capture(node) : null,
             Opacity = groups.HasFlag(PropertyGroups.Appearance) ? node.Opacity : null,
             Blend = groups.HasFlag(PropertyGroups.Appearance) ? node.Blend : null,
-            CornerRadius = groups.HasFlag(PropertyGroups.Appearance) && SupportsCorners(node) ? node.CornerRadius : null
+            CornerRadius = groups.HasFlag(PropertyGroups.Appearance) && SupportsCorners(node) && node.Corners is null ? node.CornerRadius : null
         };
     }
     public PropertyGroups Apply(DesignNode node, PropertyGroups groups = PropertyGroups.All)
@@ -73,7 +73,7 @@ public sealed class LayerProperties
         {
             if (Opacity is { } opacity) { node.Opacity = opacity; applied |= PropertyGroups.Appearance; }
             if (Blend is { } blend) { node.Blend = blend; applied |= PropertyGroups.Appearance; }
-            if (CornerRadius is { } radius && SupportsCorners(node)) { node.CornerRadius = radius; applied |= PropertyGroups.Appearance; }
+            if (CornerRadius is { } radius && SupportsCorners(node)) { node.CornerRadius = radius; node.Corners = null; applied |= PropertyGroups.Appearance; }
         }
         return applied;
     }

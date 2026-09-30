@@ -9,6 +9,7 @@ internal static class ShapeIntegrationTests
     private static void Check(bool value, string message = "Shape integration assertion failed") { if (!value) throw new Exception(message); }
     public static void Register(Action<string, Action> test)
     {
+        ShapeOverrideTests.Register(test);
         test("normal selection ignores a Boolean hole while entered scope reaches retained operands", () =>
         {
             var frame = new DesignNode { Kind = NodeKind.Frame, Width = 300, Height = 200 };
@@ -31,7 +32,7 @@ internal static class ShapeIntegrationTests
         {
             var frame = new DesignNode { Kind = NodeKind.Frame, Width = 300, Height = 200 };
             var group = frame.Add(new() { Kind = NodeKind.Group, Boolean = BooleanKind.Subtract, Width = 200, Height = 100 });
-            group.Add(new() { Width = 200, Height = 100 }); var hole = group.Add(new() { Kind = NodeKind.Ellipse, X = 50, Width = 100, Height = 100, PrototypeTargetId = "frame" });
+            group.Add(new() { Width = 200, Height = 100 }); group.Add(new() { Kind = NodeKind.Ellipse, X = 50, Width = 100, Height = 100, PrototypeTargetId = "frame" });
             using var renderer = new SceneRenderer(); Check(renderer.HitPrototypeFrame(frame, new(100, 50), Vec2.Zero) == frame);
             Check(renderer.HitPrototypeFrame(frame, new(20, 50), Vec2.Zero) == group);
         });

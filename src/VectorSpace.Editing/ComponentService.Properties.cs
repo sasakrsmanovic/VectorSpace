@@ -4,7 +4,9 @@ namespace VectorSpace.Editing;
 
 public static partial class ComponentService
 {
-    public static void SetPropertyOverrides(DesignNode node, PropertyGroups groups)
+    public static void SetPropertyOverrides(DesignNode node, PropertyGroups groups) => SetPropertyOverrides(node, groups, true);
+
+    internal static void SetPropertyOverrides(DesignNode node, PropertyGroups groups, bool captureCornerRadius)
     {
         var value = PropertiesFor(node); if (value is null) return;
         if (groups.HasFlag(PropertyGroups.Fills)) { value.Fill = null; value.Fills = StyleCloner.Fills(node.Fills); }
@@ -14,7 +16,9 @@ public static partial class ComponentService
         if (groups.HasFlag(PropertyGroups.Appearance))
         {
             value.Opacity = node.Opacity; value.Blend = node.Blend;
-            if (LayerProperties.SupportsCorners(node)) value.CornerRadius = node.CornerRadius;
+            // An opacity/blend edit must not invent a uniform-radius override that
+            // masks independent corners inherited from the definition.
+            if (captureCornerRadius && node.Corners is null && LayerProperties.SupportsCorners(node)) value.CornerRadius = node.CornerRadius;
         }
     }
     public static void SetNameOverride(DesignNode node)
