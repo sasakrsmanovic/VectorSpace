@@ -37,6 +37,8 @@ jobs:
           cat artifacts/benchmarks/editing.json
           dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-workflows > artifacts/benchmarks/editing-workflows.json
           cat artifacts/benchmarks/editing-workflows.json
+          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-shapes > artifacts/benchmarks/shapes.json
+          cat artifacts/benchmarks/shapes.json
       - uses: actions/upload-artifact@v7
         with:
           name: VectorSpace-performance

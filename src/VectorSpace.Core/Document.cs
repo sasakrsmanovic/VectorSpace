@@ -28,7 +28,7 @@ public sealed partial class FillStyle
     public Vec2 End { get; set; } = new(1, 1);
     public List<GradientStop> Stops { get; set; } = [new() { Offset = 0, Color = "#A78BFA" }, new() { Offset = 1, Color = "#6D28D9" }];
 }
-public sealed class StrokeStyle
+public sealed partial class StrokeStyle
 {
     public string Color { get; set; } = "#1E1E1E";
     public double Width { get; set; } = 1;
@@ -207,7 +207,7 @@ public sealed class CommentThread
 }
 public sealed class DesignDocument
 {
-    public const int CurrentFormatVersion = 5;
+    public const int CurrentFormatVersion = 6;
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Untitled";

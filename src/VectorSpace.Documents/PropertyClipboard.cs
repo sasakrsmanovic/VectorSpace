@@ -6,7 +6,7 @@ namespace VectorSpace.Documents;
 
 public sealed class PropertyClipboardPacket
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public string SourceName { get; set; } = "Layer";
     public LayerProperties Properties { get; set; } = new();
 }
@@ -34,7 +34,7 @@ public static class PropertyClipboard
         ArgumentNullException.ThrowIfNull(text);
         if (text.Length > DocumentJson.MaxDocumentCharacters || !text.StartsWith(Prefix, StringComparison.Ordinal)) throw new InvalidDataException("The clipboard does not contain supported VectorSpace properties.");
         var packet = JsonSerializer.Deserialize(text.AsSpan(Prefix.Length), PropertyClipboardJson.Default.PropertyClipboardPacket) ?? throw new InvalidDataException("Empty property clipboard.");
-        if (packet.Version != 1 || packet.SourceName is null || packet.SourceName.Length > 256 || packet.Properties is null) throw new InvalidDataException("Invalid property clipboard version or metadata.");
+        if (packet.Version is not (1 or 2) || packet.SourceName is null || packet.SourceName.Length > 256 || packet.Properties is null) throw new InvalidDataException("Invalid property clipboard version or metadata.");
         Validate(packet.Properties); return packet;
     }
     public static void Validate(LayerProperties p)
@@ -61,6 +61,7 @@ public static class PropertyClipboard
     }
     internal static void ValidateStrokes(List<StrokeStyle> strokes)
     {
+        foreach (var s in strokes) if (s is not null) ShapeValidation.Stroke(s);
         if (strokes.Count > 64) throw new InvalidDataException("A layer is limited to 64 strokes.");
         foreach (var s in strokes)
             if (s is null || s.Color is null || !double.IsFinite(s.Width) || s.Width is < 0 or > 1e5 || !double.IsFinite(s.Opacity) || s.Opacity is < 0 or > 1 ||

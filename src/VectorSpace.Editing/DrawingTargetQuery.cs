@@ -25,14 +25,5 @@ public static class DrawingTargetQuery
             if (Find(node.Children[i], world, worldPoint) is { } found) return found;
         return node.IsFrame && inside ? node : null;
     }
-    private static bool Contains(DesignNode node, Vec2 point)
-    {
-        if (!node.LocalBounds.Contains(point)) return false;
-        var radius = Math.Clamp(node.CornerRadius, 0, Math.Min(node.Width, node.Height) / 2);
-        if (radius <= 0) return true;
-        var x = Math.Clamp(point.X, radius, node.Width - radius);
-        var y = Math.Clamp(point.Y, radius, node.Height - radius);
-        var dx = point.X - x; var dy = point.Y - y;
-        return dx * dx + dy * dy <= radius * radius;
-    }
+    private static bool Contains(DesignNode node, Vec2 point) => ShapeGeometry.ContainsCornerBox(node, point);
 }

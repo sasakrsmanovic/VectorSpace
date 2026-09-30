@@ -119,6 +119,7 @@ public sealed partial class DesignSurface
             blue.StrokeWidth = 1;
         }
         for (var i = 0; i < 8; i += 2) canvas.DrawLine(P(points[i]), P(points[(i + 2) % 8]), blue);
+        if (IsShapeEditing) { DrawShapeHandles(canvas); return; }
         if (IsImageCropping)
         {
             // Crop mode manipulates image placement, not layer geometry. Replace resize/rotation

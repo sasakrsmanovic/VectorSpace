@@ -13,9 +13,15 @@ An infinite canvas, floating tool palette, contextual properties, local design s
 
 ![VectorSpace browser workbench](docs/images/workbench.png)
 
-**Source version: 0.7.0-alpha.1.** Original code, icons and samples. Independent of Figma and not a claim of complete Figma feature or pixel parity. Successful Pages runs and public `build-info.json` identify the deployed source; this version label alone does not prove deployment.
+**Source version: 0.8.0-alpha.1.** Original code, icons and samples. Independent of Figma and not a claim of complete Figma feature or pixel parity. Successful Pages runs and public `build-info.json` identify the deployed source; this version label alone does not prove deployment.
 
 **[Open the browser editor](https://wieslawsoltes.github.io/VectorSpace/)** · **[Editing workflows](docs/EDITING_WORKFLOWS.md)** · **[Collaboration](docs/COLLABORATION.md)** · **[Hosting](docs/HOSTING.md)** · **[Compatibility](docs/FEATURES.md)**
+
+## Shape editing and native geometry
+
+Independent corners, ellipse sectors/rings/open arcs, aligned strokes, caps/joins/miter/dash phase and live Boolean groups are editable through custom contextual controls. Corner/arc grips operate directly on the canvas with modifier, undo and cancellation support. Flattening and stroke outlines preserve exact native conic/compound contours rather than round-tripping the document through SVG text.
+
+The stroke/Boolean caches share geometry between drawing and picking, retain unchanged resources and dispose evicted paths. Open **Ctrl+K → Shape playground** for the original editable study. [Shape workflows, APIs and boundaries](docs/SHAPES.md) describe the supported behavior; this is not full vector-network editing or pixel-certified Figma parity. Native schema **6** requires updating collaborative clients and the self-hosted server together.
 
 ## New editing workflows
 

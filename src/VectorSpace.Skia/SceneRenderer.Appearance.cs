@@ -94,6 +94,7 @@ public sealed partial class SceneRenderer
     }
     private void DrawFill(SKCanvas canvas, DesignNode node, FillStyle fill, int fillIndex)
     {
+        if (node.Arc?.Open == true && node.Kind == NodeKind.Ellipse) return;
         using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, BlendMode = Blend(fill.Blend) };
         if (fill.Kind == FillKind.Solid) paint.Color = Color(fill.Color, fill.Opacity);
         else
@@ -133,7 +134,7 @@ public sealed partial class SceneRenderer
     {
         var nodeId = node.Id; var effects = node.Shadows;
         RectD? sourceBounds = node.Kind is not NodeKind.Text and not NodeKind.Path && (node.ClipContent || node.Children.Count == 0)
-            ? node.LocalBounds.Inflate(node.Strokes.Where(s => s.Visible).Select(s => s.Width / 2).DefaultIfEmpty(0).Max() + 1) : null;
+            ? node.LocalBounds.Inflate(ShapeGeometry.StrokeOutset(node) + 1) : null;
         if (effects.Count == 0) return null;
         if (_effects.TryGetValue(nodeId, out var prior) && prior.Bounds == sourceBounds && SameEffects(prior.Keys, effects)) return prior.Filter;
         if (prior is not null) { prior.Filter?.Dispose(); _effects.Remove(nodeId); }

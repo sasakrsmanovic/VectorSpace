@@ -7,6 +7,10 @@ public static class VectorPath
 {
     public static string Build(DesignNode node)
     {
+        if (node.IsBoolean) throw new InvalidOperationException("Use a renderer-aware export for live Boolean groups.");
+        if (node.Commands is { } commands) return ShapePathSvg.Commands(commands);
+        if (node.Kind == NodeKind.Ellipse && node.Arc is not null) return ShapePathSvg.Arc(node);
+        if (ShapeGeometry.HasCorners(node) && node.Corners is not null) return ShapePathSvg.Corners(node);
         var w = node.Width; var h = node.Height;
         if (!string.IsNullOrWhiteSpace(node.PathData)) return node.PathData;
         if (node.Kind == NodeKind.Path && node.Points.Count > 0)

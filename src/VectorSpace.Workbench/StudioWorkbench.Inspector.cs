@@ -47,7 +47,7 @@ public sealed partial class StudioWorkbench
         var size = AddSection("Layout", "plus", AddAutoLayout);
         var chain = new IconButton("link", "Lock aspect ratio", () => _aspectLocked = !_aspectLocked) { IsSelected = _aspectLocked, Width = 24 };
         size.Body.Children.Add(Studio.Columns((Number("W", node.Width, v => Resize(v, null), 1), -1), (Number("H", node.Height, v => Resize(null, v), 1), -1), (chain, 24)));
-        if (node.IsContainer)
+        if (node.IsContainer && !node.IsBoolean)
         {
             var clip = Check("Clip content", node.ClipContent, value => Change("Clip content", n => n.ClipContent = value)); size.Body.Children.Add(clip);
             size.Body.Children.Add(Studio.Choice(Enum.GetNames<LayoutDirection>(), node.Layout.Direction.ToString(), value => Change("Change auto layout", n => n.Layout.Direction = Enum.Parse<LayoutDirection>(value)), "Auto layout direction"));
@@ -91,19 +91,20 @@ public sealed partial class StudioWorkbench
             item.Body.Children.Add(Studio.Columns((Number("Max W", node.MaxWidth, v => Change("Maximum width", n => n.MaxWidth = Math.Max(n.MinWidth, v)), 1, 1e7), -1), (Number("Max H", node.MaxHeight, v => Change("Maximum height", n => n.MaxHeight = Math.Max(n.MinHeight, v)), 1, 1e7), -1)));
         }
         var appearance = AddSection("Appearance");
-        appearance.Body.Children.Add(Studio.Columns((Number("%", node.Opacity * 100, v => Change("Opacity", n => n.Opacity = v / 100), 0, 100), -1), (Number("R", node.CornerRadius, v => Change("Corner radius", n => n.CornerRadius = v), 0), -1)));
+        appearance.Body.Children.Add(Studio.Columns((Number("%", node.Opacity * 100, v => Change("Opacity", n => n.Opacity = v / 100), 0, 100), -1), (Number("R", node.CornerRadius, v => Change("Corner radius", n => { n.CornerRadius = v; n.Corners = null; }), 0), -1)));
         appearance.Body.Children.Add(Studio.Choice(Enum.GetNames<BlendKind>(), node.Blend.ToString(), value => Change("Blend mode", n => n.Blend = Enum.Parse<BlendKind>(value)), "Blend mode"));
         if (node.Kind is NodeKind.Polygon or NodeKind.Star)
         {
             appearance.Body.Children.Add(Number("N", node.Sides, v => Change("Polygon sides", n => n.Sides = (int)v), 3, 128));
             if (node.Kind == NodeKind.Star) appearance.Body.Children.Add(Number("%", node.StarRatio * 100, v => Change("Star ratio", n => n.StarRatio = v / 100), 1, 100));
         }
+        BuildShapeInspector(node);
         if (node.Kind == NodeKind.Text) BuildTypography(node);
         BuildFills(node); BuildStrokes(node); BuildEffects(node);
         if (Session.SelectionRoots.Count >= 2)
         {
             var paths = AddSection("Combine shapes"); var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 24 };
-            foreach (var op in Enum.GetValues<BooleanOperation>()) row.Children.Add(new IconButton(op.ToString().ToLowerInvariant(), op.ToString(), () => Run(() => BooleanOperations.Apply(Session, Surface.Renderer, op)))); paths.Body.Children.Add(row);
+            foreach (var op in Enum.GetValues<BooleanOperation>()) row.Children.Add(new IconButton(op.ToString().ToLowerInvariant(), op.ToString(), () => Run(() => LiveBooleanOperations.Create(Session, Surface.Renderer, (BooleanKind)op)))); paths.Body.Children.Add(row);
             paths.Body.Children.Add(Studio.Columns((new StudioButton("Distribute H", () => Run(() => Session.Distribute(true))), -1), (new StudioButton("Distribute V", () => Run(() => Session.Distribute(false))), -1)));
         }
         if (node.Kind is NodeKind.Instance or NodeKind.Component)
@@ -195,6 +196,7 @@ public sealed partial class StudioWorkbench
             var i = index; var stroke = node.Strokes[i];
             section.Body.Children.Add(Studio.Columns((new ColorField(stroke.Color, color => Change("Stroke color", n => { if (n.Strokes.Count > i) n.Strokes[i].Color = color; })), -1), (Number("W", stroke.Width, v => Change("Stroke width", n => { if (n.Strokes.Count > i) n.Strokes[i].Width = v; }), 0, 1000), 68), (new IconButton("minus", "Remove stroke", () => Change("Remove stroke", n => { if (n.Strokes.Count > i) n.Strokes.RemoveAt(i); })) { Width = 24 }, 24)));
             section.Body.Children.Add(Studio.Columns((Number("%", stroke.Opacity * 100, v => Change("Stroke opacity", n => { if (n.Strokes.Count > i) n.Strokes[i].Opacity = v / 100; }), 0, 100), -1), (Studio.Choice(["Solid", "Dashed", "Dotted"], stroke.Dashes.Count == 0 ? "Solid" : stroke.Dashes[0] == 1 ? "Dotted" : "Dashed", value => Change("Stroke dash", n => { if (n.Strokes.Count > i) n.Strokes[i].Dashes = value == "Dashed" ? [8, 6] : value == "Dotted" ? [1, 5] : []; }), "Stroke dash"), -1)));
+            BuildStrokeGeometryControls(section, node, i);
         }
     }
     private void BuildEffects(DesignNode node) => BuildAppearanceEffects(node);

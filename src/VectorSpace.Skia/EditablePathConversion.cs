@@ -46,7 +46,7 @@ public static class EditablePathConversion
         if (points.Count < 2) throw new InvalidOperationException("This layer has no editable contour.");
         editor.Edit("Convert to editable path", () =>
         {
-            node.Kind = NodeKind.Path; node.Points = points; node.PathData = null; node.PathWidth = node.Width; node.PathHeight = node.Height; node.Closed = closed;
+            node.Kind = NodeKind.Path; node.Commands = null; node.Arc = null; node.Corners = null; node.Points = points; node.PathData = null; node.PathWidth = node.Width; node.PathHeight = node.Height; node.Closed = closed;
         });
         void Quadratic(Vec2 a, Vec2 b, Vec2 c)
         {
