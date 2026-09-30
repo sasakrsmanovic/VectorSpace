@@ -2,9 +2,9 @@ using VectorSpace.Core;
 
 namespace VectorSpace.Editing;
 
-/// <summary>Captured sparse baseline for anchor/handle dragging. Capture costs O(selected anchors),
-/// not O(all path anchors), once a PathTopology is retained. Apply allocates no managed objects.
-/// The document transaction remains the caller's responsibility.</summary>
+/// <summary>Captured sparse baseline for anchor/handle dragging. Setup validates retained contour
+/// lists and deduplicates/sorts selection; only selected anchors are copied. Apply runs in O(k)
+/// for k captured anchors without managed allocation. The caller owns the document transaction.</summary>
 public sealed class PathPointDrag
 {
     private readonly record struct Baseline(PathPoint Target, Vec2 Position, Vec2? Incoming, Vec2? Outgoing);
