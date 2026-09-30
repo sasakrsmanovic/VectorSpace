@@ -17,6 +17,10 @@ for (const kind of ['Line', 'Arrow']) {
     await open(page, fixture([original]));
     await point(page, original.x + original.width / 2, original.y + original.height / 2);
     await expect.poll(async () => (await state(page)).id).toBe(original.id);
+    // A selection-only click is not a geometry transaction. In particular it
+    // must not run frame layout and inflate a native primitive's zero axis.
+    expect(await state(page)).toMatchObject({ history: 0, interacting: false,
+      width: original.width, height: original.height });
     await page.keyboard.press('Enter'); await expect.poll(async () => (await state(page)).vectorEditing).toBe(true);
     const converted = child(await save(page, `converted-zero-${kind}.vectorspace`), original.id);
     expect(converted.kind).toBe('Path'); expect(converted.pathWidth).toBeGreaterThan(0); expect(converted.pathHeight).toBeGreaterThan(0);

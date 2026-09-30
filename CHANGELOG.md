@@ -10,9 +10,11 @@
 - Introduce schema 7 with legacy migration and durable schema-6 room upgrade coverage.
 - Extend engine, actual browser and collaboration tests without skipping prior workflows. Full Figma vector networks and pixel parity remain out of scope.
 
+- Defer move transactions and baseline capture until the pointer crosses its threshold; selection-only clicks no longer normalize document geometry or create history.
+- Keep open-arc fills hidden when converting to editable contours, preserving latent paints and undo.
 - Preserve world geometry and authored rotation/reflection when converting zero/subpixel lines and arrows; use a legal nonzero editable scaling basis.
 - Omit derived coordinate length/finiteness from native persistence and shared geometry; retain legacy-file reads and finite-value validation.
-- Add 25 native regressions and two actual-browser conversion/resize workflows during final review; retain strict coordinate-only shared undo/redo assertions.
+- Add 27 native regressions and three actual-browser conversion/resize/appearance workflows during final review; retain strict coordinate-only shared undo/redo assertions.
 
 ## 0.8.0-alpha.1
 
