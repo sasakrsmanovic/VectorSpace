@@ -18,40 +18,29 @@ public sealed partial class SceneRenderer
         finally { canvas.Restore(); }
     }
     /// <summary>Presentation picking ignores editor locks and uses the same nested clips and scroll
-    /// coordinates as rendering. Invisible layers remain excluded; transparent hotspots are supported.</summary>
+    /// coordinates as rendering. Explicit reactive hotspots may be transparent.</summary>
     public DesignNode? HitPrototypeFrame(DesignNode frame, Vec2 point, Vec2 scroll)
     {
-        if (!frame.Visible || !InsideClip(frame, point)) return null;
+        if (!frame.Visible || !ShapeGeometry.ContainsCornerBox(frame, point)) return null;
         return HitChildren(frame.Children, point + scroll) ?? frame;
     }
     private DesignNode? HitChildren(IReadOnlyList<DesignNode> children, Vec2 point)
     {
         for (var i = children.Count - 1; i >= 0; i--)
         {
-            var n = children[i]; if (!n.Visible || n.Kind == NodeKind.Slice) continue;
-            var p = n.LocalMatrix.Inverse.Map(point); var inside = n.LocalBounds.Contains(p);
-            if (!n.ClipContent || InsideClip(n, p))
+            var n = children[i]; if (!n.Visible || n.Kind == NodeKind.Slice || !n.LocalMatrix.TryInvert(out var inverse)) continue;
+            var p = inverse.Map(point); var inside = n.LocalBounds.Contains(p);
+            // Boolean operands are retained authoring data, not separately painted hotspots.
+            if (!n.IsBoolean && (!n.ClipContent || ShapeGeometry.ContainsCornerBox(n, p)))
             {
                 var child = HitChildren(n.Children, p); if (child is not null) return child;
             }
-            if (inside && (n.Kind == NodeKind.Text || n.IsContainer || n.Reactions.Count > 0 || n.PrototypeTargetId is not null)) return n;
+            if (inside && (n.Kind == NodeKind.Text || n.IsContainer && !n.IsBoolean || n.Reactions.Count > 0 || n.PrototypeTargetId is not null)) return n;
             var path = Geometry(n);
-            if (n.Fills.Any(f => f.Visible) && path.Contains((float)p.X, (float)p.Y)) return n;
-            if (n.Strokes.Any(s => s.Visible && s.Width > 0))
-            {
-                using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = (float)Math.Max(6, n.Strokes.Where(s => s.Visible).Max(s => s.Width)), StrokeCap = SKStrokeCap.Round };
-                using var outline = new SKPath(); paint.GetFillPath(path, outline);
-                if (outline.Contains((float)p.X, (float)p.Y)) return n;
-            }
+            if (n.Arc?.Open != true && n.Fills.Any(f => f.Visible) && path.Contains((float)p.X, (float)p.Y)) return n;
+            for (var j = 0; j < n.Strokes.Count; j++)
+                if (n.Strokes[j] is { Visible: true, Width: > 0 } && StrokeContains(n, j, p, 3)) return n;
         }
         return null;
-    }
-    private static bool InsideClip(DesignNode n, Vec2 p)
-    {
-        if (!n.LocalBounds.Contains(p)) return false;
-        if (n.CornerRadius <= 0) return true;
-        var radius = Math.Min(n.CornerRadius, Math.Min(n.Width, n.Height) / 2);
-        var x = Math.Clamp(p.X, radius, n.Width - radius); var y = Math.Clamp(p.Y, radius, n.Height - radius);
-        return (p.X - x) * (p.X - x) + (p.Y - y) * (p.Y - y) <= radius * radius;
     }
 }

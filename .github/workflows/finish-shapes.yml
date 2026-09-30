@@ -1,17 +1,17 @@
-name: Integrate shape interaction
+name: Validate final shape integration
 on:
   push:
     branches: ['feat/shape-stroke-editing-0.8']
-    paths: ['.github/workflows/integrate-shape-ui.yml', 'scripts/integrate-shape-ui.py', 'scripts/finalize-shape-ui.py']
+    paths: ['.github/workflows/finish-shapes.yml', 'scripts/finish-shapes.py']
 permissions:
   contents: write
 concurrency:
-  group: integrate-shape-ui
+  group: finish-shapes
   cancel-in-progress: true
 jobs:
   integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -20,38 +20,36 @@ jobs:
         with:
           global-json-file: global.json
       - name: Apply guarded source integration
-        run: |
-          python3 scripts/integrate-shape-ui.py
-          python3 scripts/finalize-shape-ui.py
-      - name: Validate shape pixels and geometry
+        run: python3 scripts/finish-shapes.py
+      - name: Engine and exact stroke-extent regressions
         run: |
           mkdir -p artifacts
           dotnet run --project tests/VectorSpace.Tests -c Release > artifacts/shape-engine.log 2>&1 || { grep -A12 -E 'FAIL|error' artifacts/shape-engine.log; tail -5 artifacts/shape-engine.log; exit 1; }
           tail -3 artifacts/shape-engine.log
+      - name: Actual server schema upgrades and restart
+        run: |
+          dotnet build server/VectorSpace.Server -c Release
+          python3 -m unittest discover -s tests/server -v
       - name: Compile reusable Uno workbench
         run: dotnet build src/VectorSpace.Workbench -f net10.0-desktop -c Release -p:VectorSpaceDesktopOnly=true
-      - name: Measure retained stroke resources
-        run: |
-          dotnet run --project tests/VectorSpace.Tests -c Release --no-build -- --benchmark-shapes > artifacts/shapes.json
-          cat artifacts/shapes.json
-      - name: Preserve validated source
+      - name: Preserve validated source changes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm scripts/integrate-shape-ui.py scripts/finalize-shape-ui.py
-          git add src tests scripts/integrate-shape-ui.py scripts/finalize-shape-ui.py
-          git commit -m 'feat: wire shape grips, custom stroke editors and exact contour regression coverage'
+          rm scripts/finish-shapes.py
+          git add src tests docs README.md CHANGELOG.md .github/workflows/build.yml scripts/finish-shapes.py
+          git commit -m 'fix: finalize native shape integration, persisted schema upgrades and documentation'
           git push origin HEAD:feat/shape-stroke-editing-0.8
-      - name: Retain diagnostics
+      - name: Preserve diagnostics
         if: always()
         run: |
           mkdir -p artifacts
-          git diff > artifacts/shape-ui-integration.patch
+          git diff > artifacts/final-shape-integration.patch
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: shape-ui-integration-validation
+          name: final-shape-integration-validation
           path: |
-            artifacts/shape-ui-integration.patch
             artifacts/shape-engine.log
-            artifacts/shapes.json
+            artifacts/collaboration-server.log
+            artifacts/final-shape-integration.patch
