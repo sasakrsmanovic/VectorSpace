@@ -19,7 +19,16 @@ export async function choose(page, name, value) { await inspect(page, name, 'Com
 export async function screen(page, x, y) { const c = await control(page, 'Design canvas'); const s = await state(page); return { x: c.x + s.panX + x * s.zoom, y: c.y + s.panY + y * s.zoom }; }
 export async function point(page, x, y, deep = true) { const p = await screen(page, x, y); if (deep) await page.keyboard.down('Control'); await page.mouse.click(p.x, p.y); if (deep) await page.keyboard.up('Control'); }
 export async function action(page, name) {
-  await page.keyboard.press('Control+k'); await input(page, 'Search quick actions', name); await click(page, name);
+  await page.keyboard.press('Control+k'); await input(page, 'Search quick actions', name);
+  await expect.poll(() => page.evaluate(() => (globalThis.__vectorSpaceControls ?? []).find(c => c.name === 'Search quick actions')?.value)).toBe(name);
+  const search = await control(page, 'Search quick actions', 'TextBox');
+  // An identically named inspector button remains in the diagnostic tree behind
+  // the modal. Resolve only the visible results panel, never the background.
+  const c = await waitForSkiaControl(page, name, 'StudioButton', {
+    within: { x: search.x, y: search.y + search.height, width: search.width, height: 380 }
+  });
+  await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2);
+  await expect.poll(() => page.evaluate(() => (globalThis.__vectorSpaceControls ?? []).some(c => c.name === 'Search quick actions'))).toBe(false);
 }
 export function fixture(children) {
   return { formatVersion: 6, id: 'shape-fixture', name: 'Shape acceptance', pages: [{ id: 'shapes', name: 'Shapes', nodes: [
@@ -30,6 +39,7 @@ export function fixture(children) {
   ] }] };
 }
 export async function open(page, document = fixture()) {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('?test=1'); await page.waitForFunction(() => globalThis.__vectorSpaceState?.ready, null, { timeout: 150000 });
   await control(page, 'Design canvas'); await page.mouse.click(650, 240);
   const picker = page.waitForEvent('filechooser'); await page.keyboard.press('Control+o');
@@ -39,6 +49,7 @@ export async function open(page, document = fixture()) {
 export async function save(page, filename) {
   const pending = page.waitForEvent('download'); await page.keyboard.press('Control+s'); const download = await pending;
   await fs.mkdir('artifacts', { recursive: true }); const path = 'artifacts/' + filename; await download.saveAs(path);
+  await expect.poll(async () => (await state(page)).saving).toBe(false);
   return JSON.parse(await fs.readFile(path, 'utf8'));
 }
 export async function grip(page, index) {

@@ -10,6 +10,7 @@ internal static class ShapeIntegrationTests
     {
         ShapeOverrideTests.Register(test);
         LegacyBooleanTests.Register(test);
+        NativeShapeOrderTests.Register(test);
         test("normal selection ignores a Boolean hole while entered scope reaches retained operands", () =>
         {
             var frame = new DesignNode { Kind = NodeKind.Frame, Width = 300, Height = 200 };

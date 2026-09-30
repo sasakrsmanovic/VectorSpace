@@ -6,8 +6,7 @@ async function rectangle(page) { await point(page, 250, 240); await expect.poll(
 async function ellipse(page) { await point(page, 540, 240); await expect.poll(async () => (await state(page)).id).toBe('ellipse'); }
 async function shapeEdit(page) { await inspect(page, 'Edit shape on canvas'); await click(page, 'Edit shape on canvas'); await expect.poll(async () => (await state(page)).shapeEditing).toBe(true); }
 
-// All authoring uses real pointer/keyboard input. Diagnostic handles provide only
-// read-only coordinates; tests never execute a document mutation command in JS.
+// Actual pointer/keyboard authoring; diagnostics expose coordinates, not mutations.
 test('independent corner controls alter real pixels and persist exact authored radii', async ({ page }) => {
   await open(page); await rectangle(page); await inspect(page, 'Independent'); await click(page, 'Independent');
   await field(page, 'Top L', 70); await field(page, 'Top R', 0); await field(page, 'Bottom L', 0); await field(page, 'Bottom R', 35);
@@ -28,16 +27,18 @@ test('corner grips support Alt independence and Undo cancels capture before furt
   await page.mouse.move(h.x + 24 * h.zoom, h.y + 24 * h.zoom, { steps: 8 }); await page.mouse.up(); await page.keyboard.up('Alt');
   await expect.poll(async () => (await state(page)).corners?.[0]).toBeCloseTo(36, 1);
   expect((await state(page)).corners.slice(1)).toEqual([12, 12, 12]);
+  // Pointer coordinates cross browser/Uno floating-point boundaries. The committed
+  // baseline, not a rounded literal, must be restored bit-for-bit by cancellation.
+  const committedCorners = (await state(page)).corners;
   h = await grip(page, 0); await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x + 10 * h.zoom, h.y + 10 * h.zoom);
   await page.keyboard.press('Control+z');
-  // The abandoned drag must not mutate the restored document after Undo.
   await page.mouse.move(h.x + 40 * h.zoom, h.y + 40 * h.zoom); await page.mouse.up();
   await expect.poll(async () => (await state(page)).shapeEditing).toBe(false);
-  expect((await state(page)).corners[0]).toBeCloseTo(36, 1); expect((await state(page)).x).toBe(150);
+  expect((await state(page)).corners).toEqual(committedCorners); expect((await state(page)).x).toBe(150);
   await shapeEdit(page); h = await grip(page, 2); await page.mouse.move(h.x, h.y); await page.mouse.down();
   await page.mouse.move(h.x - 16 * h.zoom, h.y - 16 * h.zoom, { steps: 5 }); await page.keyboard.press('Escape'); await page.mouse.up();
   await expect.poll(async () => (await state(page)).shapeEditing).toBe(false);
-  expect((await state(page)).corners).toEqual([36, 12, 12, 12]);
+  expect((await state(page)).corners).toEqual(committedCorners);
 });
 
 test('ellipse arc inspector creates a ring hole and edits signed sweep without losing shape identity', async ({ page }) => {
@@ -48,7 +49,6 @@ test('ellipse arc inspector creates a ring hole and edits signed sweep without l
   await page.waitForTimeout(200); const get = pixels(await page.screenshot({ path: 'artifacts/screenshots/ellipse-ring-controls.png' }));
   const center = await screen(page, 540, 240), ring = await screen(page, 601, 240);
   expect(get(center.x, center.y)).toEqual([255, 255, 255]); expect(get(ring.x, ring.y)[1]).toBeGreaterThan(140);
-  // Select actual ring content, not its transparent center, before saving.
   await point(page, 601, 240); const doc = await save(page, 'ellipse-ring.vectorspace');
   expect(child(doc, 'ellipse').kind).toBe('Ellipse'); expect(child(doc, 'ellipse').arc).toEqual({ startDegrees: -40, sweepDegrees: 280, innerRadius: .6, open: false });
   await field(page, 'Sweep', -160); await expect.poll(async () => (await state(page)).arcSweep).toBe(-160);
@@ -77,9 +77,15 @@ test('stroke geometry controls affect outside pixels and survive style transfer'
   expect(image(inside.x, inside.y)[0]).toBeGreaterThan(220); expect(image(inside.x, inside.y)[2]).toBeLessThan(80);
   await choose(page, 'Stroke cap', 'Square'); await choose(page, 'Stroke join', 'Bevel'); await field(page, 'Phase', 3);
   await inspect(page, 'Dash pattern'); await input(page, 'Dash pattern', '8, 6, 4'); await page.keyboard.press('Enter');
-  await point(page, 250, 240); await page.keyboard.press('Control+Alt+c'); await ellipse(page); await page.keyboard.press('Control+Alt+v');
+  await point(page, 250, 240); await page.keyboard.press('Control+Alt+c');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/^VectorSpace\.Properties\/1\n/);
+  const packet = JSON.parse((await page.evaluate(() => navigator.clipboard.readText())).split('\n').slice(1).join('\n'));
+  const expected = { alignment: 'Outside', cap: 'Square', join: 'Bevel', dashOffset: 3, dashes: [8, 6, 4] };
+  expect(packet.properties.strokes[0]).toMatchObject(expected);
+  await ellipse(page); await page.keyboard.press('Control+Alt+v');
+  await expect.poll(async () => (await state(page)).fill).toBe('#F24822');
   const doc = await save(page, 'shape-stroke-transfer.vectorspace');
-  expect(child(doc, 'ellipse').strokes[0]).toMatchObject({ alignment: 'Outside', cap: 'Square', join: 'Bevel', dashOffset: 3, dashes: [8, 6, 4] });
+  expect(child(doc, 'ellipse').strokes[0]).toMatchObject(expected);
 });
 
 test('live Boolean authoring preserves editable operands and exact flatten undo', async ({ page }) => {
@@ -88,13 +94,14 @@ test('live Boolean authoring preserves editable operands and exact flatten undo'
     { id: 'ellipse', kind: 'Ellipse', name: 'Cutout', x: 250, y: 160, width: 160, height: 160, fills: [{ color: '#14AE5C' }] }
   ]);
   await open(page, doc); await point(page, 200, 240);
-  await page.keyboard.down('Shift'); await point(page, 350, 240); await page.keyboard.up('Shift');
+  // The cutout extends beyond the selected base. Avoid its right-middle resize
+  // grip at (350,240): that is a resize target, not a layer-selection target.
+  await page.keyboard.down('Shift'); await point(page, 375, 240); await page.keyboard.up('Shift');
   await expect.poll(async () => (await state(page)).selection).toBe(2);
   await action(page, 'Subtract shapes (live)'); await expect.poll(async () => (await state(page)).booleanOperation).toBe('Subtract');
   const id = (await state(page)).id;
   await page.waitForTimeout(200); const get = pixels(await page.screenshot({ path: 'artifacts/screenshots/live-boolean-inspector.png' }));
   const cutout = await screen(page, 300, 240); expect(get(cutout.x, cutout.y)).toEqual([255, 255, 255]);
-  // Enter selects an actual retained operand, not the flattened result.
   await page.keyboard.press('Enter'); await expect.poll(async () => (await state(page)).id).toBe('ellipse'); await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Shift+Enter'); await expect.poll(async () => (await state(page)).id).toBe(id);
   const native = await save(page, 'live-boolean.vectorspace'); const group = child(native, id);

@@ -56,9 +56,28 @@ public static class NativeShapeGeometry
     public static void AddCornerBox(SKPath path, DesignNode node)
     {
         var r = node.EffectiveCorners;
-        using var round = new SKRoundRect();
-        round.SetRectRadii(SceneRenderer.Rect(node.LocalBounds), [new((float)r.TopLeft, (float)r.TopLeft), new((float)r.TopRight, (float)r.TopRight), new((float)r.BottomRight, (float)r.BottomRight), new((float)r.BottomLeft, (float)r.BottomLeft)]);
-        path.AddRoundRect(round);
+        var w = (float)node.Width; var h = (float)node.Height;
+        var tl = (float)r.TopLeft; var tr = (float)r.TopRight;
+        var br = (float)r.BottomRight; var bl = (float)r.BottomLeft;
+        // Contour order is part of editable conversion: begin on the top-left edge,
+        // then proceed clockwise, matching the existing portable SVG builder.
+        // SKRoundRect's default starts at a different corner even for a plain rect.
+        // Explicit native commands retain the allocation benefit without reindexing
+        // anchors merely because the renderer stopped parsing SVG.
+        const float weight = 0.7071067811865476f;
+        path.MoveTo(tl, 0);
+        path.LineTo(w - tr, 0);
+        if (tr > 0) path.ConicTo(w, 0, w, tr, weight);
+        path.LineTo(w, h - br);
+        if (br > 0) path.ConicTo(w, h, w - br, h, weight);
+        path.LineTo(bl, h);
+        if (bl > 0) path.ConicTo(0, h, 0, h - bl, weight);
+        if (tl > 0)
+        {
+            path.LineTo(0, tl);
+            path.ConicTo(0, 0, tl, 0, weight);
+        }
+        path.Close();
     }
     private static void AddArc(SKPath path, DesignNode n)
     {
