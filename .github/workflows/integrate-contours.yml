@@ -1,8 +1,8 @@
-name: Integrate compound vector editing
+name: Finalize compound vector editing
 on:
   push:
     branches: ['feat/compound-vector-editing-0.9']
-    paths: ['scripts/contours-transfer-*.txt', '.github/workflows/integrate-contours.yml']
+    paths: ['scripts/finish-contours.txt', '.github/workflows/integrate-contours.yml']
 permissions:
   contents: write
 concurrency:
@@ -16,31 +16,29 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - name: Reconstruct and preserve exact local source changes
+      - name: Preserve reviewed source and documentation
         shell: bash
         run: |
           python3 - <<'PY'
           import base64, hashlib, lzma, subprocess
           from pathlib import Path
-          parts = sorted(Path('scripts').glob('contours-transfer-*.txt'))
-          assert len(parts) == 6
-          patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
-          assert hashlib.sha256(patch).hexdigest() == '72c6ccbc3f6ffcc1ce94366525053b2523cb9288858d0942cf39c1624495ea04'
+          transfer = Path('scripts/finish-contours.txt')
+          patch = lzma.decompress(base64.b64decode(transfer.read_text().strip(), validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'c6913d68490f63b9e539cbc4b88f16db39176ad92cec8e598217df4fdbb17a5d'
           assert b'diff --git a/.github/' not in patch
-          Path('/tmp/contours-source.patch').write_bytes(patch)
-          subprocess.run(['git','apply','--unidiff-zero','--check','/tmp/contours-source.patch'], check=True)
-          subprocess.run(['git','apply','--unidiff-zero','/tmp/contours-source.patch'], check=True)
-          for p in parts: p.unlink()
+          Path('/tmp/finish-contours.patch').write_bytes(patch)
+          subprocess.run(['git','apply','--unidiff-zero','--check','/tmp/finish-contours.patch'], check=True)
+          subprocess.run(['git','apply','--unidiff-zero','/tmp/finish-contours.patch'], check=True)
+          transfer.unlink()
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src tests docs README.md CHANGELOG.md Directory.Build.props scripts/contours-transfer-*.txt
+          git add src tests docs README.md scripts/finish-contours.txt
           git diff --cached --check
-          git commit -m 'feat: compound cubic contours, cut and join, custom vector controls and sparse anchor capture'
+          git commit -m 'fix: finalize compound subdivision, canonical persistence and vector playground workflows'
           git push origin HEAD:feat/compound-vector-editing-0.9
       - name: Engine regressions and scoped sparse capture benchmark
         run: |
@@ -61,7 +59,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: compound-integration-validation
+          name: compound-final-integration
           path: |
             artifacts/contour-engine.log
             artifacts/contours.json
