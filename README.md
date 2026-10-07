@@ -1,6 +1,6 @@
 # VectorSpace
 
-**A local-first vector design, prototyping and collaborative editing workspace built with Uno Platform and SkiaSharp.**
+**A local-first vector design, prototyping and collaborative editing workspace built with [Uno Platform](https://platform.uno) and SkiaSharp.**
 
 [![Build](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/build.yml/badge.svg)](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/build.yml)
 [![Desktop](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/desktop.yml/badge.svg)](https://github.com/wieslawsoltes/VectorSpace/actions/workflows/desktop.yml)
